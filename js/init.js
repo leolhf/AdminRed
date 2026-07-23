@@ -5,6 +5,21 @@
 // ═══════════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+//  SERVICE WORKER
+//  BUG FIX: antes se registraba al final de init(), después de varios
+//  `await` (tryRestoreFileHandle, etc.). Eso retrasaba el registro lo
+//  suficiente como para que herramientas de análisis (ej. PWABuilder)
+//  terminaran su escaneo antes de detectarlo, y como que el navegador
+//  tardara más en cachear la app para uso offline.
+//  Ahora se registra de inmediato, en paralelo, sin bloquear ni ser
+//  bloqueado por el resto del arranque de la app.
+if('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js')
+    .then(reg => console.log('SW registrado:', reg.scope))
+    .catch(e => console.warn('SW no pudo registrarse:', e));
+}
+
 async function init() {
   document.getElementById('app-version').textContent = 'v'+APP_VERSION;
   applyTheme();
@@ -30,15 +45,6 @@ async function init() {
   checkBackupReminder();
   if(getPIN()) showPinScreen('unlock');
   await tryRestoreFileHandle();
-  // Register Service Worker
-  if('serviceWorker' in navigator) {
-    try {
-      const reg = await navigator.serviceWorker.register('./sw.js');
-      console.log('SW registrado:', reg.scope);
-    } catch(e) {
-      console.warn('SW no pudo registrarse:', e);
-    }
-  }
 }
 
 init();

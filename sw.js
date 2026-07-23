@@ -15,6 +15,14 @@ const PRECACHE = [
   './js/core/config.js',
   './js/core/crypto.js',
   './js/core/calculations.js',
+  './js/core/reset-app.js',
+  './js/core/models/investment.js',
+  './js/core/migration.js',
+  // Íconos (necesarios para que el manifest funcione offline)
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/icon-192-maskable.png',
+  './icons/icon-512-maskable.png',
   // Storage
   './js/storage/storage-local.js',
   './js/storage/storage-file.js',
