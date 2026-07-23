@@ -8,7 +8,17 @@
 async function requestNotifPermission() {
   if(!('Notification' in window)){notify('Tu navegador no soporta notificaciones',true);return;}
   const p=await Notification.requestPermission();
-  if(p==='granted'){notify('🔔 Notificaciones activadas');scheduleNotifications();}
+  if(p==='granted'){
+    notify('🔔 Notificaciones activadas');
+    scheduleNotifications();
+    // Además del chequeo inmediato de arriba (que solo revisa el estado justo
+    // ahora), registramos este dispositivo en Firebase para poder recibir
+    // recordatorios reales por push aunque la app esté cerrada.
+    if(window.FirebaseSync){
+      const token = await window.FirebaseSync.solicitarTokenPush();
+      if(token) notify('📡 Este dispositivo quedó registrado para recordatorios push');
+    }
+  }
   else{notify('Permiso denegado',true);}
 }
 

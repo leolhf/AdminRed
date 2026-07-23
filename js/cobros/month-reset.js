@@ -45,4 +45,5 @@ function iniciarNuevoMes() {
   document.getElementById('reset-banner').style.display='none';
   save(); render();
   notify('✅ Nuevo mes iniciado — gastos y abonos reiniciados');
+  if(window.FirebaseSync) clients.forEach(c=>window.FirebaseSync.syncCliente(c));
 }

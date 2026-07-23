@@ -2,6 +2,37 @@
 importScripts('./js/version.js'); // trae APP_VERSION
 const CACHE_NAME = 'rednet-' + APP_VERSION;
 
+// ═══════════════════════════════════════════════════════════
+//  NOTIFICACIONES PUSH (Firebase Cloud Messaging) — app cerrada
+//  Usa el paquete "compat" porque los Service Workers clásicos
+//  (registrados sin {type:'module'}) no soportan `import`, solo
+//  `importScripts`.
+// ═══════════════════════════════════════════════════════════
+importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
+
+firebase.initializeApp({
+  apiKey: "AIzaSyDCFodLJNBNrZpL2qIEhSB36wiSE9ymbew",
+  authDomain: "rednet-adminred.firebaseapp.com",
+  projectId: "rednet-adminred",
+  storageBucket: "rednet-adminred.firebasestorage.app",
+  messagingSenderId: "144844223621",
+  appId: "1:144844223621:web:5391574c73fc4851ef65ec"
+});
+
+const messaging = firebase.messaging();
+
+// Se dispara cuando llega un push y la app/pestaña NO está en primer plano.
+messaging.onBackgroundMessage((payload) => {
+  const titulo = (payload.notification && payload.notification.title) || 'RedNet';
+  const cuerpo = (payload.notification && payload.notification.body) || '';
+  self.registration.showNotification(titulo, {
+    body: cuerpo,
+    icon: './icons/icon-192.png',
+    badge: './icons/icon-192.png'
+  });
+});
+
 // Solo el "esqueleto" mínimo que necesitas garantizar de entrada
 const PRECACHE = [
   './', 

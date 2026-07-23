@@ -16,6 +16,7 @@ function confirmDelete(id) {
     save(); render();
     document.getElementById('modal-confirm').classList.remove('open');
     notify(`${c.nombre} eliminado`);
+    if(window.FirebaseSync) window.FirebaseSync.eliminarClienteRemoto(id);
   };
   document.getElementById('modal-confirm').classList.add('open');
 }

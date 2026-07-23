@@ -108,6 +108,7 @@ function registrarCobro() {
   } else {
     notify(`Cobro de ${c.nombre} — ${fmt(monto)}`);
   }
+  if(window.FirebaseSync) window.FirebaseSync.syncCliente(c);
 }
 
 function eliminarCobro(hid) {
@@ -125,4 +126,5 @@ function eliminarCobro(hid) {
   history.splice(idx,1);
   save(); render();
   notify(`Cobro de ${h.nombre} eliminado`);
+  if(c && window.FirebaseSync) window.FirebaseSync.syncCliente(c);
 }

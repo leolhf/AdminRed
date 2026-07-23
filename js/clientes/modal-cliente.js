@@ -96,13 +96,23 @@ function saveClient() {
       fechaInicio=a.toISOString().split('T')[0];
     }
   }
+  let clienteId = id;
   if(id){
     const idx=clients.findIndex(c=>c.id===id);
     if(idx>=0) clients[idx]={...clients[idx],nombre,megas,precio,diaPago:dia,telefono,notas};
   } else {
     const newId=clients.length?Math.max(...clients.map(c=>c.id))+1:1;
     clients.push({id:newId,nombre,megas,precio,diaPago:dia,pagado:false,telefono,notas,mesInicio,fechaInicio,mora:0});
+    clienteId=newId;
   }
   save(); render(); closeModal();
   notify(id?`${nombre} actualizado`:`${nombre} añadido${mesInicio==='proximo'?' (desde próximo mes)':''}`);
+  // Sincroniza solo los datos mínimos (nombre, día de pago, monto, pagado) con
+  // Firebase, para que la Cloud Function programada pueda enviar recordatorios
+  // push aunque la app esté cerrada. Si Firebase no cargó (offline, bloqueado
+  // por el usuario, etc.), esto simplemente no hace nada — no rompe el guardado local.
+  if(window.FirebaseSync){
+    const clienteGuardado=clients.find(c=>c.id===clienteId);
+    if(clienteGuardado) window.FirebaseSync.syncCliente(clienteGuardado);
+  }
 }
