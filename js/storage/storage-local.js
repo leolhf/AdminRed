@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════
 //  PERSISTENCIA — localStorage
 // ═══════════════════════════════════════════════════════════
-function dataToJson() { return JSON.stringify({clients,history,gastos,inventario,asignacionesInventario,config},null,2); }
+function dataToJson() { return JSON.stringify({clients,history,gastos,inventario,asignacionesInventario,investments,config},null,2); }
 
 function applyJson(text) {
   const d=JSON.parse(text);
@@ -14,6 +14,7 @@ function applyJson(text) {
   gastos =d.gastos||[];
   inventario=d.inventario||[];
   asignacionesInventario=d.asignacionesInventario||[];
+  investments=d.investments||[];
   config={...config,...(d.config||{})};
 }
 

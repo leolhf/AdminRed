@@ -158,7 +158,7 @@ function renderAlarms() {
 function renderProfit() {
   const moraPendiente=clients.filter(c=>!c.pagado&&getMora(c)>0).reduce((s,c)=>s+c.megas*c.precio*getMora(c),0);
   const tg=totalGastos();
-  const rec=recuperadoInversion();
+  const rec=recuperadoInversionMes();
   const invPend=deudaEquipoPendienteTotal();
   document.getElementById('profit-rows').innerHTML=`
     <div class="pb-row"><span>Costo servicio (${config.megas} Mb × ${fmt(config.costoPorMega)})</span><span class="text-red">−${fmt(costoMes())}</span></div>

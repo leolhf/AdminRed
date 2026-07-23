@@ -106,6 +106,50 @@ function migrarANuevoModeloInversiones() {
 }
 
 // ═══════════════════════════════════════════════════════════
+//  REPARAR INVERSIONES-FANTASMA CREADAS POR VENTAS DE INVENTARIO
+// ═══════════════════════════════════════════════════════════
+// Bug (v4.0.1): dos flujos (venta de inventario "a plazo" y el modal "Ajustar
+// inversión" por cliente) dejaban al cliente con una deudaEquipo tipo OBJETO
+// vinculada a una tarjeta en Inversiones Personales — pero ningún cobro normal
+// reconocía ese objeto, así que la cuota nunca se cobraba y la tarjeta quedaba
+// fija en 0%, además de aparecer mezclada con inversiones personales reales.
+// Esta función detecta cualquier cliente en ese estado (por estructura, no por
+// nombre), le devuelve su deuda como número simple (funcional, cobrable con el
+// mecanismo que sí funciona) y quita la tarjeta huérfana de Inversiones Personales.
+function repararInversionesInventario() {
+  const clientesAfectados = clients.filter(c => c.deudaEquipo && typeof c.deudaEquipo === 'object');
+  if (!clientesAfectados.length) return { reparadas: 0 };
+
+  let reparadas = 0;
+  clientesAfectados.forEach(c => {
+    const invId = c.deudaEquipo.investmentId;
+    const inv = invId ? investments.find(i => i.id === invId) : null;
+
+    const yaRecuperado = history
+      .filter(h => h.id === c.id && h.investmentId === invId)
+      .reduce((s, h) => s + (h.montoEquipo || 0), 0);
+    const cuotaMensualPrevia = c.deudaEquipo.cuotaMensual || 0;
+    const costoTotal = inv ? (inv.costoTotal || 0) : cuotaMensualPrevia;
+    const pendiente = Math.max(0, costoTotal - yaRecuperado);
+
+    c.deudaEquipo = pendiente; // el objeto no es deuda numérica previa válida
+    if (!c.cuotaEquipo || c.cuotaEquipo <= 0) c.cuotaEquipo = cuotaMensualPrevia || pendiente;
+
+    if (inv) {
+      const idx = investments.indexOf(inv);
+      if (idx !== -1) investments.splice(idx, 1);
+      const gastoIdx = gastos.findIndex(g => g.investmentId === inv.id);
+      if (gastoIdx !== -1) gastos.splice(gastoIdx, 1);
+    }
+
+    reparadas++;
+  });
+
+  save();
+  return { reparadas };
+}
+
+// ═══════════════════════════════════════════════════════════
 //  VERIFICAR SI NECESITA MIGRACIÓN
 // ═══════════════════════════════════════════════════════════
 function necesitaMigracion() {
@@ -125,12 +169,22 @@ function necesitaMigracion() {
 //  EJECUTAR MIGRACIÓN SI ES NECESARIA (al iniciar la app)
 // ═══════════════════════════════════════════════════════════
 function verificarYMigrar() {
+  let huboMigracion = false;
+
   if (necesitaMigracion()) {
     console.log('Detectada necesidad de migración al nuevo modelo de inversiones...');
     const resultado = migrarANuevoModeloInversiones();
     console.log(resultado.mensaje);
     notify(resultado.mensaje);
-    return true;
+    huboMigracion = true;
   }
-  return false;
+
+  const reparacion = repararInversionesInventario();
+  if (reparacion.reparadas > 0) {
+    console.log(`Reparadas ${reparacion.reparadas} inversión(es) fantasma creadas por ventas de inventario`);
+    notify(`Se corrigieron ${reparacion.reparadas} inversión(es) generadas por ventas de inventario`);
+    huboMigracion = true;
+  }
+
+  return huboMigracion;
 }

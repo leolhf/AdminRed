@@ -9,7 +9,16 @@ const megasDisponiblesParaVenta = (excluirId=null)=>{
 };
 const ingresosMes     = ()=>clients.filter(c=>c.megas&&c.precio).reduce((s,c)=>s+c.megas*c.precio,0);
 const costoMes        = ()=>config.megas*config.costoPorMega;
-const totalGastos     = ()=>gastos.reduce((s,g)=>s+g.monto,0);
+// BUG FIX: antes sumaba TODOS los gastos guardados en `gastos`, incluyendo los
+// de categoría "inversion", que iniciarNuevoMes() (month-reset.js) deliberadamente
+// nunca borra (se acumulan mes tras mes para la barra de "Recuperación de inversión").
+// Como resultado, cada compra de equipo/lote hecha alguna vez se seguía restando
+// de la "Ganancia neta" en TODOS los meses futuros, indefinidamente.
+// Ahora solo se cuentan los gastos cuya fecha (YYYY-MM-DD) cae dentro del mes en
+// curso (config.mesActual, formato YYYY-MM), que es lo que realmente representa
+// el gasto "de este mes".
+const gastosDelMes    = ()=>gastos.filter(g=>!config.mesActual || (g.fecha||'').startsWith(config.mesActual));
+const totalGastos     = ()=>gastosDelMes().reduce((s,g)=>s+g.monto,0);
 const ganancia        = ()=>ingresosMes()-costoMes()-totalGastos();
 const gananciaMensual  = ()=>ingresosMes()-costoMes();
 const cobrado         = ()=>clients.filter(c=>c.pagado).reduce((s,c)=>s+c.megas*c.precio,0);
@@ -24,8 +33,17 @@ const inversionTotalHistorica   = ()=>investments.reduce((s,i)=>s+(i.costoTotal|
 // registra en cada cobro (modal-cobro.js), liquidación (liquidarDeuda) y venta de
 // inventario (inventario.js). Esto refleja el dinero realmente recuperado.
 const recuperadoInversion       = ()=>history.reduce((s,h)=>s+(h.montoEquipo||0),0);
+// BUG FIX: gananciaAjustada() sumaba ganancia() (un número del mes en curso) con
+// recuperadoInversion() (un acumulado histórico de TODA la vida de la app, sin
+// filtrar por fecha). Con cada mes que pasaba, "Ganancia ajustada" iba sumando
+// cada vez más lo cobrado en meses anteriores — un número que crecía sin parar
+// y no representaba nada real de "este mes".
+// Para gananciaAjustada() se usa ahora solo lo recuperado DENTRO del mes en curso.
+// recuperadoInversion() se deja intacta (histórica) para la sección "Recuperación
+// de inversión" de Estadísticas, que sí está pensada como acumulado de toda la vida.
+const recuperadoInversionMes    = ()=>history.reduce((s,h)=>s+((config.mesActual && (h.fecha||'').startsWith(config.mesActual))?(h.montoEquipo||0):0),0);
 const deudaEquipoPendienteTotal = ()=>clients.reduce((s,c)=>s+getDeudaEquipoCliente(c),0);
-const gananciaAjustada          = ()=>ganancia()+recuperadoInversion();
+const gananciaAjustada          = ()=>ganancia()+recuperadoInversionMes();
 
 function getMora(c) {
   return (!c.mora || c.mora<=0) ? 0 : c.mora;

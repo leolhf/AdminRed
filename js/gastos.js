@@ -105,7 +105,11 @@ function renderGastos() {
   const invGastos  = gastos.filter(g=>g.categoria==='inversion').reduce((s,g)=>s+g.monto,0);
   const crecGastos = gastos.filter(g=>g.categoria==='crecimiento').reduce((s,g)=>s+g.monto,0);
   const gan  = ganancia();
-  const rec  = recuperadoInversion();
+  // BUG FIX: antes usaba recuperadoInversion() (histórica, de toda la vida) para
+  // mostrar "Recuperación de inversión cobrada" junto a "Ganancia ajustada", que
+  // ahora se calcula solo con lo recuperado en el mes en curso (recuperadoInversionMes).
+  // Si se mezclaban, la fila mostrada no cuadraba con la suma real de la tarjeta.
+  const rec  = recuperadoInversionMes();
   const ganAj= gananciaAjustada();
 
   document.getElementById('gastos-resumen').innerHTML=`

@@ -98,34 +98,25 @@ function asignarConsumoInventario(invId, clienteId, cantidad, precioUnidad, modo
       fecha: venta.fecha,
       nota: `📦 Venta inventario: ${cantidad}${inv.unidad==='m'?'m':'u'} de ${inv.desc}`,
       parcial: false,
+      tipo: 'inventario',
       prevState: {pagado:c.pagado, mora:c.mora||0, abono:c.abono||0, deudaEquipo:c.deudaEquipo||0}
     });
     venta.hid = hid; // enlaza la venta con su cobro, para poder revertir ambos juntos
   } else {
-    // A plazo: crear/vincular inversión y usar nuevo modelo
-    const investmentId = `inv_inv_${Date.now()}_${Math.floor(Math.random()*1000)}`;
-    
-    // Crear inversión para esta venta de inventario
-    const invVenta = createInvestment(`Inventario — ${inv.desc}`, monto, venta.fecha);
-    invVenta.clientesVinculados.push(clienteId);
-    investments.push(invVenta);
-    
-    // Actualizar cliente al nuevo modelo
+    // A plazo: se registra como una deuda de equipo simple del cliente (modelo
+    // numérico), SEPARADA de "Inversiones personales" — vender material de
+    // inventario a plazo no es una inversión de capital tuya, es una cuenta por
+    // cobrar puntual a ese cliente. No crea una tarjeta nueva en Inversiones
+    // Personales ni un gasto adicional (el costo del lote ya se contabilizó una
+    // sola vez, completo, al comprarlo en comprarInventario()).
     venta.prevCliente = {deudaEquipo: c.deudaEquipo||0, cuotaEquipo: c.cuotaEquipo||0};
-    c.deudaEquipo = {
-      investmentId: invVenta.id,
-      cuotaMensual: monto,
-      pagado: 0
-    };
-    
-    // Registrar gasto de inversión
-    gastos.push({
-      desc: `Inventario a plazo — ${inv.desc}`,
-      monto: monto,
-      fecha: venta.fecha,
-      categoria: 'inversion',
-      investmentId: invVenta.id
-    });
+
+    const deudaPrevia = (typeof c.deudaEquipo === 'number') ? c.deudaEquipo : 0;
+    c.deudaEquipo = deudaPrevia + monto;
+    // Si ya tenía una cuota mensual activa, se conserva (seguirá pagando lo mismo
+    // cada mes hasta cubrir la deuda ampliada); si no tenía, se sugiere liquidar
+    // esta venta completa en la próxima cuota.
+    if (!c.cuotaEquipo || c.cuotaEquipo <= 0) c.cuotaEquipo = monto;
   }
 
   asignacionesInventario.push(venta);
@@ -158,17 +149,6 @@ function eliminarVentaInventario(ventaId) {
     const hIdx = history.findIndex(h => h.hid === venta.hid);
     if(hIdx !== -1) history.splice(hIdx, 1);
   } else if(c && venta.prevCliente){
-    // Revertir al modelo antiguo si estaba en nuevo modelo
-    if(c.deudaEquipo && typeof c.deudaEquipo === 'object' && c.deudaEquipo.investmentId) {
-      // Eliminar inversión creada para esta venta
-      const invIdx = investments.findIndex(i => i.id === c.deudaEquipo.investmentId);
-      if(invIdx !== -1) investments.splice(invIdx, 1);
-      
-      // Eliminar gasto asociado
-      const gastoIdx = gastos.findIndex(g => g.investmentId === c.deudaEquipo.investmentId);
-      if(gastoIdx !== -1) gastos.splice(gastoIdx, 1);
-    }
-    
     c.deudaEquipo = venta.prevCliente.deudaEquipo;
     c.cuotaEquipo = venta.prevCliente.cuotaEquipo;
   }

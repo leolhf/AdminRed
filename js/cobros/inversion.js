@@ -7,16 +7,8 @@ function ajustarInversion(id) {
   document.getElementById('inv-client-id').value = id;
   document.getElementById('inv-client-name').value = c.nombre;
   
-  // Soportar ambos modelos: antiguo (número) y nuevo (objeto)
-  if (c.deudaEquipo && typeof c.deudaEquipo === 'object') {
-    // Nuevo modelo
-    document.getElementById('inv-total').value = getDeudaEquipoCliente(c);
-    document.getElementById('inv-cuota').value = c.deudaEquipo.cuotaMensual || 0;
-  } else {
-    // Modelo antiguo
-    document.getElementById('inv-total').value = c.deudaEquipo || 0;
-    document.getElementById('inv-cuota').value = c.cuotaEquipo || 0;
-  }
+  document.getElementById('inv-total').value = (typeof c.deudaEquipo === 'number') ? c.deudaEquipo : 0;
+  document.getElementById('inv-cuota').value = c.cuotaEquipo || 0;
   
   const modoEl = document.getElementById('inv-modo');
   if(modoEl) {
@@ -59,57 +51,24 @@ function saveInversion() {
   const c = clients.find(x=>x.id===id);
   if(!c) return;
 
-  // Detectar modelo actual y manejar accordingly
-  const esModeloNuevo = c.deudaEquipo && typeof c.deudaEquipo === 'object';
-  const deudaPrevia = esModeloNuevo ? getDeudaEquipoCliente(c) : (c.deudaEquipo || 0);
+  // Este modal es para deuda de equipo simple de UN cliente (con cuota que sí se
+  // cobra en cada cobro normal, vía getCuotaEquipoCliente). No crea ni toca
+  // tarjetas de "Inversiones Personales" — eso es exclusivo del botón "+ Nueva"
+  // de esa sección (guardarNuevaInversion), que sirve para inversiones de capital
+  // tuyas, no para deuda puntual de un cliente.
+  const deudaPrevia = (typeof c.deudaEquipo === 'number') ? c.deudaEquipo : 0;
   const incremento  = total - deudaPrevia;
 
-  if (esModeloNuevo && c.deudaEquipo.investmentId) {
-    // Actualizar modelo existente
-    c.deudaEquipo.pagado = (c.deudaEquipo.pagado || 0);
-    c.deudaEquipo.cuotaMensual = cuota;
-    
-    // Actualizar inversión si el total cambió significativamente
-    const inv = investments.find(i => i.id === c.deudaEquipo.investmentId);
-    if (inv && incremento > 0) {
-      inv.costoTotal += incremento;
-    }
-  } else if (total > 0) {
-    // Crear nueva inversión para el cliente
-    const inv = createInvestment(`Equipo — ${c.nombre}`, total);
-    investments.push(inv);
-    
-    c.deudaEquipo = {
-      investmentId: inv.id,
-      cuotaMensual: cuota,
-      pagado: 0
-    };
-    
-    if (!inv.clientesVinculados.includes(c.id)) {
-      inv.clientesVinculados.push(c.id);
-    }
-    
-    // Registrar gasto de inversión
+  c.deudaEquipo = total;
+  c.cuotaEquipo = cuota;
+
+  if(incremento > 0) {
     gastos.push({
       desc: `Inversión equipo — ${c.nombre}`,
-      monto: total,
+      monto: incremento,
       fecha: new Date().toISOString().split('T')[0],
-      categoria: 'inversion',
-      investmentId: inv.id
+      categoria: 'inversion'
     });
-  } else {
-    // Modelo antiguo o sin deuda
-    c.deudaEquipo = total;
-    c.cuotaEquipo = cuota;
-    
-    if(incremento > 0) {
-      gastos.push({
-        desc: `Inversión equipo — ${c.nombre}`,
-        monto: incremento,
-        fecha: new Date().toISOString().split('T')[0],
-        categoria: 'inversion'
-      });
-    }
   }
 
   c.modoCuota      = modo;
@@ -122,34 +81,24 @@ function saveInversion() {
 
 function liquidarDeuda(id) {
   const c = clients.find(x=>x.id===id);
-  if(!c || !c.deudaEquipo || c.deudaEquipo<=0) { notify('Este cliente no tiene deuda de equipo', true); return; }
+  const deudaActual = (typeof c?.deudaEquipo === 'number') ? c.deudaEquipo : 0;
+  if(!c || deudaActual<=0) { notify('Este cliente no tiene deuda de equipo', true); return; }
 
   const input = prompt(
-    `Deuda actual de ${c.nombre}: ${fmt(c.deudaEquipo)}\n¿Cuánto va a pagar? (vacío = liquidar todo)`,
-    c.deudaEquipo
+    `Deuda actual de ${c.nombre}: ${fmt(deudaActual)}\n¿Cuánto va a pagar? (vacío = liquidar todo)`,
+    deudaActual
   );
   if(input===null) return;
 
   let monto = parseInt(input)||0;
   if(monto<=0) { notify('Monto inválido', true); return; }
-  if(monto > c.deudaEquipo) monto = c.deudaEquipo;
+  if(monto > deudaActual) monto = deudaActual;
 
-  const esTotal  = monto >= c.deudaEquipo;
-  const prevState = { pagado:c.pagado, mora:c.mora||0, abono:c.abono||0, deudaEquipo:c.deudaEquipo };
-  
-  // Guardar investmentId para revertir recuperado
-  const investmentId = (c.deudaEquipo && typeof c.deudaEquipo === 'object') ? c.deudaEquipo.investmentId : null;
+  const esTotal  = monto >= deudaActual;
+  const prevState = { pagado:c.pagado, mora:c.mora||0, abono:c.abono||0, deudaEquipo:deudaActual };
 
-  c.deudaEquipo = Math.max(0, c.deudaEquipo - monto);
+  c.deudaEquipo = Math.max(0, deudaActual - monto);
   if(c.deudaEquipo<=0) { c.deudaEquipo=0; c.quiereLiquidar=false; }
-  
-  // Actualizar recuperado de inversión (nuevo modelo)
-  if(investmentId && monto > 0) {
-    if(typeof c.deudaEquipo === 'object') {
-      c.deudaEquipo.pagado = (c.deudaEquipo.pagado || 0) + monto;
-    }
-    actualizarRecuperadoInversion(investmentId, monto);
-  }
 
   history.push({
     hid: Date.now()+'-'+Math.floor(Math.random()*1000),
@@ -157,8 +106,7 @@ function liquidarDeuda(id) {
     fecha: new Date().toISOString().split('T')[0],
     nota: esTotal ? 'Liquidación total de deuda de equipo'
                   : `Abono a deuda de equipo (restan ${fmt(c.deudaEquipo)})`,
-    parcial: !esTotal, prevState,
-    investmentId
+    parcial: !esTotal, tipo: 'liquidacion-equipo', prevState
   });
 
   save(); render();

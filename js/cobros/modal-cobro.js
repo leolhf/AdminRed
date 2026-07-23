@@ -48,9 +48,6 @@ function registrarCobro() {
 
   // Snapshot del estado previo para poder revertir con eliminarCobro
   const prevState = { pagado:c.pagado, mora:c.mora||0, abono:c.abono||0, deudaEquipo:c.deudaEquipo||0 };
-  
-  // Guardar investmentId para revertir recuperado
-  const investmentId = (c.deudaEquipo && typeof c.deudaEquipo === 'object') ? c.deudaEquipo.investmentId : null;
 
   let montoEquipo = 0;
 
@@ -62,12 +59,6 @@ function registrarCobro() {
     if(cuotaEq > 0) {
       montoEquipo   = cuotaEq;
       c.deudaEquipo = Math.max(0, (c.deudaEquipo||0) - cuotaEq);
-      
-      // Actualizar recuperado de inversión (nuevo modelo)
-      if(c.deudaEquipo && typeof c.deudaEquipo === 'object' && c.deudaEquipo.investmentId) {
-        c.deudaEquipo.pagado = (c.deudaEquipo.pagado || 0) + cuotaEq;
-        actualizarRecuperadoInversion(c.deudaEquipo.investmentId, cuotaEq);
-      }
     }
   } else {
     // ── ABONO PARCIAL ──
@@ -96,12 +87,6 @@ function registrarCobro() {
     if(cuotaEq > 0 && abonoEquipo > 0) {
       montoEquipo   = abonoEquipo;
       c.deudaEquipo = Math.max(0, (c.deudaEquipo||0) - abonoEquipo);
-      
-      // Actualizar recuperado de inversión (nuevo modelo)
-      if(c.deudaEquipo && typeof c.deudaEquipo === 'object' && c.deudaEquipo.investmentId) {
-        c.deudaEquipo.pagado = (c.deudaEquipo.pagado || 0) + abonoEquipo;
-        actualizarRecuperadoInversion(c.deudaEquipo.investmentId, abonoEquipo);
-      }
     }
   }
 
@@ -112,8 +97,8 @@ function registrarCobro() {
     hid: Date.now()+'-'+Math.floor(Math.random()*1000),
     id, nombre:c.nombre, monto, montoEquipo, fecha, nota,
     parcial: monto < montoEsperado,
-    prevState,
-    investmentId
+    tipo: 'servicio',
+    prevState
   });
 
   save(); render(); closeCobroModal();
@@ -136,16 +121,6 @@ function eliminarCobro(hid) {
     c.mora        = h.prevState.mora;
     c.abono       = h.prevState.abono;
     c.deudaEquipo = h.prevState.deudaEquipo;
-    
-    // Revertir recuperado de inversión (nuevo modelo)
-    if(h.investmentId && h.montoEquipo) {
-      actualizarRecuperadoInversion(h.investmentId, -h.montoEquipo);
-      
-      // Revertir pagado del cliente si es nuevo modelo
-      if(c.deudaEquipo && typeof c.deudaEquipo === 'object' && c.deudaEquipo.investmentId === h.investmentId) {
-        c.deudaEquipo.pagado = Math.max(0, (c.deudaEquipo.pagado || 0) - h.montoEquipo);
-      }
-    }
   }
   history.splice(idx,1);
   save(); render();

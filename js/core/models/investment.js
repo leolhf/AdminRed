@@ -47,13 +47,27 @@ function proyeccionInversion(inv) {
   // Ahora se suma la ganancia NETA de lo REALMENTE cobrado (history) a los clientes
   // vinculados desde la fecha de la inversión — restando la parte que es costo del
   // paquete — así la barra avanza en cuanto registras el cobro, con el monto real.
+  // BUG FIX: recuperadoReal contaba CUALQUIER entrada de `history` del cliente
+  // vinculado, sin distinguir su origen. Eso incluía:
+  //  a) ventas de inventario (tipo:'inventario') y liquidaciones de deuda de
+  //     equipo de inventario (tipo:'liquidacion-equipo') — pagos que no tienen
+  //     nada que ver con esta inversión personal, ya se contabilizan aparte en
+  //     el módulo de inventario;
+  //  b) la porción de cuota de equipo (h.montoEquipo) dentro de un cobro normal
+  //     de servicio, que en realidad es pago de una deuda de equipo de
+  //     inventario del cliente, no ganancia de servicio recuperable para la
+  //     inversión personal.
+  // Ahora solo se cuentan cobros de servicio (tipo:'servicio', o sin `tipo` por
+  // compatibilidad con historial antiguo previo a esta distinción) y, de esos,
+  // solo la parte de servicio (monto − montoEquipo), no el total del cobro.
   const idsVinculados = new Set(inv.clientesVinculados || []);
   const recuperadoReal = history
-    .filter(h => idsVinculados.has(h.id) && h.fecha >= fechaStr)
+    .filter(h => idsVinculados.has(h.id) && h.fecha >= fechaStr && (!h.tipo || h.tipo === 'servicio'))
     .reduce((s, h) => {
       const c = clients.find(x => x.id === h.id);
       const netFactor = (c && c.precio > 0) ? Math.max(0, (c.precio - costoPorMega) / c.precio) : 1;
-      return s + (h.monto || 0) * netFactor;
+      const montoServicio = Math.max(0, (h.monto || 0) - (h.montoEquipo || 0));
+      return s + montoServicio * netFactor;
     }, 0);
 
   const recuperadoEstimado = Math.min(inv.costoTotal, Math.round(recuperadoReal));
