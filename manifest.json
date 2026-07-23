@@ -1,0 +1,17 @@
+{
+  "name": "RedNet — Control de Servicio",
+  "short_name": "RedNet",
+  "description": "Control de servicio de internet",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='80' fill='%230d1117'/><text y='380' x='60' font-size='380'>📡</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}
