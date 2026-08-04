@@ -1,0 +1,35 @@
+name: Recordatorios de cobro
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependencias
+        working-directory: scripts
+        run: npm install
+
+      - name: Verificar proyecto Firebase
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          node -e "const a=JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT); console.log('project_id:', a.project_id); console.log('client_email:', a.client_email)"
+
+      - name: Enviar recordatorios
+        working-directory: scripts
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node enviar-recordatorios.js

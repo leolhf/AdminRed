@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#090c18">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RedNet">
+<meta name="mobile-web-app-capable" content="yes">
+<title>RedNet — Control de Servicio</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="./icons/icon-512.png">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+<div class="app-layout">
+  <!-- SIDEBAR (desktop only) -->
+  <aside class="sidebar">
+    <div class="logo">Red<span>/</span>Net</div>
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-item active" data-tab="dashboard" onclick="switchSidebarTab('dashboard')">📊 Dashboard</a>
+      <a href="#" class="nav-item" data-tab="clientes" onclick="switchSidebarTab('clientes')">👥 Clientes</a>
+      <a href="#" class="nav-item" data-tab="gastos" onclick="switchSidebarTab('gastos')">💸 Gastos</a>
+      <a href="#" class="nav-item" data-tab="estadisticas" onclick="switchSidebarTab('estadisticas')">📈 Estadísticas</a>
+      <a href="#" class="nav-item" data-tab="equipos" onclick="switchSidebarTab('equipos')">📡 Equipos de Red</a>
+    </nav>
+    <div class="sidebar-footer">
+      <button onclick="toggleTheme()">☀️ Cambiar tema</button>
+      <button onclick="toggleSettingsMenu()">⚙️ Ajustes</button>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+    <!-- HEADER (mobile only) -->
+    <header>
+      <div>
+        <div class="logo">Red<span>/</span>Net</div>
+        <div class="tagline">Control de servicio de internet <span class="app-version" id="app-version"></span></div>
+      </div>
+      <div class="header-right">
+        <span id="clock"></span>
+        <button class="icon-btn" onclick="toggleTheme()" title="Cambiar tema" id="theme-btn">☀️</button>
+        <button class="icon-btn" id="btn-settings" onclick="toggleSettingsMenu()" title="Ajustes">⚙️</button>
+        <!-- SETTINGS MENU -->
+        <div class="settings-menu" id="settings-menu">
+          <button id="btn-install" onclick="installPWA()" style="display:none">📲 Instalar app</button>
+          <button onclick="syncManual()">🔄 Sincronizar ahora</button>
+          <button onclick="requestNotifPermission()">🔔 Notificaciones</button>
+          <button onclick="exportBackup()">⬇️ Exportar respaldo</button>
+          <button onclick="openCheckpointsModal()">🕐 Copias automáticas</button>
+          <button id="btn-deshacer-menu" onclick="deshacerUltimoCambio()" style="display:none">↩️ Deshacer</button>
+          <button onclick="openResetAppModal()">🗑️ Reiniciar app</button>
+        </div>
+      </div>
+    </header>
+
+    <div id="file-bar">
+      <span id="file-status">Sin archivo vinculado · datos en el navegador</span>
+      <button class="file-btn primary" id="btn-file-menu" onclick="toggleFileMenu()">📁 Archivo ▼</button>
+      <!-- FILE MENU -->
+      <div class="file-menu" id="file-menu">
+        <button onclick="linkNewFile()">📄 Nuevo archivo</button>
+        <button onclick="openExistingFile()">📂 Abrir existente</button>
+        <button onclick="saveToFile()">💾 Guardar ahora</button>
+        <button onclick="unlinkFile()">✕ Desvincular</button>
+        <button onclick="linkMacrodroidFile()">🤖 Vincular MacroDroid</button>
+      </div>
+    </div>
+
+    <div class="container">
+      <!-- NOTIFICATION CENTER -->
+      <div class="notification-center" id="notification-center">
+        <!-- Las notificaciones se agregan dinámicamente aquí -->
+      </div>
+
+      <!-- TABS MAIN (organización por categoría) -->
+      <div class="tabs-main">
+        <div class="tab active" data-category="operaciones" onclick="switchMainTab('operaciones')">📊 Operaciones</div>
+        <div class="tab" data-category="analisis" onclick="switchMainTab('analisis')">📈 Análisis</div>
+        <div class="tab" data-category="config" onclick="switchMainTab('config')">⚙️ Configuración</div>
+      </div>
+
+      <!-- SUB-TABS: OPERACIONES -->
+      <div class="sub-tabs-container active" data-category="operaciones">
+        <div class="sub-tabs">
+          <div class="sub-tab active" onclick="switchTab('dashboard')">Dashboard</div>
+          <div class="sub-tab" onclick="switchTab('clientes')">Clientes</div>
+          <div class="sub-tab" onclick="switchTab('cobros')">Cobros</div>
+          <div class="sub-tab" onclick="switchTab('gastos')">Gastos</div>
+        </div>
+      </div>
+
+      <!-- SUB-TABS: ANÁLISIS -->
+      <div class="sub-tabs-container" data-category="analisis">
+        <div class="sub-tabs">
+          <div class="sub-tab active" onclick="switchTab('estadisticas')">Estadísticas</div>
+          <div class="sub-tab" onclick="switchTab('reportes')">Reportes</div>
+        </div>
+      </div>
+
+      <!-- SUB-TABS: CONFIGURACIÓN -->
+      <div class="sub-tabs-container" data-category="config">
+        <div class="sub-tabs">
+          <div class="sub-tab active" onclick="switchTab('equipos')">Equipos de Red</div>
+          <div class="sub-tab" onclick="switchTab('inventario')">Inventario</div>
+          <div class="sub-tab" onclick="switchTab('ajustes')">Ajustes</div>
+        </div>
+      </div>
+
+  <!-- DASHBOARD -->
+  <div id="tab-dashboard" class="tab-content active">
+    <!-- Resumen financiero -->
+    <div class="dashboard-section" data-default="open">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="section-title">📊 Resumen Financiero</span>
+        <span class="collapse-icon">▼</span>
+      </div>
+      <div class="section-content">
+        <div class="summary-grid" id="summary-cards"></div>
+        <div class="bw-section dash-spark" id="dash-spark"></div>
+      </div>
+    </div>
+
+    <!-- Ancho de banda -->
+    <div class="dashboard-section" data-default="open">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="section-title">📡 Ancho de Banda</span>
+        <span class="collapse-icon">▼</span>
+      </div>
+      <div class="section-content">
+        <div class="bw-section">
+          <div class="bw-header">
+            <span class="bw-title">Ancho de banda contratado</span>
+            <span id="bw-text" class="mono" style="font-size:0.76rem;"></span>
+          </div>
+          <div class="bw-bar-bg"><div class="bw-bar-fill" id="bw-bar"></div></div>
+          <div class="bw-legend">
+            <div><span>Vendido: </span><strong id="bw-sold">—</strong></div>
+            <div><span>Libre: </span><strong id="bw-free">—</strong></div>
+            <div><span>Contratado: </span><strong id="bw-total">—</strong></div>
+          </div>
+          <div id="bw-warn" class="cfg-warn" style="display:none;margin-top:6px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Paquete contratado -->
+    <div class="dashboard-section" data-default="open">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="section-title">📦 Paquete Contratado</span>
+        <span class="collapse-icon">▼</span>
+      </div>
+      <div class="section-content">
+        <div class="bw-section" id="paquete-status-section">
+          <div class="bw-header">
+            <span class="bw-title">📡 Paquete contratado</span>
+            <button class="btn btn-amber btn-sm" id="btn-marcar-paquete-pagado" onclick="marcarPaquetePagado()" style="font-size:0.73rem;padding:4px 9px">Marcar como pagado</button>
+          </div>
+          <div id="paquete-status-text" style="font-size:0.82rem;margin-top:4px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alertas de cobro -->
+    <div class="dashboard-section" id="alarm-section-wrapper" style="display:none">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="section-title">⚠ Alertas de Cobro</span>
+        <span class="collapse-icon">▼</span>
+      </div>
+      <div class="section-content">
+        <div id="alarm-section" class="alarm-section">
+          <div id="alarm-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Desglose financiero -->
+    <div class="dashboard-section" data-default="open">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="section-title">💰 Desglose Financiero</span>
+        <span class="collapse-icon">▼</span>
+      </div>
+      <div class="section-content">
+        <div class="profit-breakdown">
+          <div class="bw-title" style="margin-bottom:7px">Desglose financiero del mes</div>
+          <div id="profit-rows"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Inversiones personales -->
+    <div class="dashboard-section" data-default="open">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="section-title">📦 Inversiones Personales</span>
+        <span class="collapse-icon">▼</span>
+      </div>
+      <div class="section-content">
+        <div class="bw-section" id="investments-section">
+          <div class="bw-header">
+            <span class="bw-title">📦 Inversiones personales</span>
+            <button class="btn btn-amber btn-sm" onclick="abrirModalNuevaInversion()" style="font-size:0.73rem;padding:4px 9px">+ Nueva</button>
+          </div>
+          <div id="investments-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Estado de clientes -->
+    <div class="dashboard-section" data-default="open">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="section-title">👥 Estado de Clientes</span>
+        <span class="collapse-icon">▼</span>
+      </div>
+      <div class="section-content">
+        <div class="section-header">
+          <span class="section-title">Listado de clientes</span>
+          <button class="btn btn-green" onclick="openAddModal()">+ Añadir cliente</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Cliente</th><th>Megas</th><th>$/Mega</th><th>Total mes</th><th>Estado</th><th class="hide-sm">Día pago</th><th></th></tr></thead>
+            <tbody id="client-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CLIENTES -->
+  <div id="tab-clientes" class="tab-content">
+    <div class="search-bar">
+      <div class="search-input-wrap">
+        <input class="search-input" id="search-input" type="text" placeholder="Buscar cliente..." oninput="renderTable2();toggleSearchClear()">
+        <button class="search-clear" id="search-clear" style="display:none" onclick="document.getElementById('search-input').value='';renderTable2();toggleSearchClear()" title="Limpiar búsqueda">✕</button>
+      </div>
+      <select class="filter-select" id="filter-status" onchange="renderTable2()">
+        <option value="">Todos</option>
+        <option value="ok">Al día</option>
+        <option value="warn">Cobrar pronto</option>
+        <option value="due">Vencidos</option>
+        <option value="paid">Pagados</option>
+        <option value="mora">Con mora</option>
+      </select>
+    </div>
+    <div class="section-header">
+      <span class="section-title">Listado de clientes</span>
+      <button class="btn btn-green" onclick="openAddModal()">+ Añadir cliente</button>
+    </div>
+    <div class="table-wrap cards-mobile">
+      <table>
+        <thead><tr><th>Cliente</th><th>Megas</th><th>$/Mega</th><th>Total mes</th><th>Pagado</th><th>Estado</th><th>Acciones</th></tr></thead>
+        <tbody id="client-table-body2"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- AJUSTES -->
+  <div id="tab-ajustes" class="tab-content">
+    <div class="section-header">
+      <span class="section-title">⚙ Configuración del servicio</span>
+    </div>
+    <div class="cfg-row">
+      <div class="cfg-field"><label>Megas contratados</label><input type="number" id="cfg-megas" min="1" onchange="applyConfig()"></div>
+      <div class="cfg-field"><label>Margen para ti (Mb)</label><input type="number" id="cfg-margen" min="0" onchange="applyConfig()"></div>
+      <div class="cfg-field"><label>Sobreventa permitida (Mb)</label><input type="number" id="cfg-sobreventa" min="0" onchange="applyConfig()"></div>
+      <div class="cfg-field"><label>Costo/mega (CUP)</label><input type="number" id="cfg-costo" min="1" onchange="applyConfig()"></div>
+      <div class="cfg-field"><label>Día inicio cobro</label><input type="number" id="cfg-dia-inicio" min="1" max="28" onchange="applyConfig()"></div>
+      <div id="cfg-warn" class="cfg-warn" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- ESTADÍSTICAS -->
+  <div id="tab-estadisticas" class="tab-content">
+    <div class="stat-grid" id="stat-cards"></div>
+    <!-- TENDENCIA MENSUAL -->
+    <div class="bw-section" style="margin-bottom:14px">
+      <div class="bw-title" style="margin-bottom:9px">Tendencia de ingresos (últimos 6 meses)</div>
+      <div class="trend-chart" id="trend-chart"></div>
+    </div>
+    <div id="recuperacion-anchor"></div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px">
+      <div class="bw-title" style="margin-bottom:9px">Ranking por aporte mensual</div>
+      <div class="table-wrap" style="border:none;margin-bottom:0">
+        <table class="rank-table"><thead><tr><th>#</th><th>Cliente</th><th>Megas</th><th>$/mes</th><th>% del total</th><th>Mora</th><th>Estado</th></tr></thead>
+        <tbody id="stat-ranking"></tbody></table>
+      </div>
+    </div>
+    <div class="profit-breakdown" style="margin-bottom:14px">
+      <div class="bw-title" style="margin-bottom:9px">Cobrado por cliente (historial)</div>
+      <div id="stat-history-summary"></div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px">
+      <div class="bw-title" style="margin-bottom:9px">Cobros recientes (últimos 15)</div>
+      <div id="stat-recent"></div>
+    </div>
+    <div class="bw-section" style="margin-top:14px" id="sec-ingresos-cliente">
+      <div class="bw-title" style="margin-bottom:9px">Ingresos por cliente</div>
+      <div id="stat-bars"></div>
+    </div>
+  </div>
+
+  <!-- GASTOS -->
+  <div id="tab-gastos" class="tab-content">
+    <div class="profit-breakdown" style="margin-bottom:14px">
+      <div class="bw-title" style="margin-bottom:7px">Resumen financiero del mes</div>
+      <div id="gastos-resumen"></div>
+    </div>
+    <!-- Sub-navegación interna -->
+    <div class="section-header">
+      <span class="section-title" id="gsub-title">Gastos del mes</span>
+      <button class="btn btn-red" id="gsub-btn-add" onclick="openGastoModal()" style="font-size:0.76rem;padding:5px 10px">+ Añadir gasto</button>
+    </div>
+    <!-- Panel: lista de gastos -->
+    <div id="gpanel-gastos">
+      <div class="history-panel"><div id="gastos-list" class="gastos-list"><div class="empty-state">Sin gastos registrados</div></div></div>
+    </div>
+  </div>
+
+  <!-- INVENTARIO -->
+  <div id="tab-inventario" class="tab-content">
+    <div class="section-header">
+      <span class="section-title">Inventario de equipos</span>
+      <button class="btn btn-amber" onclick="openInventarioModal()">+ Comprar lote</button>
+    </div>
+    <div class="history-panel"><div id="inventario-list" class="gastos-list"><div class="empty-state">Sin lotes registrados</div></div></div>
+  </div>
+
+  <!-- COBROS -->
+  <div id="tab-cobros" class="tab-content">
+    <div class="section-header">
+      <span class="section-title">Historial de cobros</span>
+      <div style="display:flex;gap:7px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="exportCSV()">⬇ CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearHistory()">Nuevo mes / Limpiar</button>
+      </div>
+    </div>
+    <div class="history-panel"><div id="history-list"></div></div>
+  </div>
+
+  <!-- EQUIPOS DE RED -->
+  <div id="tab-equipos" class="tab-content">
+    <div class="section-header">
+      <span class="section-title">Equipos de enlace (nanos, routers...)</span>
+      <button class="btn btn-green" onclick="openEquipoModal()">+ Añadir equipo</button>
+    </div>
+    <div class="history-panel"><div id="equipos-list" class="gastos-list"><div class="empty-state">Sin equipos registrados</div></div></div>
+  </div>
+</div>
+
+<!-- MODAL RESTAURAR PERMISOS -->
+<div class="modal-overlay" id="modal-restore">
+  <div class="restore-modal">
+    <h2>🔑 Restaurar acceso al archivo</h2>
+    <p>Hay un archivo vinculado de la sesión anterior. Confirma el acceso para leer y guardar automáticamente.</p>
+    <div class="file-name" id="restore-filename">—</div>
+    <div class="modal-actions" style="margin-top:0">
+      <button class="btn btn-ghost" onclick="declineRestore()">Ignorar</button>
+      <button class="btn btn-amber" onclick="confirmRestore()">🔑 Restaurar permisos</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL COPIAS AUTOMÁTICAS (CHECKPOINTS) -->
+<div class="modal-overlay" id="modal-checkpoints">
+  <div class="modal" style="max-width:420px">
+    <h2 style="color:var(--blue)">🕐 Copias automáticas</h2>
+    <p style="font-size:0.8rem;color:var(--text-muted);margin-top:-4px">
+      Copias guardadas en este dispositivo (independientes del archivo vinculado). Se crean solas al iniciar un mes nuevo o cada 24h de uso.
+    </p>
+    <div id="checkpoints-list" style="max-height:320px;overflow-y:auto;margin-top:8px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeCheckpointsModal()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EQUIPO DE RED -->
+<div class="modal-overlay" id="modal-equipo">
+  <div class="modal">
+    <h2 id="modal-equipo-title">Nuevo equipo</h2>
+    <div class="form-grid">
+      <input type="hidden" id="equipo-edit-id">
+      <div class="field"><label>Nombre</label><input type="text" id="eq-nombre" placeholder="Ej: Nano 1"></div>
+      <div class="form-row">
+        <div class="field"><label>Usuario</label><input type="text" id="eq-usuario" placeholder="ubnt"></div>
+        <div class="field"><label>Contraseña</label><input type="text" id="eq-password" placeholder="••••••••"></div>
+      </div>
+      <div class="field"><label>IP</label><input type="text" id="eq-ip" placeholder="192.168.1.20"></div>
+      <div class="field"><label>Se enlaza a</label>
+        <select id="eq-enlaza-a"><option value="">— Ninguno —</option></select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeEquipoModal()">Cancelar</button>
+      <button class="btn btn-green" onclick="saveEquipo()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CLIENTE -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h2 id="modal-title">Nuevo cliente</h2>
+    <div class="form-grid">
+      <input type="hidden" id="edit-id">
+      <div class="field"><label>Nombre</label><input type="text" id="f-nombre" placeholder="Ej: Roxana"></div>
+      <div class="form-row">
+        <div class="field"><label>Megas asignados</label><input type="number" id="f-megas" min="1" placeholder="5" oninput="checkMegasDisponibles(parseInt(document.getElementById('edit-id').value)||null)"><div id="f-megas-hint" class="megas-hint"></div></div>
+        <div class="field"><label>Precio por mega (CUP)</label><input type="number" id="f-precio" min="1" placeholder="2500"></div>
+      </div>
+      <div class="field"><label>Día de pago acordado</label><input type="number" id="f-dia" min="1" max="28"></div>
+      <div class="field"><label>Teléfono (WhatsApp)</label><input type="tel" id="f-telefono" placeholder="+53 5 1234567"></div>
+      <div id="mes-inicio-wrap" class="field" style="display:none">
+        <label>El cobro inicia desde</label>
+        <div class="mes-toggle">
+          <div class="mes-btn active" id="mes-btn-actual" onclick="selectMesInicio('actual')">Este mes</div>
+          <div class="mes-btn" id="mes-btn-proximo" onclick="selectMesInicio('proximo')">Próximo mes</div>
+        </div>
+        <input type="hidden" id="f-mes-inicio" value="actual">
+      </div>
+      <div class="field"><label>Número de IP</label><input type="text" id="f-ip" placeholder="Ej: 192.168.1.10"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-green" onclick="saveClient()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL COBRO -->
+<div class="modal-overlay" id="modal-cobro">
+  <div class="modal">
+    <h2 id="cobro-title">Registrar cobro</h2>
+    <div class="form-grid">
+      <input type="hidden" id="cobro-id">
+      <div id="cobro-info" style="font-size:0.78rem;color:var(--text-muted);font-family:var(--mono);padding:9px;background:var(--bg);border-radius:5px;"></div>
+      <div class="field"><label>Monto servicio (CUP)</label><input type="number" id="cobro-monto-servicio"></div>
+      <div class="field" id="cobro-monto-equipo-wrap"><label>Monto deuda equipo (CUP)</label><input type="number" id="cobro-monto-equipo"></div>
+      <div class="field"><label>Fecha</label><input type="date" id="cobro-fecha"></div>
+      <div class="field"><label>Nota (opcional)</label><input type="text" id="cobro-nota" placeholder="Pago parcial, adelantado..."></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeCobroModal()">Cancelar</button>
+      <button class="btn btn-green" onclick="registrarCobro()">Confirmar cobro</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONFIRMAR ENVÍO WHATSAPP -->
+<div class="modal-overlay" id="modal-confirmar-whatsapp">
+  <div class="modal" style="max-width:480px">
+    <h2 id="wa-confirm-title">Enviar recordatorio</h2>
+    <div class="form-grid">
+      <div class="field">
+        <label>Mensaje a enviar</label>
+        <textarea id="wa-confirm-mensaje" rows="6" readonly style="font-family:var(--mono);font-size:0.82rem;resize:vertical;"></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="cerrarConfirmarWhatsApp()">Cancelar</button>
+      <button class="btn btn-green" onclick="confirmarEnvioWhatsApp()">Enviar por WhatsApp</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL HISTORIAL CLIENTE -->
+<div class="modal-overlay" id="modal-historial-cliente">
+  <div class="modal" style="max-width:480px">
+    <h2 id="hc-title">Historial de cliente</h2>
+    <div id="hc-content"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="document.getElementById('modal-historial-cliente').classList.remove('open')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONFIRMAR ELIMINAR -->
+<div class="modal-overlay" id="modal-confirm">
+  <div class="confirm-modal">
+    <h2 id="confirm-title">¿Confirmar acción?</h2>
+    <p id="confirm-msg"></p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="document.getElementById('modal-confirm').classList.remove('open')">Cancelar</button>
+      <button class="btn btn-red" id="confirm-ok-btn">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL GASTO -->
+<div class="modal-overlay" id="modal-gasto">
+  <div class="modal" style="max-width:380px">
+    <h2 style="color:var(--red)">💸 Añadir gasto</h2>
+    <div class="form-grid">
+      <input type="hidden" id="gasto-edit-idx">
+      <div class="field"><label>Descripción</label><input type="text" id="g-desc" placeholder="Luz, transporte, cable, conectores..."></div>
+
+      <div class="field">
+        <label>Tipo de gasto</label>
+        <select id="g-categoria" onchange="onGastoCategoriaChange()">
+          <option value="operativo">Operativo (luz, transporte, etc.) — solo gasto</option>
+          <option value="lote">📦 Por lote — impacta inventario</option>
+          <option value="crecimiento">Crecimiento de red (antenas, switches propios)</option>
+          <option value="paquete">📡 Paquete contratado — pago al proveedor</option>
+        </select>
+      </div>
+
+      <!-- Campos normales (monto fijo) — visibles cuando NO es lote -->
+      <div class="field" id="g-monto-field">
+        <label>Monto (CUP)</label>
+        <input type="number" id="g-monto" min="1">
+      </div>
+
+      <!-- Campos extra para lote (solo visibles cuando se elige "Por lote") -->
+      <div id="g-lote-fields" style="display:none">
+        <div class="field" style="margin-bottom:8px">
+          <label>Se mide en</label>
+          <select id="g-lote-unidad">
+            <option value="m">Metros</option>
+            <option value="u">Unidades</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>Cantidad comprada</label><input type="number" id="g-lote-cantidad" min="1" placeholder="305" oninput="actualizarTotalGastoLote()"></div>
+          <div class="field"><label>Costo por unidad (CUP)</label><input type="number" id="g-lote-costo" min="1" placeholder="170" oninput="actualizarTotalGastoLote()"></div>
+        </div>
+        <div class="field">
+          <label>Margen objetivo (%)</label>
+          <input type="number" id="g-lote-margen" min="0" value="10">
+        </div>
+        <div style="font-size:0.76rem;color:var(--text-muted);margin-top:2px">
+          Costo total del lote: <strong id="g-lote-total" class="text-red">−0 CUP</strong>
+        </div>
+      </div>
+
+      <div class="field"><label>Fecha</label><input type="date" id="g-fecha"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeGastoModal()">Cancelar</button>
+      <button class="btn btn-red" onclick="saveGasto()">Guardar gasto</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL MORA -->
+<div class="modal-overlay" id="modal-mora">
+  <div class="modal" style="max-width:340px">
+    <h2 style="color:var(--purple)">⚠ Ajustar mora</h2>
+    <div class="form-grid">
+      <input type="hidden" id="mora-client-id">
+      <div class="field"><label>Cliente</label><input type="text" id="mora-client-name" readonly style="background:var(--bg)"></div>
+      <div class="field"><label>Meses de mora</label><input type="number" id="mora-valor" min="0" placeholder="0"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeMoraModal()">Cancelar</button>
+      <button class="btn btn-purple" onclick="saveMora()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL INVERSIÓN -->
+<div class="modal-overlay" id="modal-inversion">
+  <div class="modal" style="max-width:340px">
+    <h2 style="color:var(--amber)">🔧 Inversión en equipo</h2>
+    <div class="form-grid">
+      <input type="hidden" id="inv-client-id">
+      <div class="field"><label>Cliente</label><input type="text" id="inv-client-name" readonly style="background:var(--bg)"></div>
+      <div class="field"><label>Total invertido (CUP)</label><input type="number" id="inv-total" min="0" placeholder="3000" oninput="onModoCuota()"></div>
+      <div class="field">
+        <label>Modo de cuota mensual</label>
+        <select id="inv-modo" onchange="onModoCuota()">
+          <option value="fijo">Monto fijo (CUP)</option>
+          <option value="pct">Porcentaje de la deuda (%)</option>
+        </select>
+      </div>
+      <div class="field" id="field-cuota-fija">
+        <label>Cuota mensual a cobrar (CUP)</label>
+        <input type="number" id="inv-cuota" min="0" placeholder="1000">
+      </div>
+      <div class="field" id="field-cuota-pct" style="display:none">
+        <label>Porcentaje mensual (%)</label>
+        <input type="number" id="inv-pct" min="1" max="100" placeholder="30" oninput="onModoCuota()">
+        <div id="pct-preview" style="font-size:0.72rem;color:var(--text-muted);margin-top:4px"></div>
+      </div>
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="inv-liquidar" style="width:auto">
+          El cliente quiere liquidar la deuda pronto
+        </label>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeInversionModal()">Cancelar</button>
+      <button class="btn btn-amber" onclick="saveInversion()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL INVENTARIO -->
+<div class="modal-overlay" id="modal-inventario">
+  <div class="modal" style="max-width:400px">
+    <h2 style="color:var(--amber)">📦 Comprar lote de inventario</h2>
+    <div class="form-grid">
+      <div class="field"><label>Descripción</label><input type="text" id="inv-lote-desc" placeholder="Cable UTP, conectores RJ45..."></div>
+      <div class="field">
+        <label>Se mide en</label>
+        <select id="inv-lote-unidad">
+          <option value="m">Metros</option>
+          <option value="u">Unidades</option>
+        </select>
+      </div>
+      <div class="field"><label>Cantidad comprada</label><input type="number" id="inv-lote-cantidad" min="1" placeholder="305" oninput="actualizarTotalLote()"></div>
+      <div class="field"><label>Costo por unidad (CUP)</label><input type="number" id="inv-lote-costo" min="1" placeholder="170" oninput="actualizarTotalLote()"></div>
+      <div class="field"><label>Margen objetivo (%)</label><input type="number" id="inv-lote-margen" min="0" value="10"></div>
+    </div>
+    <div style="font-size:0.76rem;color:var(--text-muted);margin:4px 0 10px">Costo total del lote: <strong id="inv-lote-total" class="text-red">−0</strong></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeInventarioModal()">Cancelar</button>
+      <button class="btn btn-amber" onclick="registrarCompraInventario()">Comprar lote</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL REBAJA -->
+<div class="modal-overlay" id="modal-rebaja">
+  <div class="modal" style="max-width:400px">
+    <h2 style="color:var(--red)">📉 Registrar rebaja</h2>
+    <div class="form-grid">
+      <input type="hidden" id="rebaja-lote-id">
+      <div class="field"><label>Lote</label><input type="text" id="rebaja-lote-desc" readonly style="background:var(--bg)"></div>
+      <div class="field"><label>Cantidad a rebajar</label><input type="number" id="rebaja-cantidad" min="1" placeholder="Cantidad"></div>
+      <div class="field"><label>Valor unitario (CUP)</label><input type="number" id="rebaja-valor" min="0" placeholder="Valor por unidad" oninput="actualizarTotalRebaja()"></div>
+      <div class="field">
+        <label>Motivo</label>
+        <select id="rebaja-motivo">
+          <option value="deterioro">Deterioro</option>
+          <option value="perdida">Pérdida</option>
+          <option value="robo">Robo</option>
+          <option value="vencimiento">Vencimiento</option>
+          <option value="otro">Otro</option>
+        </select>
+      </div>
+      <div class="field"><label>Nota (opcional)</label><input type="text" id="rebaja-nota" placeholder="Detalles adicionales"></div>
+    </div>
+    <div style="font-size:0.76rem;color:var(--text-muted);margin:4px 0 10px">Gasto a registrar: <strong id="rebaja-total" class="text-red">−0</strong></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeRebajaModal()">Cancelar</button>
+      <button class="btn btn-red" onclick="registrarRebaja()">Registrar rebaja</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-reset-app">
+  <div class="modal" style="max-width:360px">
+    <h2 style="color:var(--red)">🗑️ Reiniciar app</h2>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:10px">
+      Esto borrará <strong>todos</strong> los clientes, historial, gastos, inventario y configuración.
+      Empezarás desde cero. <strong>Esta acción no se puede deshacer.</strong>
+    </p>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:6px">
+      Escribe el código de confirmación para continuar:
+    </p>
+    <div class="field">
+      <input type="password" inputmode="numeric" id="reset-code-input"
+        placeholder="Código de confirmación" style="text-align:center;letter-spacing:2px"
+        onkeydown="if(event.key==='Enter') confirmResetApp()">
+    </div>
+    <div id="reset-code-error" style="display:none;color:var(--red);font-size:0.76rem;margin-top:6px">
+      Código incorrecto. La app NO fue reiniciada.
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeResetAppModal()">Cancelar</button>
+      <button class="btn btn-red" onclick="confirmResetApp()">Borrar todo</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL INVERSIÓN PENDIENTE -->
+<div class="modal-overlay" id="modal-inv-pendiente">
+  <div class="modal" style="max-width:480px">
+    <h2 style="color:var(--amber)">📦 Inversión pendiente por recuperar</h2>
+    <div id="modal-inv-pendiente-content"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="document.getElementById('modal-inv-pendiente').classList.remove('open')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- FAB - Acciones rápidas -->
+<button class="fab" onclick="toggleQuickActions()">+</button>
+<div class="quick-actions-menu" id="quick-actions-menu">
+  <button onclick="openAddModal()">+ Cliente</button>
+  <button onclick="openGastoModal()">+ Gasto</button>
+  <button onclick="openCobroModal()">+ Cobro</button>
+  <button onclick="openEquipoModal()">+ Equipo</button>
+</div>
+
+<div class="notif-bar" id="notif"></div>
+
+<!-- CORE: Estado y configuración base -->
+<script src="./js/version.js"></script>
+<script src="./js/core/state.js"></script>
+<script src="./js/core/keys.js"></script>
+<script src="./js/core/config.js"></script>
+<script src="./js/core/calculations.js"></script>
+<script src="./js/core/reset-app.js"></script>
+<script src="./js/core/models/investment.js"></script>
+<script src="./js/core/migration.js"></script>
+
+<!-- STORAGE: Persistencia de datos -->
+<script src="./js/storage/storage-local.js"></script>
+<script src="./js/core/validacion.js"></script>
+<script src="./js/storage/storage-file.js"></script>
+<script src="./js/core/checkpoint.js"></script>
+<script src="./js/core/undo.js"></script>
+<script src="./js/storage/export.js"></script>
+<script src="./js/reportes/macrodroid-export.js"></script>
+
+<!-- UI: Componentes de interfaz -->
+<script src="./js/ui/theme.js"></script>
+<script src="./js/ui/notify-ui.js"></script>
+<script src="./js/ui/reloj.js"></script>
+<script src="./js/ui/tabs.js"></script>
+<script src="./js/ui/render.js"></script>
+<script src="./js/ui/inline-edit.js"></script>
+<script src="./js/ui/ui-components.js"></script>
+
+<!-- CLIENTES: Gestión de clientes -->
+<script src="./js/clientes/modal-cliente.js"></script>
+<script src="./js/clientes/confirm-delete.js"></script>
+<script src="./js/clientes/client-history.js"></script>
+
+<!-- COBROS: Gestión de pagos -->
+<script src="./js/cobros/modal-cobro.js"></script>
+<script src="./js/cobros/mora.js"></script>
+<script src="./js/cobros/inversion.js"></script>
+<script src="./js/cobros/inventario.js"></script>
+<script src="./js/cobros/month-reset.js"></script>
+
+<!-- REPORTES: Estadísticas e historial -->
+<script src="./js/reportes/historial.js"></script>
+<script src="./js/reportes/historial-mensual.js"></script>
+<script src="./js/reportes/tendencia.js"></script>
+<script src="./js/reportes/prediccion.js"></script>
+<script src="./js/reportes/estadisticas.js"></script>
+
+<!-- NOTIFICACIONES: WhatsApp y notificaciones -->
+<script src="./js/notificaciones/notifications.js"></script>
+<script src="./js/notificaciones/whatsapp.js"></script>
+
+<!-- OTROS: Funcionalidades específicas -->
+<script src="./js/gastos.js"></script>
+<script src="./js/red/equipos-red.js"></script>
+<script src="./js/pwa.js"></script>
+
+<!-- INIT: Inicialización de la app -->
+<script type="module" src="./js/firebase/firebase-init.js"></script>
+<script src="./js/init.js"></script>
+
+<!-- Helper: actualizar total del lote desde el modal de gasto -->
+<script>
+function actualizarTotalGastoLote() {
+  const cantidad = parseFloat(document.getElementById('g-lote-cantidad').value) || 0;
+  const costo    = parseFloat(document.getElementById('g-lote-costo').value) || 0;
+  const total    = cantidad * costo;
+  document.getElementById('g-lote-total').textContent = '−' + total.toLocaleString('es-CU') + ' CUP';
+}
+</script>
+
+    <!-- MODAL NUEVA INVERSIÓN PERSONAL -->
+    <div class="modal-overlay" id="modal-nueva-inversion">
+    <div class="modal" style="max-width:420px">
+      <h2 id="modal-nueva-inv-title">📦 Nueva inversión personal</h2>
+      <div class="form-grid">
+        <div class="field">
+          <label>Nombre del equipo</label>
+          <input type="text" id="inv-p-nombre" placeholder="Nano, Routerboard, antena CPE...">
+        </div>
+        <div class="form-row">
+          <div class="field"><label>Costo (CUP)</label><input type="number" id="inv-p-costo" min="1" placeholder="5000"></div>
+          <div class="field"><label>Fecha de compra</label><input type="date" id="inv-p-fecha"></div>
+        </div>
+        <div class="field">
+          <label style="margin-bottom:6px;display:block">Clientes que contribuyen a recuperarla</label>
+          <div id="inv-p-clientes" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:6px"></div>
+          <div style="font-size:0.68rem;color:var(--text-muted);margin-top:7px;line-height:1.5">
+            💡 El ingreso mensual de estos clientes proyecta en cuántos meses recuperas la inversión.<br>
+            <strong>No se les cobra nada extra</strong> — es un cálculo tuyo, no una deuda de ellos.
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.79rem" id="inv-p-gasto-wrap">
+          <input type="checkbox" id="inv-p-gasto" checked style="width:15px;height:15px;flex-shrink:0">
+          Registrar también como gasto de inversión en la pestaña Gastos
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="cerrarModalNuevaInversion()">Cancelar</button>
+        <button class="btn btn-amber" onclick="guardarNuevaInversion()">Guardar</button>
+      </div>
+    </div>
+    </div>
+
+    </main>
+  </div>
+
+  <!-- REGISTRAR SERVICE WORKER PARA PWA -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(registration => {
+            console.log('Service Worker registrado:', registration.scope);
+          })
+          .catch(error => {
+            console.log('Error al registrar Service Worker:', error);
+          });
+      });
+    }
+
+    // Función de sincronización manual (se define globalmente)
+    window.syncManual = async function() {
+      if (!window.FirebaseSync) {
+        notify('⚠ Firebase Sync no está disponible. Recarga la página.', true);
+        console.error('FirebaseSync no está disponible');
+        return;
+      }
+      
+      if (!navigator.onLine) {
+        notify('⚠ Sin conexión a internet', true);
+        return;
+      }
+
+      notify('🔄 Sincronizando...');
+      
+      try {
+        const localData = {
+          clientes: addTimestamp(clients),
+          gastos: addTimestamp(gastos),
+          history: addTimestamp(history),
+          inventario: addTimestamp(inventario),
+          asignacionesInventario: addTimestamp(asignacionesInventario),
+          investments: addTimestamp(investments),
+          equiposRed: addTimestamp(equiposRed),
+          config: { ...config, _localUpdatedAt: new Date().toISOString() }
+        };
+        
+        const resultado = await window.FirebaseSync.syncTodo(localData);
+        
+        if (resultado.success) {
+          notify('✅ Sincronización completada');
+          if (resultado.conflictos && resultado.conflictos.length > 0) {
+            console.log('⚠ Conflictos resueltos:', resultado.conflictos);
+          }
+        } else {
+          notify('❌ Error en sincronización', true);
+        }
+      } catch (error) {
+        console.error('Error en sincronización manual:', error);
+        notify('❌ Error al sincronizar', true);
+      }
+    };
+  </script>
+</body>
+</html>

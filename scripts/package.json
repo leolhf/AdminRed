@@ -1,0 +1,9 @@
+{
+  "name": "rednet-recordatorios",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Script standalone (no forma parte de la app web) que envía recordatorios push diarios vía GitHub Actions.",
+  "dependencies": {
+    "firebase-admin": "^12.1.0"
+  }
+}
