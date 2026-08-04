@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════
 //  PERSISTENCIA — localStorage
 // ═══════════════════════════════════════════════════════════
-function dataToJson() { return JSON.stringify({clients,history,gastos,inventario,asignacionesInventario,investments,equiposRed,config},null,2); }
+function dataToJson() { return JSON.stringify({clients,history,gastos,inventario,asignacionesInventario,investments,equiposRed,planes,snapshots,reciboCounter,config},null,2); }
 
 function applyJson(text) {
   const d=JSON.parse(text);
@@ -16,6 +16,9 @@ function applyJson(text) {
   asignacionesInventario=d.asignacionesInventario||[];
   investments=d.investments||[];
   equiposRed=d.equiposRed||[];
+  planes=d.planes||[];
+  snapshots=d.snapshots||[];
+  reciboCounter=d.reciboCounter||0;
   config={...config,...(d.config||{})};
 }
 
@@ -59,6 +62,8 @@ async function syncWithFirebase() {
       asignacionesInventario: addTimestamp(asignacionesInventario),
       investments: addTimestamp(investments),
       equiposRed: addTimestamp(equiposRed),
+      planes: addTimestamp(planes),
+      snapshots: addTimestamp(snapshots),
       config: { ...config, _localUpdatedAt: new Date().toISOString() }
     };
     

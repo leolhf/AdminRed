@@ -89,6 +89,11 @@ const PRECACHE = [
   // BUG FIX: macrodroid-export.js está cargado en index.html pero faltaba en el
   // precache — la función de exportar a MacroDroid no funcionaba sin conexión.
   './js/reportes/macrodroid-export.js',
+  // v5.4.0: Nuevos reportes (reporte mensual, recibo, calendario, salud)
+  './js/reportes/reporte-mensual.js',
+  './js/reportes/recibo.js',
+  './js/reportes/calendario.js',
+  './js/reportes/salud.js',
   // Notificaciones
   './js/notificaciones/notifications.js',
   './js/notificaciones/whatsapp.js',

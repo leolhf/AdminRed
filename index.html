@@ -52,6 +52,8 @@
           <button onclick="syncManual()">🔄 Sincronizar ahora</button>
           <button onclick="requestNotifPermission()">🔔 Notificaciones</button>
           <button onclick="exportBackup()">⬇️ Exportar respaldo</button>
+          <button onclick="importBackup()">📥 Importar respaldo</button>
+          <button onclick="exportClientesCSV()">📋 Exportar clientes (CSV)</button>
           <button onclick="openCheckpointsModal()">🕐 Copias automáticas</button>
           <button id="btn-deshacer-menu" onclick="deshacerUltimoCambio()" style="display:none">↩️ Deshacer</button>
           <button onclick="openResetAppModal()">🗑️ Reiniciar app</button>
@@ -114,6 +116,17 @@
 
   <!-- DASHBOARD -->
   <div id="tab-dashboard" class="tab-content active">
+    <!-- Salud del negocio (semáforos) -->
+    <div class="dashboard-section" data-default="open">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="section-title">🚦 Salud del Negocio</span>
+        <span class="collapse-icon">▼</span>
+      </div>
+      <div class="section-content">
+        <div id="salud-content"></div>
+      </div>
+    </div>
+
     <!-- Resumen financiero -->
     <div class="dashboard-section" data-default="open">
       <div class="section-header" onclick="toggleSection(this)">
@@ -270,8 +283,14 @@
       <div class="cfg-field"><label>Sobreventa permitida (Mb)</label><input type="number" id="cfg-sobreventa" min="0" onchange="applyConfig()"></div>
       <div class="cfg-field"><label>Costo/mega (CUP)</label><input type="number" id="cfg-costo" min="1" onchange="applyConfig()"></div>
       <div class="cfg-field"><label>Día inicio cobro</label><input type="number" id="cfg-dia-inicio" min="1" max="28" onchange="applyConfig()"></div>
+      <div class="cfg-field"><label>Tolerancia de mora (días)</label><input type="number" id="cfg-tolerancia" min="0" max="31" onchange="applyConfig()"></div>
       <div id="cfg-warn" class="cfg-warn" style="display:none"></div>
     </div>
+    <div class="section-header" style="margin-top:18px">
+      <span class="section-title">📦 Planes de Internet</span>
+      <button class="btn btn-blue btn-sm" onclick="openPlanesModal()">Gestionar planes</button>
+    </div>
+    <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:10px">Define planes con megas y precio fijos. Asígnalos a clientes para automatizar el precio sin setearlo manualmente cada vez.</p>
   </div>
 
   <!-- ESTADÍSTICAS -->
@@ -301,6 +320,31 @@
     <div class="bw-section" style="margin-top:14px" id="sec-ingresos-cliente">
       <div class="bw-title" style="margin-bottom:9px">Ingresos por cliente</div>
       <div id="stat-bars"></div>
+    </div>
+  </div>
+
+  <!-- REPORTES -->
+  <div id="tab-reportes" class="tab-content">
+    <!-- Calendario de cobros -->
+    <div class="dashboard-section" data-default="open">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="section-title">📅 Calendario de Cobros</span>
+        <span class="collapse-icon">▼</span>
+      </div>
+      <div class="section-content">
+        <div id="calendario-content"></div>
+      </div>
+    </div>
+
+    <!-- Reporte ejecutivo mensual -->
+    <div class="dashboard-section" data-default="open">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="section-title">📋 Reporte Ejecutivo Mensual</span>
+        <span class="collapse-icon">▼</span>
+      </div>
+      <div class="section-content">
+        <div id="reporte-mensual-content"></div>
+      </div>
     </div>
   </div>
 
@@ -335,7 +379,8 @@
     <div class="section-header">
       <span class="section-title">Historial de cobros</span>
       <div style="display:flex;gap:7px;flex-wrap:wrap">
-        <button class="btn btn-ghost btn-sm" onclick="exportCSV()">⬇ CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportCSV()">⬇ CSV cobros</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportClientesCSV()">⬇ CSV clientes</button>
         <button class="btn btn-ghost btn-sm" onclick="clearHistory()">Nuevo mes / Limpiar</button>
       </div>
     </div>
@@ -424,6 +469,20 @@
         <input type="hidden" id="f-mes-inicio" value="actual">
       </div>
       <div class="field"><label>Número de IP</label><input type="text" id="f-ip" placeholder="Ej: 192.168.1.10"></div>
+      <div class="field" id="f-plan-wrap" style="display:none">
+        <label>Plan de internet (opcional)</label>
+        <select id="f-plan" onchange="onPlanChange()"></select>
+        <div style="font-size:0.68rem;color:var(--text-muted);margin-top:4px">Al seleccionar un plan, megas y precio se auto-completan del plan.</div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Descuento (CUP o %)</label><input type="number" id="f-descuento" min="0" placeholder="0"></div>
+        <div class="field"><label>Tipo de descuento</label>
+          <select id="f-descuento-tipo">
+            <option value="monto">Monto fijo (CUP)</option>
+            <option value="pct">Porcentaje (%)</option>
+          </select>
+        </div>
+      </div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
@@ -690,6 +749,67 @@
   </div>
 </div>
 
+<!-- MODAL GESTIÓN DE PLANES -->
+<div class="modal-overlay" id="modal-planes">
+  <div class="modal" style="max-width:520px">
+    <h2 style="color:var(--blue)">📦 Planes de Internet</h2>
+    <div class="form-grid">
+      <input type="hidden" id="plan-edit-id">
+      <div class="form-row">
+        <div class="field"><label>Nombre del plan</label><input type="text" id="plan-nombre" placeholder="Ej: Plan Básico 10Mb"></div>
+        <div class="field"><label>Megas</label><input type="number" id="plan-megas" min="1" placeholder="10"></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Precio por mega (CUP)</label><input type="number" id="plan-precio" min="1" placeholder="2500"></div>
+        <div class="field"><label>Descripción (opcional)</label><input type="text" id="plan-desc" placeholder="Ideal para hogares..."></div>
+      </div>
+      <button class="btn btn-blue btn-sm" onclick="guardarPlan()">+ Guardar plan</button>
+    </div>
+    <h3 style="margin-top:18px;font-size:0.9rem">Planes definidos</h3>
+    <div id="planes-list" style="margin-top:8px;max-height:280px;overflow-y:auto"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closePlanesModal()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- RECIBO PRINT TEMPLATE (hidden, cloned for each receipt) -->
+<div id="recibo-print-template" style="display:none">
+  <div class="recibo">
+    <div class="recibo-header">
+      <div class="recibo-titulo">RECIBO DE PAGO</div>
+      <div class="recibo-numero" id="recibo-numero">R-XXXX-0000</div>
+    </div>
+    <div class="recibo-fecha">Fecha: <span id="recibo-fecha">—</span></div>
+    <div class="recibo-cliente-info">
+      <div><strong>Cliente:</strong> <span id="recibo-cliente">—</span></div>
+      <div><strong>Servicio:</strong> <span id="recibo-megas">—</span> a <span id="recibo-precio-mega">—</span></div>
+    </div>
+    <table class="recibo-tabla">
+      <tr id="recibo-servicio-row">
+        <td>Servicio de internet</td>
+        <td class="recibo-detalle">
+          <div>Base: <span id="recibo-servicio-base">—</span></div>
+          <div id="recibo-descuento-row" style="display:none">Descuento: <span id="recibo-descuento">—</span></div>
+          <div id="recibo-mora-row" style="display:none">Mora: <span id="recibo-mora">—</span></div>
+        </td>
+        <td class="recibo-monto" id="recibo-servicio-total">—</td>
+      </tr>
+      <tr id="recibo-equipo-row" style="display:none">
+        <td>Pago de equipo</td>
+        <td class="recibo-detalle">Abono a deuda de equipo</td>
+        <td class="recibo-monto" id="recibo-equipo-total">—</td>
+      </tr>
+      <tr class="recibo-total-row">
+        <td colspan="2"><strong>TOTAL COBRADO</strong></td>
+        <td class="recibo-monto-total" id="recibo-total">—</td>
+      </tr>
+    </table>
+    <div class="recibo-nota" id="recibo-nota"></div>
+    <div class="recibo-footer">RedNet — Control de Servicio de Internet</div>
+  </div>
+</div>
+
 <!-- FAB - Acciones rápidas -->
 <button class="fab" onclick="toggleQuickActions()">+</button>
 <div class="quick-actions-menu" id="quick-actions-menu">
@@ -747,6 +867,10 @@
 <script src="./js/reportes/tendencia.js"></script>
 <script src="./js/reportes/prediccion.js"></script>
 <script src="./js/reportes/estadisticas.js"></script>
+<script src="./js/reportes/reporte-mensual.js"></script>
+<script src="./js/reportes/recibo.js"></script>
+<script src="./js/reportes/calendario.js"></script>
+<script src="./js/reportes/salud.js"></script>
 
 <!-- NOTIFICACIONES: WhatsApp y notificaciones -->
 <script src="./js/notificaciones/notifications.js"></script>
@@ -845,6 +969,8 @@ function actualizarTotalGastoLote() {
           asignacionesInventario: addTimestamp(asignacionesInventario),
           investments: addTimestamp(investments),
           equiposRed: addTimestamp(equiposRed),
+          planes: addTimestamp(planes),
+          snapshots: addTimestamp(snapshots),
           config: { ...config, _localUpdatedAt: new Date().toISOString() }
         };
         

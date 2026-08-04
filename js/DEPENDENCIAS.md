@@ -13,7 +13,7 @@ El orden de carga de los scripts en `index.html` es CRÍTICO. Los scripts deben 
    ├── keys.js                (Sin dependencias)
    ├── config.js              (Depende de: state.js)
    ├── crypto.js              (Depende de: keys.js)
-   ├── calculations.js        (Depende de: state.js)
+   ├── calculations.js        (Depende de: state.js) [v5.4.0 — +getPrecioCliente, +calcularDescuento, +snapshots, +recibos]
    ├── reset-app.js           (Depende de: state.js)
    ├── models/investment.js   (Depende de: state.js, calculations.js)
    ├── migration.js           (Depende de: state.js, calculations.js)
@@ -24,7 +24,7 @@ El orden de carga de los scripts en `index.html` es CRÍTICO. Los scripts deben 
 2. STORAGE (Persistencia de datos)
    ├── storage-local.js       (Depende de: state.js, keys.js)
    ├── storage-file.js        (Depende de: state.js, keys.js, crypto.js, validacion.js)
-   ├── export.js              (Depende de: state.js)
+   ├── export.js              (Depende de: state.js, storage-local.js, crypto.js) [v5.4.0 — +importBackup, +exportClientesCSV]
    └── macrodroid-export.js   (Depende de: state.js, calculations.js, storage-file.js)
 
 3. UI (Componentes de interfaz)
@@ -37,12 +37,12 @@ El orden de carga de los scripts en `index.html` es CRÍTICO. Los scripts deben 
    └── ui-components.js       (Depende de: notify-ui.js, tabs.js)
 
 4. CLIENTES (Gestión de clientes)
-   ├── modal-cliente.js       (Depende de: state.js, calculations.js)
+   ├── modal-cliente.js       (Depende de: state.js, calculations.js) [v5.4.0 — +planes CRUD, +descuento, +planId]
    ├── confirm-delete.js      (Depende de: state.js)
    └── client-history.js      (Depende de: state.js, calculations.js)
 
 5. COBROS (Gestión de pagos)
-   ├── modal-cobro.js         (Depende de: state.js, calculations.js)
+   ├── modal-cobro.js         (Depende de: state.js, calculations.js) [v5.4.0 — +getPrecioCliente, +calcularDescuento, +siguienteRecibo]
    ├── mora.js                (Depende de: state.js)
    ├── inversion.js           (Depende de: state.js, calculations.js)
    ├── inventario.js          (Depende de: state.js, calculations.js)
@@ -54,7 +54,11 @@ El orden de carga de los scripts en `index.html` es CRÍTICO. Los scripts deben 
    ├── tendencia.js           (Depende de: state.js)
    ├── prediccion.js          (Depende de: state.js)
    ├── estadisticas.js        (Depende de: state.js, calculations.js)
-   └── macrodroid-export.js   (Depende de: state.js, calculations.js, storage-file.js)
+   ├── macrodroid-export.js   (Depende de: state.js, calculations.js, storage-file.js)
+   ├── reporte-mensual.js     (Depende de: state.js, calculations.js) [v5.4.0 — Feature #6, #14]
+   ├── recibo.js              (Depende de: state.js, calculations.js) [v5.4.0 — Feature #4]
+   ├── calendario.js          (Depende de: state.js, calculations.js) [v5.4.0 — Feature #7]
+   └── salud.js               (Depende de: state.js, calculations.js) [v5.4.0 — Feature #13]
 
 7. NOTIFICACIONES (WhatsApp y notificaciones)
    ├── notifications.js       (Depende de: state.js, keys.js)
@@ -160,3 +164,29 @@ ENCRYPTION.VERSION            // 'v1'
 - Actualizar este documento con las nuevas dependencias
 - Si un módulo no tiene dependencias, puede ir en cualquier posición dentro de su sección
 - `init.js` DEBE ser el último script clásico cargado (antes del `<script type="module">` de Firebase)
+
+## Módulos Nuevos v5.4.0
+
+| Módulo | Función |
+|---------|----------|
+| `reportes/reporte-mensual.js` | Reporte ejecutivo mensual con KPIs y comparación contra el snapshot del mes anterior (Feature #6). Incluye guardado de snapshots inmutables (Feature #14). |
+| `reportes/recibo.js` | Generación de recibos de pago imprimibles/exportables a PDF con número auto-incremental (Feature #4). |
+| `reportes/calendario.js` | Calendario visual mensual de cobros con código de colores por estado de pago (Feature #7). |
+| `reportes/salud.js` | Dashboard de salud del negocio con KPIs tipo semáforo (verde/amarillo/rojo) (Feature #13). |
+
+## Funciones Nuevas en calculations.js (v5.4.0)
+
+| Función | Descripción |
+|----------|-------------|
+| `getPlanCliente(c)` | Devuelve el plan asignado a un cliente (o null si no tiene) |
+| `getPrecioCliente(c)` | Devuelve el precio por mega: del plan si tiene, o `c.precio` si no |
+| `getMegasCliente(c)` | Devuelve los megas: del plan si tiene y no tiene megas manuales, o `c.megas` |
+| `calcularDescuento(c, precioMes)` | Calcula el descuento aplicable (monto fijo o porcentaje) |
+| `generarSnapshot(mes)` | Genera un objeto snapshot con todos los KPIs del mes |
+| `guardarSnapshot(mes)` | Guarda/reemplaza un snapshot en el array `snapshots` |
+| `getSnapshotMes(mes)` | Devuelve el snapshot de un mes específico |
+| `getSnapshotAnterior(mesKey)` | Devuelve el snapshot del mes inmediatamente anterior |
+| `siguienteRecibo()` | Incrementa y devuelve el número de recibo auto-incremental |
+| `formatoRecibo(n)` | Formatea un número de recibo como `R-YYYY-0000` |
+| `mesActualHoy()` | Devuelve el mes actual como `YYYY-MM` |
+| `labelMes(mesKey)` | Convierte `YYYY-MM` a etiqueta legible (`enero 2025`) |

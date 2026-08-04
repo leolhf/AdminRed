@@ -1,26 +1,41 @@
 // modal-cobro.js
 // Modal de registro de cobro/abono a un cliente.
+// Depende de: state.js, calculations.js (getMora, getCuotaEquipo, getDeudaEquipoCliente,
+//             getPrecioCliente, calcularDescuento, montoTotalACobrar, fmt, fechaLocalISO,
+//             siguienteRecibo, formatoRecibo)
 
-// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 //  MODAL COBRO
-// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 function openCobroModal(id) {
   const c=clients.find(x=>x.id===id); if(!c) return;
   const mora=getMora(c);
   const cuotaEq=getCuotaEquipo(c);
   const deudaEq=getDeudaEquipoCliente(c);
+  const precioMega=getPrecioCliente(c);
   // Servicio y equipo son dos deudas independientes: el servicio se acumula por
   // meses de mora + el mes actual; el equipo tiene su propia deuda total, de la
-  // que la "cuota" es solo el mínimo sugerido de este mes (se puede pagar más
+  // que la "cuota" es solo el minimo sugerido de este mes (se puede pagar mas
   // o menos, incluso liquidarla completa de una vez).
-  const servicioTotal = c.megas * c.precio * (mora + 1);
+  // Feature #10: aplicar descuento al precio del mes.
+  const precioPorMes = c.megas * precioMega;
+  const descuento = calcularDescuento(c, precioPorMes);
+  const precioNeto = Math.max(0, precioPorMes - descuento);
+  const servicioTotal = precioNeto * (mora + 1);
   const abono = c.abono || 0;
   const faltaServicio = Math.max(0, servicioTotal - abono);
+
+  // Feature #5: mostrar el plan si lo tiene
+  const plan = getPlanCliente(c);
+  const planTxt = plan ? `<br><span style="color:var(--blue)">📋 Plan: ${plan.nombre}</span>` : '';
+
+  // Feature #10: mostrar descuento si lo tiene
+  const descTxt = descuento>0 ? `<br><span style="color:var(--green)">🎁 Descuento: −${fmt(descuento)} (${c.descuentoTipo==='pct'?c.descuento+'%':'monto fijo'}) · Precio neto: ${fmt(precioNeto)}/mes</span>` : '';
 
   document.getElementById('cobro-id').value=id;
   document.getElementById('cobro-title').textContent=`Cobrar a ${c.nombre}`;
   document.getElementById('cobro-info').innerHTML=`
-    ${c.megas} Mb × ${c.precio.toLocaleString()} = ${fmt(c.megas*c.precio)}/mes
+    ${c.megas} Mb × ${precioMega.toLocaleString()} = ${fmt(precioPorMes)}/mes${planTxt}${descTxt}
     ${mora>0?`<br><span style="color:var(--purple)">⚠ ${mora} mes${mora>1?'es':''} mora = ${fmt(servicioTotal)} (servicio acumulado)</span>`:''}
     ${abono>0?`<br><span style="color:var(--blue)">💰 Abono previo: ${fmt(abono)} · Falta servicio: ${fmt(faltaServicio)}</span>`:''}
     ${deudaEq>0?`<br><span style="color:var(--amber)">🔧 Deuda equipo: ${fmt(deudaEq)} · cuota sugerida este mes: ${fmt(cuotaEq)}</span>`:''}
@@ -53,12 +68,15 @@ function registrarCobro() {
   const fecha = document.getElementById('cobro-fecha').value;
   const nota  = document.getElementById('cobro-nota').value.trim();
   const c = clients.find(x=>x.id===id);
-  if(!c || (montoServicio + montoEquipoIn) <= 0){notify('Ingresa un monto válido',true);return;}
+  if(!c || (montoServicio + montoEquipoIn) <= 0){notify('Ingresa un monto valido',true);return;}
   if(typeof registrarParaDeshacer==='function') registrarParaDeshacer(`Cobro a ${c.nombre}`);
 
   const mora          = getMora(c);
-  const precioPorMes  = c.megas * c.precio;
-  const servicioTotal = precioPorMes * (mora + 1);
+  const precioMega    = getPrecioCliente(c);
+  const precioPorMes  = c.megas * precioMega;
+  const descuento     = calcularDescuento(c, precioPorMes);
+  const precioNeto    = Math.max(0, precioPorMes - descuento);
+  const servicioTotal = precioNeto * (mora + 1);
   const deudaEqActual = getDeudaEquipoCliente(c);
 
   // Snapshot del estado previo para poder revertir con eliminarCobro
@@ -76,11 +94,11 @@ function registrarCobro() {
     c.abono  = 0;
   } else if (montoServicio > 0) {
     c.abono = (c.abono || 0) + montoServicio;
-    while (c.mora > 0 && c.abono >= precioPorMes) {
+    while (c.mora > 0 && c.abono >= precioNeto) {
       c.mora  -= 1;
-      c.abono -= precioPorMes;
+      c.abono -= precioNeto;
     }
-    if (c.mora === 0 && c.abono >= precioPorMes) {
+    if (c.mora === 0 && c.abono >= precioNeto) {
       c.pagado = true;
       c.abono  = 0;
     }
@@ -90,18 +108,22 @@ function registrarCobro() {
   if(c.mesInicio)   delete c.mesInicio;
 
   const monto = montoServicio + montoEquipo;
+  // Feature #4: numero de recibo auto-incremental
+  const numRecibo = siguienteRecibo();
   history.push({
     hid: Date.now()+'-'+Math.floor(Math.random()*1000),
     id, nombre:c.nombre, monto, montoEquipo, fecha, nota,
     parcial: !c.pagado,
     tipo: 'servicio',
+    numRecibo: formatoRecibo(numRecibo),
+    descuentoAplicado: descuento>0 ? descuento : 0,
     prevState
   });
 
   c.ultimaEdicion = new Date().toISOString();
   save(); render(); closeCobroModal();
 
-  const restanteServicio = c.pagado ? 0 : Math.max(0, precioPorMes*((c.mora||0)+1) - (c.abono||0));
+  const restanteServicio = c.pagado ? 0 : Math.max(0, precioNeto*((c.mora||0)+1) - (c.abono||0));
   const restanteEquipo   = c.deudaEquipo || 0;
   const partes = [];
   if (montoServicio>0) partes.push(`servicio ${fmt(montoServicio)}`);
@@ -109,7 +131,18 @@ function registrarCobro() {
   let msg = `Cobro a ${c.nombre} — ${partes.join(' + ')}`;
   if (restanteServicio>0) msg += ` · falta servicio ${fmt(restanteServicio)}`;
   if (restanteEquipo>0)   msg += ` · falta equipo ${fmt(restanteEquipo)}`;
+  msg += ` · Recibo ${formatoRecibo(numRecibo)}`;
   notify(msg);
+
+  // Feature #4: ofrecer generar recibo
+  if(!c.pagado || montoServicio>0 || montoEquipo>0){
+    // Solo si el cobro fue exitoso, ofrecer el recibo despues de un breve retardo
+    setTimeout(()=>{
+      if(confirm(`¿Generar recibo ${formatoRecibo(numRecibo)} para ${c.nombre}?\n\nSe abrirá una vista lista para imprimir o guardar como PDF.`)){
+        generarRecibo(history[history.length-1]);
+      }
+    },200);
+  }
 
   if(window.FirebaseSync) window.FirebaseSync.syncCliente(c);
 }

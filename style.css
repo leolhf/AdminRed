@@ -474,3 +474,144 @@
   .sub-tabs-container{display:none;}
   .sub-tabs-container.active{display:block;}
 
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     FEATURE #13: DASHBOARD DE SALUD — Semáforos KPI
+     ═══════════════════════════════════════════════════════════════════════════ */
+  .salud-wrap{padding:4px 0;}
+  .salud-score-bar{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;margin-bottom:14px;}
+  .salud-score-label{font-size:0.78rem;color:var(--text-muted);font-family:var(--mono);}
+  .salud-score-value{font-size:1.1rem;font-weight:700;margin:4px 0 8px;font-family:var(--mono);}
+  .salud-score-track{height:8px;background:var(--bg);border-radius:4px;overflow:hidden;}
+  .salud-score-fill{height:100%;border-radius:4px;transition:width .3s var(--ease);}
+  .salud-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;}
+  .salud-card{display:flex;gap:12px;padding:14px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface);align-items:flex-start;transition:all .15s var(--ease);}
+  .salud-card:hover{transform:translateY(-1px);box-shadow:0 2px 8px rgba(0,0,0,.1);}
+  .salud-luz{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:700;flex-shrink:0;}
+  .sem-verde .salud-luz{background:rgba(42,214,168,.15);color:var(--green);border:2px solid var(--green);}
+  .sem-verde{border-left:3px solid var(--green);}
+  .sem-amarillo .salud-luz{background:rgba(245,166,35,.15);color:var(--amber);border:2px solid var(--amber);}
+  .sem-amarillo{border-left:3px solid var(--amber);}
+  .sem-rojo .salud-luz{background:rgba(239,68,68,.15);color:var(--red);border:2px solid var(--red);}
+  .sem-rojo{border-left:3px solid var(--red);}
+  .salud-info{flex:1;min-width:0;}
+  .salud-label{font-size:0.74rem;color:var(--text-muted);font-family:var(--mono);}
+  .salud-valor{font-size:1.3rem;font-weight:700;margin:2px 0;font-family:var(--mono);}
+  .salud-estado{font-size:0.72rem;font-weight:600;}
+  .sem-verde .salud-estado{color:var(--green);}
+  .sem-amarillo .salud-estado{color:var(--amber);}
+  .sem-rojo .salud-estado{color:var(--red);}
+  .salud-detalle{font-size:0.68rem;color:var(--text-muted);margin-top:4px;}
+  .salud-recomendacion{font-size:0.68rem;margin-top:4px;padding:6px 8px;border-radius:var(--r-sm);background:var(--bg);color:var(--text-muted);line-height:1.4;}
+  .sem-amarillo .salud-recomendacion{border-left:2px solid var(--amber);}
+  .sem-rojo .salud-recomendacion{border-left:2px solid var(--red);}
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     FEATURE #7: CALENDARIO DE COBROS
+     ═══════════════════════════════════════════════════════════════════════════ */
+  .calendario-wrap{padding:4px 0;}
+  .calendario-header{display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:14px;}
+  .calendario-header h3{margin:0;font-size:1rem;text-transform:capitalize;}
+  .calendario-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+  .cal-dia-header{text-align:center;font-size:0.68rem;color:var(--text-muted);font-family:var(--mono);padding:6px 0;font-weight:600;}
+  .cal-dia{min-height:64px;border:1px solid var(--border);border-radius:var(--r-sm);padding:4px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;cursor:default;transition:all .12s var(--ease);position:relative;}
+  .cal-dia-vacio{border:none;background:transparent;}
+  .cal-dia-vacio-num{background:var(--bg);}
+  .cal-dia-num{font-size:0.78rem;font-weight:600;font-family:var(--mono);}
+  .cal-dia-badge{font-size:0.62rem;font-weight:700;margin-top:2px;}
+  .cal-dia-monto{font-size:0.56rem;color:var(--text-muted);font-family:var(--mono);margin-top:auto;text-align:center;line-height:1.2;}
+  .cal-dia-ok{background:rgba(42,214,168,.08);border-color:var(--green);cursor:pointer;}
+  .cal-dia-ok:hover{background:rgba(42,214,168,.15);}
+  .cal-dia-ok .cal-dia-badge{color:var(--green);}
+  .cal-dia-parcial{background:rgba(245,166,35,.08);border-color:var(--amber);cursor:pointer;}
+  .cal-dia-parcial:hover{background:rgba(245,166,35,.15);}
+  .cal-dia-parcial .cal-dia-badge{color:var(--amber);}
+  .cal-dia-pendiente{background:rgba(239,68,68,.06);border-color:rgba(239,68,68,.4);cursor:pointer;}
+  .cal-dia-pendiente:hover{background:rgba(239,68,68,.12);}
+  .cal-dia-pendiente .cal-dia-badge{color:var(--red);}
+  .cal-dia-mora{background:rgba(168,85,247,.08);border-color:var(--purple);cursor:pointer;}
+  .cal-dia-mora:hover{background:rgba(168,85,247,.15);}
+  .cal-dia-mora .cal-dia-badge{color:var(--purple);}
+  .cal-dia-hoy{box-shadow:0 0 0 2px var(--blue);font-weight:700;}
+  .cal-dia-hoy .cal-dia-num{color:var(--blue);}
+  .calendario-resumen{display:flex;gap:12px;flex-wrap:wrap;margin-top:16px;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);}
+  .cal-resumen-item{display:flex;flex-direction:column;align-items:center;flex:1;min-width:80px;}
+  .cal-resumen-label{font-size:0.68rem;color:var(--text-muted);font-family:var(--mono);}
+  .cal-resumen-val{font-size:1.1rem;font-weight:700;margin-top:2px;}
+  .calendario-leyenda{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:0.7rem;color:var(--text-muted);}
+  .cal-leyenda-item{display:flex;align-items:center;gap:5px;}
+  .cal-leyenda-color{display:inline-block;width:14px;height:14px;border-radius:3px;border:1px solid var(--border);}
+  .cal-leyenda-color.cal-dia-ok{background:rgba(42,214,168,.08);border-color:var(--green);}
+  .cal-leyenda-color.cal-dia-parcial{background:rgba(245,166,35,.08);border-color:var(--amber);}
+  .cal-leyenda-color.cal-dia-pendiente{background:rgba(239,68,68,.06);border-color:rgba(239,68,68,.4);}
+  .cal-leyenda-color.cal-dia-mora{background:rgba(168,85,247,.08);border-color:var(--purple);}
+  @media(max-width:600px){
+    .cal-dia{min-height:48px;padding:2px;}
+    .cal-dia-monto{display:none;}
+    .cal-dia-badge{font-size:0.56rem;}
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     FEATURE #6: REPORTE MENSUAL EJECUTIVO
+     ═══════════════════════════════════════════════════════════════════════════ */
+  .reporte-mensual-wrap{padding:4px 0;}
+  .reporte-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px;}
+  .reporte-header h3{margin:0;font-size:1rem;}
+  .reporte-actions{display:flex;gap:8px;flex-wrap:wrap;}
+  .reporte-note{font-size:0.76rem;color:var(--text-muted);padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:12px;}
+  .reporte-kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;}
+  .reporte-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;}
+  .kpi-label{font-size:0.68rem;color:var(--text-muted);font-family:var(--mono);}
+  .kpi-value{font-size:1.2rem;font-weight:700;margin:3px 0;font-family:var(--mono);}
+  .kpi-delta{font-size:0.66rem;}
+  .reporte-gastos{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
+  .gasto-cat-row{display:flex;align-items:center;gap:10px;font-size:0.76rem;}
+  .gasto-cat-nombre{width:100px;flex-shrink:0;color:var(--text-muted);font-family:var(--mono);}
+  .gasto-cat-bar{flex:1;height:8px;background:var(--bg);border-radius:4px;overflow:hidden;}
+  .gasto-cat-bar>div{height:100%;border-radius:4px;transition:width .3s var(--ease);}
+  .gasto-cat-monto{font-size:0.72rem;flex-shrink:0;}
+  .reporte-snapshot-info{font-size:0.74rem;margin-top:12px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);}
+  .snapshots-list{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
+  .snapshot-row{display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);font-size:0.76rem;}
+  .snapshot-mes{text-transform:capitalize;font-weight:600;min-width:120px;}
+  .snapshot-ganancia{flex:1;text-align:right;}
+  .snapshot-tasa{color:var(--blue);font-size:0.7rem;}
+  .snapshot-meta{color:var(--text-muted);font-size:0.68rem;}
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     FEATURE #4: RECIBO DE PAGO (plantilla de impresión)
+     ═══════════════════════════════════════════════════════════════════════════ */
+  .recibo-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;overflow-y:auto;}
+  .recibo-actions{margin-top:16px;display:flex;gap:10px;}
+  .recibo{background:#fff;color:#111;width:100%;max-width:480px;padding:32px;border-radius:8px;font-family:'Segoe UI',Arial,sans-serif;box-shadow:0 4px 20px rgba(0,0,0,.3);}
+  .recibo-header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #111;padding-bottom:12px;margin-bottom:16px;}
+  .recibo-titulo{font-size:1.3rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;}
+  .recibo-numero{font-size:0.9rem;font-weight:600;color:#555;font-family:var(--mono);}
+  .recibo-fecha{font-size:0.85rem;color:#555;margin-bottom:14px;}
+  .recibo-cliente-info{margin-bottom:16px;padding:12px;background:#f5f5f5;border-radius:4px;font-size:0.88rem;}
+  .recibo-cliente-info div{margin:3px 0;}
+  .recibo-tabla{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:0.85rem;}
+  .recibo-tabla td{padding:8px 6px;border-bottom:1px solid #ddd;vertical-align:top;}
+  .recibo-detalle{font-size:0.76rem;color:#666;}
+  .recibo-detalle div{margin:1px 0;}
+  .recibo-monto{text-align:right;font-weight:600;white-space:nowrap;font-family:var(--mono);}
+  .recibo-total-row{border-top:2px solid #111;}
+  .recibo-total-row td{border-bottom:none;padding-top:12px;font-size:1rem;}
+  .recibo-monto-total{font-size:1.2rem;font-weight:700;}
+  .recibo-nota{font-size:0.78rem;color:#777;font-style:italic;margin-bottom:14px;min-height:1em;}
+  .recibo-footer{text-align:center;font-size:0.72rem;color:#999;border-top:1px solid #ddd;padding-top:10px;margin-top:10px;}
+  @media print{
+    body *{visibility:hidden;}
+    #recibo-overlay,#recibo-overlay *{visibility:visible;}
+    #recibo-overlay{position:absolute;inset:0;background:#fff;padding:0;overflow:visible;}
+    .recibo{box-shadow:none;max-width:none;width:100%;padding:20px;}
+    .recibo-actions{display:none;}
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     FEATURE #5: GESTIÓN DE PLANES
+     ═══════════════════════════════════════════════════════════════════════════ */
+  .plan-item{display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:6px;}
+  .plan-item:hover{border-color:var(--blue);}
+  .plan-item strong{font-size:0.88rem;}
+  .plan-item .text-muted{font-size:0.74rem;}

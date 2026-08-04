@@ -9,7 +9,37 @@ const megasDisponiblesParaVenta = (excluirId=null)=>{
   const vendidoOtros = clients.filter(c=>c.id!==excluirId).reduce((s,c)=>s+(c.megas||0),0);
   return config.megas + (config.sobreventaMegas||0) - (config.margenMegas||0) - vendidoOtros;
 };
-const ingresosMes     = ()=>clients.filter(c=>c.megas&&c.precio).reduce((s,c)=>s+c.megas*c.precio,0);
+// Feature #5: precio por mega de un cliente. Si el cliente tiene un plan asignado
+// (planId), usa el precio del plan. Si no, usa c.precio (campo manual, comportamiento historico).
+// Esto permite que el admin defina planes con precios fijos y los clientes hereden el precio
+// sin tener que setearlo manualmente en cada uno.
+function getPlanCliente(c) {
+  if(!c.planId) return null;
+  return planes.find(p=>p.id===c.planId) || null;
+}
+function getPrecioCliente(c) {
+  const plan = getPlanCliente(c);
+  if(plan && plan.precio) return plan.precio;
+  return c.precio||0;
+}
+function getMegasCliente(c) {
+  const plan = getPlanCliente(c);
+  if(plan && plan.megas && !c.megas) return plan.megas;
+  return c.megas||0;
+}
+// Feature #10: calcular el descuento aplicable a un cobro.
+// c.descuentoTipo puede ser 'monto' (CUP fijos) o 'pct' (porcentaje).
+// Devuelve el monto a descontar del precio del mes.
+function calcularDescuento(c, precioMes) {
+  if(!c.descuento || c.descuento<=0) return 0;
+  if(c.descuentoTipo==='pct') return Math.round(precioMes * c.descuento / 100);
+  return Math.min(c.descuento, precioMes); // monto fijo, nunca mas que el precio
+}
+// Ingresos del mes usando getPrecioCliente (respeta planes) y aplicando descuentos
+const ingresosMes     = ()=>clients.filter(c=>c.megas&&getPrecioCliente(c)).reduce((s,c)=>{
+  const precioMes=c.megas*getPrecioCliente(c);
+  return s + Math.max(0, precioMes - calcularDescuento(c,precioMes));
+},0);
 const costoMes        = ()=>config.megas*config.costoPorMega;
 // BUG FIX: antes sumaba TODOS los gastos guardados en `gastos`, incluyendo los
 // de categoría "inversion", que iniciarNuevoMes() (month-reset.js) deliberadamente
@@ -23,7 +53,7 @@ const gastosDelMes    = ()=>gastos.filter(g=>!config.mesActual || (g.fecha||'').
 const totalGastos     = ()=>gastosDelMes().reduce((s,g)=>s+g.monto,0);
 const ganancia        = ()=>ingresosMes()-costoMes()-totalGastos();
 const gananciaMensual  = ()=>ingresosMes()-costoMes();
-const cobrado         = ()=>clients.filter(c=>c.pagado).reduce((s,c)=>s+c.megas*c.precio,0);
+const cobrado         = ()=>clients.filter(c=>c.pagado).reduce((s,c)=>s+c.megas*getPrecioCliente(c),0);
 // BUG FIX: pendienteTotal() (y el conteo de "clientes" de la tarjeta Pendiente
 // en render.js) contaban a TODOS los no pagados, incluyendo clientes agregados
 // para el próximo mes (fechaInicio futura) que aún no deben nada del ciclo
@@ -40,7 +70,7 @@ function facturacionIniciada(c) {
   }
   return true;
 }
-const pendienteTotal  = ()=>clients.filter(c=>!c.pagado && facturacionIniciada(c)).reduce((s,c)=>s+c.megas*c.precio,0);
+const pendienteTotal  = ()=>clients.filter(c=>!c.pagado && facturacionIniciada(c)).reduce((s,c)=>s+c.megas*getPrecioCliente(c),0);
 
 const inversionTotalHistorica   = ()=>investments.reduce((s,i)=>s+(i.costoTotal||0),0);
 // BUG FIX: antes sumaba investments[].recuperado, un campo que ningún código llega
@@ -101,8 +131,10 @@ function getCuotaEquipo(c) {
 function montoTotalACobrar(c) {
   const mora         = getMora(c);
   const cuotaEq      = getCuotaEquipo(c);
-  const precioPorMes = c.megas * c.precio;
-  const servicioTotal = precioPorMes * (mora + 1);
+  const precioPorMes = c.megas * getPrecioCliente(c);
+  const descuento    = calcularDescuento(c, precioPorMes);
+  const precioNeto   = Math.max(0, precioPorMes - descuento);
+  const servicioTotal = precioNeto * (mora + 1);
   const total         = servicioTotal + cuotaEq;
   return Math.max(0, total - (c.abono||0));
 }
@@ -220,3 +252,102 @@ function fechaLocalISO(d) {
   const day = String(fecha.getDate()).padStart(2,'0');
   return `${y}-${m}-${day}`;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  FEATURE #14: SNAPSHOTS DE CIERRE DE MES
+//  Guarda una fotografia inmutable del estado del negocio para un mes dado,
+//  permitiendo comparar meses historicos de forma fiable (sin que los datos
+//  cambien retroactivamente). Alimenta el dashboard de salud y los reportes.
+// ═══════════════════════════════════════════════════════════════════════════════
+function generarSnapshot(mes) {
+  // mes: string 'YYYY-MM'. Si no se pasa, usa el mes actual.
+  const mesKey = mes || mesActualHoy();
+  const cobrosMes = history.filter(h => (h.fecha||'').startsWith(mesKey));
+  const totalCobrado = cobrosMes.reduce((s,h)=>s+(h.monto||0),0);
+  const totalCobradoEquipo = cobrosMes.reduce((s,h)=>s+(h.montoEquipo||0),0);
+  const gastosMes = gastos.filter(g => (g.fecha||'').startsWith(mesKey));
+  const totalGastosMes = gastosMes.reduce((s,g)=>s+(g.monto||0),0);
+  const nClientes = clients.length;
+  const nPagados = clients.filter(c=>c.pagado).length;
+  const nConMora = clients.filter(c=>getMora(c)>0).length;
+  const tasaCobro = nClientes>0 ? Math.round(nPagados/nClientes*100) : 0;
+  const ing = ingresosMes();
+  const costo = costoMes();
+  const gan = ing - costo - totalGastosMes;
+
+  // Gastos desglosados por categoria
+  const gastosPorCat = {};
+  gastosMes.forEach(g=>{
+    const cat = g.categoria || 'operativo';
+    gastosPorCat[cat] = (gastosPorCat[cat]||0) + (g.monto||0);
+  });
+
+  return {
+    mes: mesKey,
+    ingresos: ing,
+    costoPaquete: costo,
+    gastos: totalGastosMes,
+    gastosPorCategoria: gastosPorCat,
+    ganancia: gan,
+    margen: ing>0 ? Math.round(gan/ing*100) : 0,
+    cobrado: totalCobrado,
+    cobradoEquipo: totalCobradoEquipo,
+    pendiente: pendienteTotal(),
+    nClientes,
+    nPagados,
+    nConMora,
+    tasaCobro,
+    megasVendidos: totalVendido(),
+    timestamp: new Date().toISOString()
+  };
+}
+
+function guardarSnapshot(mes) {
+  const snap = generarSnapshot(mes);
+  // Reemplazar si ya existe un snapshot para ese mes (actualizar)
+  const idx = snapshots.findIndex(s=>s.mes===snap.mes);
+  if(idx>=0) snapshots[idx]=snap;
+  else snapshots.push(snap);
+  // Ordenar por mes descendente
+  snapshots.sort((a,b)=>b.mes.localeCompare(a.mes));
+  return snap;
+}
+
+function getSnapshotMes(mes) {
+  return snapshots.find(s=>s.mes===mes) || null;
+}
+
+function getSnapshotAnterior(mesActualKey) {
+  // Devuelve el snapshot del mes inmediatamente anterior al dado
+  const anteriores = snapshots.filter(s=>s.mes < mesActualKey).sort((a,b)=>b.mes.localeCompare(a.mes));
+  return anteriores.length ? anteriores[0] : null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  FEATURE #4: CONTADOR DE RECIBOS
+//  Genera un numero de recibo auto-incremental, persistido en el estado.
+// ═══════════════════════════════════════════════════════════════════════════════
+function siguienteRecibo() {
+  reciboCounter++;
+  return reciboCounter;
+}
+
+function formatoRecibo(n) {
+  const anio = new Date().getFullYear();
+  return `R-${anio}-${String(n).padStart(4,'0')}`;
+}
+
+// Helper: mes actual como 'YYYY-MM' (para snapshots y reportes)
+function mesActualHoy() {
+  const ahora = new Date();
+  return `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}`;
+}
+
+// Helper: label legible de un mes 'YYYY-MM' → "enero 2025"
+function labelMes(mesKey) {
+  if(!mesKey || mesKey==='sin-fecha') return 'Sin fecha';
+  const [y,m] = mesKey.split('-');
+  const d = new Date(parseInt(y), parseInt(m)-1, 15);
+  return d.toLocaleDateString('es-CU', {month:'long', year:'numeric'});
+}
+

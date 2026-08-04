@@ -1,10 +1,10 @@
 // config.js
-// Aplicar configuración general (megas, costos, días de pago).
+// Aplicar configuracion general (megas, costos, dias de pago, tolerancia mora).
 // Depende de: state.js (config), storage-local.js (save), render.js (render)
 
-// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 //  CONFIG
-// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 function applyConfig() {
   const nuevos=parseInt(document.getElementById('cfg-megas').value)||config.megas;
   // Leer la sobreventa antes de validar, para que el limite total
@@ -31,8 +31,12 @@ function applyConfig() {
   config.sobreventaMegas=sobreventa;
   config.costoPorMega =parseInt(document.getElementById('cfg-costo').value)||config.costoPorMega;
   config.diaInicio    =parseInt(document.getElementById('cfg-dia-inicio').value)||config.diaInicio;
-  save(); render(); notify('Configuración actualizada');
+  // Feature #8: tolerancia de dias de mora configurable
+  let tolerancia=parseInt(document.getElementById('cfg-tolerancia').value);
+  if(isNaN(tolerancia)||tolerancia<0) tolerancia=5;
+  config.toleranciaMoraDias=tolerancia;
+  save(); render(); notify('Configuracion actualizada');
   // Sincronizar tolerancia con Firestore para que el cron de GitHub Actions
-  // use los mismos días de inicio/límite que la app (FIX #2)
+  // use los mismos dias de inicio/limite que la app (FIX #2)
   if(window.FirebaseSync) window.FirebaseSync.syncConfig(config);
 }
