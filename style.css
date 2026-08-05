@@ -615,3 +615,21 @@
   .plan-item:hover{border-color:var(--blue);}
   .plan-item strong{font-size:0.88rem;}
   .plan-item .text-muted{font-size:0.74rem;}
+
+  /* ═══════════════════════════════════════════════════════════
+     MODAL DÍA DEL CALENDARIO (verDiaCalendario)
+     ═══════════════════════════════════════════════════════════ */
+  #cal-dia-modal .caldia-row{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:12px;background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--r-sm);margin-bottom:8px;gap:12px;
+  }
+  #cal-dia-modal .caldia-row:hover{border-color:var(--blue);}
+  #cal-dia-modal .caldia-info{flex:1;min-width:0;}
+  #cal-dia-modal .caldia-nombre{font-weight:600;font-size:0.9rem;margin-bottom:4px;}
+  #cal-dia-modal .caldia-detalle{font-size:0.8rem;color:var(--text-muted);}
+  #cal-dia-modal .caldia-accion{flex-shrink:0;}
+  @media(max-width:480px){
+    #cal-dia-modal .caldia-row{flex-direction:column;align-items:stretch;}
+    #cal-dia-modal .caldia-accion{margin-top:8px;}
+  }

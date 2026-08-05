@@ -41,6 +41,7 @@ async function confirmResetApp() {
   planes = [];
   snapshots = [];
   reciboCounter = 0;
+  if(typeof calendarioMesOffset!=='undefined') calendarioMesOffset = 0;
   // BUG FIX: faltaban margenMegas y paquetePagadoMes — tras el reset,
   // megasDisponiblesParaVenta() usaba config.margenMegas=undefined
   // (tratado como NaN) y el estado del paquete quedaba indefinido.

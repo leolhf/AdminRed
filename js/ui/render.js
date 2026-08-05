@@ -221,7 +221,7 @@ function renderAlarms() {
 }
 
 function renderProfit() {
-  const moraPendiente=clients.filter(c=>!c.pagado&&getMora(c)>0).reduce((s,c)=>s+c.megas*getPrecioCliente(c)*getMora(c),0);
+  const moraPendiente=clients.filter(c=>!c.pagado&&getMora(c)>0).reduce((s,c)=>s+precioNetoCliente(c)*getMora(c),0);
   const tg=totalGastos();
   const rec=recuperadoInversionMes();
   const invPend=deudaEquipoPendienteTotal();
@@ -248,7 +248,7 @@ function renderTable1() {
       </td>
       <td class="mono">${c.megas?c.megas+' Mb':'<span style="color:var(--text-muted)">—</span>'}</td>
       <td class="mono">${c.megas?getPrecioCliente(c).toLocaleString():'<span style="color:var(--text-muted)">—</span>'}</td>
-      <td class="mono text-green">${c.megas?fmt(c.megas*getPrecioCliente(c)):'<span style="color:var(--text-muted)">—</span>'}</td>
+      <td class="mono text-green">${c.megas?fmt(precioNetoCliente(c)):'<span style="color:var(--text-muted)">—</span>'}</td>
       <td>${c.megas?clientLabel(c):'<span class="status-badge" style="background:rgba(120,120,120,.18);color:var(--text-muted)">Pendiente megas</span>'}</td>
       <td class="mono hide-sm">día ${c.diaPago}</td>
       <td>${c.megas?`<button class="btn btn-green btn-sm" onclick="openCobroModal(${c.id})">${c.pagado?'Re-cobrar':'Cobrar'}</button>`:'<span style="color:var(--text-muted);font-size:0.72rem">Sin megas</span>'}</td>
@@ -273,7 +273,7 @@ function renderTable2() {
         ${c.ip?`<div style="font-size:0.66rem;color:var(--text-muted)">IP: ${c.ip}</div>`:''}
         ${getPlanCliente(c)?`<div style="font-size:0.66rem;color:var(--blue)">📋 Plan: ${getPlanCliente(c).nombre}</div>`:''}
         ${c.descuento?`<div style="font-size:0.66rem;color:var(--green)">🎁 Descuento: −${c.descuentoTipo==='pct'?c.descuento+'%':fmt(c.descuento)}</div>`:''}
-        ${getMora(c)>0?`<div class="mora-detail">⚠ ${getMora(c)} mes${getMora(c)>1?'es':''} de mora · ${fmt(c.megas*getPrecioCliente(c)*getMora(c))}</div>`:''}
+        ${getMora(c)>0?`<div class="mora-detail">⚠ ${getMora(c)} mes${getMora(c)>1?'es':''} de mora · ${fmt(precioNetoCliente(c)*getMora(c))}</div>`:''}
         ${c.deudaEquipo?`<div class="mora-detail" style="color:var(--amber)">🔧 Debe equipo: ${fmt(getDeudaEquipoCliente(c))} (cuota ${fmt(getCuotaEquipoCliente(c))})
   ${mesesRestantesDeuda(c)===Infinity
     ? ' · define una cuota para estimar'
@@ -287,7 +287,7 @@ ${(()=>{const p=getProgresoEquipoCliente(c);return p.total>0?`<div class="progre
       </td>
       <td data-label="Megas"><input class="inline-input" type="number" min="0" value="${c.megas||''}" placeholder="—" onchange="updateField(${c.id},'megas',+this.value)"> ${c.megas?'Mb':''}</td>
       <td data-label="$/Mega"><input class="inline-input" type="number" min="0" value="${c.precio||''}" placeholder="—" onchange="updateField(${c.id},'precio',+this.value)"></td>
-      <td data-label="Total mes" class="mono">${c.megas?fmt(c.megas*getPrecioCliente(c)):'<span style="color:var(--text-muted)">—</span>'}</td>
+      <td data-label="Total mes" class="mono">${c.megas?fmt(precioNetoCliente(c)):'<span style="color:var(--text-muted)">—</span>'}</td>
       <td data-label="Pagado">
         ${c.megas
           ? `<span class="status-badge ${c.pagado?'badge-paid':(c.abono&&c.abono>0?'badge-partial':'badge-warn')}">${c.pagado?'Sí':(c.abono&&c.abono>0?`Abono ${fmt(c.abono)}`:'No')}</span>`

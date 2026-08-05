@@ -95,14 +95,14 @@ function renderCalendario() {
     if(esMesActual&&dia===hoy) clase+=' cal-dia-hoy';
 
     // Calcular montos
-    const montoEsperado=clientesDia.reduce((s,c)=>s+c.megas*getPrecioCliente(c),0);
-    const montoCobrado=clientesDia.filter(c=>c.pagado).reduce((s,c)=>s+c.megas*getPrecioCliente(c),0);
+    const montoEsperado=clientesDia.reduce((s,c)=>s+precioNetoCliente(c),0);
+    const montoCobrado=clientesDia.filter(c=>c.pagado).reduce((s,c)=>s+precioNetoCliente(c),0);
     totalEsperado+=montoEsperado;
     totalCobrado+=montoCobrado;
     totalPendiente+=montoEsperado-montoCobrado;
 
     const detalle=nClientes>0?clientesDia.map(c=>
-      `${c.nombre} — ${fmt(c.megas*getPrecioCliente(c))}${c.pagado?' ✓':' ✗'}${getMora(c)>0?' ⚠mora':''}`
+      `${c.nombre} — ${fmt(precioNetoCliente(c))}${c.pagado?' ✓':' ✗'}${getMora(c)>0?' ⚠mora':''}`
     ).join('\\n'):'';
 
     html+=`<div class="${clase}" ${nClientes>0?`onclick="verDiaCalendario(${dia},${anio},${mes})" title="${detalle}"`:''}>
@@ -153,18 +153,54 @@ function cambiarMesCal(delta) {
 }
 
 function verDiaCalendario(dia, anio, mes) {
-  // Mostrar los clientes que pagan ese dia en un alert/modal simple
+  // Mostrar los clientes que pagan ese dia en un modal interactivo
   const clientesDia=clients.filter(c=>c.diaPago===dia);
   if(!clientesDia.length) return;
   const fechaStr=new Date(anio,mes,dia).toLocaleDateString('es-CU',{weekday:'long',day:'numeric',month:'long'});
-  let msg=`📅 ${fechaStr}\n\n`;
+
+  // Construir modal
+  let existing=document.getElementById('cal-dia-modal');
+  if(existing) existing.remove();
+
+  let rowsHtml='';
   clientesDia.forEach(c=>{
-    const monto=c.megas*getPrecioCliente(c);
-    const desc=c.descuento?` (descuento −${c.descuentoTipo==='pct'?c.descuento+'%':fmt(c.descuento)})`:'';
-    msg+=`${c.pagado?'✅':'⏳'} ${c.nombre} — ${fmt(monto)}${desc}`;
-    if(getMora(c)>0) msg+=` ⚠ ${getMora(c)} mes mora`;
-    if(!c.pagado) msg+=`\n   → Cobrar: openCobroModal(${c.id})`;
-    msg+=`\n`;
+    const monto=precioNetoCliente(c);
+    const plan=getPlanCliente(c);
+    const descTxt=c.descuento?` · <span style="color:var(--green)">−${c.descuentoTipo==='pct'?c.descuento+'%':fmt(c.descuento)}</span>`:'';
+    const moraTxt=getMora(c)>0?` · <span style="color:var(--red)">⚠ ${getMora(c)} mes mora</span>`:'';
+    const planTxt=plan?` · <span style="color:var(--blue)">📋 ${plan.nombre}</span>`:'';
+    const estadoIcon=c.pagado?'✅':'⏳';
+    const cobrarBtn=c.pagado
+      ? '<span style="color:var(--green);font-size:0.8rem">Pagado</span>'
+      : `<button class="btn btn-green btn-sm" onclick="cerrarCalDiaModal();openCobroModal(${c.id})">💰 Cobrar</button>`;
+    rowsHtml+=`
+      <div class="caldia-row">
+        <div class="caldia-info">
+          <div class="caldia-nombre">${estadoIcon} ${c.nombre}</div>
+          <div class="caldia-detalle"><span class="mono">${fmt(monto)}</span>${descTxt}${moraTxt}${planTxt}</div>
+        </div>
+        <div class="caldia-accion">${cobrarBtn}</div>
+      </div>`;
   });
-  alert(msg);
+
+  const modal=document.createElement('div');
+  modal.id='cal-dia-modal';
+  modal.className='modal-overlay open';
+  modal.innerHTML=`
+    <div class="modal" style="max-width:500px">
+      <div class="modal-header">
+        <h3>📅 ${fechaStr}</h3>
+        <button class="modal-close" onclick="cerrarCalDiaModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="color:var(--text-muted);margin-bottom:12px">${clientesDia.length} cliente(s) con pago este día</p>
+        ${rowsHtml}
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function cerrarCalDiaModal() {
+  const m=document.getElementById('cal-dia-modal');
+  if(m) m.remove();
 }

@@ -35,11 +35,14 @@ function calcularDescuento(c, precioMes) {
   if(c.descuentoTipo==='pct') return Math.round(precioMes * c.descuento / 100);
   return Math.min(c.descuento, precioMes); // monto fijo, nunca mas que el precio
 }
+// Precio neto mensual de un cliente (precio base menos descuento).
+// Centraliza el calculo para que todas las funciones usen el mismo valor.
+function precioNetoCliente(c) {
+  const precioMes = (c.megas||0) * getPrecioCliente(c);
+  return Math.max(0, precioMes - calcularDescuento(c, precioMes));
+}
 // Ingresos del mes usando getPrecioCliente (respeta planes) y aplicando descuentos
-const ingresosMes     = ()=>clients.filter(c=>c.megas&&getPrecioCliente(c)).reduce((s,c)=>{
-  const precioMes=c.megas*getPrecioCliente(c);
-  return s + Math.max(0, precioMes - calcularDescuento(c,precioMes));
-},0);
+const ingresosMes     = ()=>clients.filter(c=>c.megas&&getPrecioCliente(c)).reduce((s,c)=>s+precioNetoCliente(c),0);
 const costoMes        = ()=>config.megas*config.costoPorMega;
 // BUG FIX: antes sumaba TODOS los gastos guardados en `gastos`, incluyendo los
 // de categoría "inversion", que iniciarNuevoMes() (month-reset.js) deliberadamente
@@ -53,7 +56,7 @@ const gastosDelMes    = ()=>gastos.filter(g=>!config.mesActual || (g.fecha||'').
 const totalGastos     = ()=>gastosDelMes().reduce((s,g)=>s+g.monto,0);
 const ganancia        = ()=>ingresosMes()-costoMes()-totalGastos();
 const gananciaMensual  = ()=>ingresosMes()-costoMes();
-const cobrado         = ()=>clients.filter(c=>c.pagado).reduce((s,c)=>s+c.megas*getPrecioCliente(c),0);
+const cobrado         = ()=>clients.filter(c=>c.pagado).reduce((s,c)=>s+precioNetoCliente(c),0);
 // BUG FIX: pendienteTotal() (y el conteo de "clientes" de la tarjeta Pendiente
 // en render.js) contaban a TODOS los no pagados, incluyendo clientes agregados
 // para el próximo mes (fechaInicio futura) que aún no deben nada del ciclo
@@ -70,7 +73,7 @@ function facturacionIniciada(c) {
   }
   return true;
 }
-const pendienteTotal  = ()=>clients.filter(c=>!c.pagado && facturacionIniciada(c)).reduce((s,c)=>s+c.megas*getPrecioCliente(c),0);
+const pendienteTotal  = ()=>clients.filter(c=>!c.pagado && facturacionIniciada(c)).reduce((s,c)=>s+precioNetoCliente(c),0);
 
 const inversionTotalHistorica   = ()=>investments.reduce((s,i)=>s+(i.costoTotal||0),0);
 // BUG FIX: antes sumaba investments[].recuperado, un campo que ningún código llega
@@ -270,10 +273,11 @@ function generarSnapshot(mes) {
   const nClientes = clients.length;
   const nPagados = clients.filter(c=>c.pagado).length;
   const nConMora = clients.filter(c=>getMora(c)>0).length;
-  const tasaCobro = nClientes>0 ? Math.round(nPagados/nClientes*100) : 0;
   const ing = ingresosMes();
   const costo = costoMes();
   const gan = ing - costo - totalGastosMes;
+  const cobradoReal = cobrado();
+  const tasaCobro = ing>0 ? Math.round(cobradoReal/ing*100) : 0;
 
   // Gastos desglosados por categoria
   const gastosPorCat = {};
@@ -290,7 +294,7 @@ function generarSnapshot(mes) {
     gastosPorCategoria: gastosPorCat,
     ganancia: gan,
     margen: ing>0 ? Math.round(gan/ing*100) : 0,
-    cobrado: totalCobrado,
+    cobrado: cobradoReal,
     cobradoEquipo: totalCobradoEquipo,
     pendiente: pendienteTotal(),
     nClientes,

@@ -13,7 +13,7 @@
 
 // Alias: nombres de sub-tab sin #tab-* → pestaña que sí existe con ese contenido.
 const TAB_ALIAS = {
-  'reportes':  'estadisticas'   // reportes = pestaña estadísticas
+  // 'reportes' ya tiene su propio #tab-reportes (v5.4.0: calendario + reporte mensual)
 };
 
 // Mapa tab-name → categoría, para actualizar el tab de categoría activo.
@@ -63,6 +63,10 @@ function switchTab(name) {
   if(resolved === 'equipos') renderEquiposRed();
   if(resolved === 'cobros') renderHistory();
   if(resolved === 'inventario') renderInventario();
+  if(resolved === 'reportes') {
+    if(typeof renderCalendario === 'function') renderCalendario();
+    if(typeof renderReporteMensual === 'function') renderReporteMensual();
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
