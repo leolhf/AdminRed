@@ -11,9 +11,9 @@ function renderEstadisticas() {
   const pagados=clients.filter(c=>c.pagado).length;
   const pct=clients.length?Math.round(pagados/clients.length*100):0;
   const totalHist=history.reduce((s,h)=>s+h.monto,0);
-  const promMega=clients.length?Math.round(clients.reduce((s,c)=>s+c.precio,0)/clients.length):0;
+  const promMega=clients.length?Math.round(clients.reduce((s,c)=>s+getPrecioCliente(c),0)/clients.length):0;
   const conMora=clients.filter(c=>getMora(c)>0);
-  const moraTotal=conMora.reduce((s,c)=>s+c.megas*c.precio*getMora(c),0);
+  const moraTotal=conMora.reduce((s,c)=>s+precioNetoCliente(c)*getMora(c),0);
 
   document.getElementById('stat-cards').innerHTML=`
     <div class="stat-card"><div class="card-label">Ingresos proyectados/mes</div><div class="big-num green">${(total/1000).toFixed(1)}K</div><div class="sub">CUP si todos pagan</div></div>
@@ -25,10 +25,10 @@ function renderEstadisticas() {
     <div class="stat-card"><div class="card-label">Margen</div><div class="big-num ${gan>=0?'green':'red'}">${total>0?Math.round(gan/total*100):0}%</div><div class="sub">sobre ingresos brutos</div></div>
   `;
 
-  const maxAporte=clients.length?Math.max(...clients.map(c=>c.megas*c.precio)):1;
+  const maxAporte=clients.length?Math.max(...clients.map(c=>precioNetoCliente(c))):1;
   document.getElementById('stat-bars').innerHTML=clients.length
-    ?clients.slice().sort((a,b)=>(b.megas*b.precio)-(a.megas*a.precio)).map(c=>{
-      const aporte=c.megas*c.precio;
+    ?clients.slice().sort((a,b)=>precioNetoCliente(b)-precioNetoCliente(a)).map(c=>{
+      const aporte=precioNetoCliente(c);
       const pctBar=Math.round(aporte/maxAporte*100);
       const color=c.pagado?'var(--green)':getMora(c)>0?'var(--purple)':'var(--amber)';
       return `<div class="chart-bar-row">
@@ -39,19 +39,22 @@ function renderEstadisticas() {
     }).join('')
     :'<div class="empty-state">Sin clientes</div>';
 
-  const sorted=clients.slice().sort((a,b)=>(b.megas*b.precio)-(a.megas*a.precio));
+  const sorted=clients.slice().sort((a,b)=>precioNetoCliente(b)-precioNetoCliente(a));
   document.getElementById('stat-ranking').innerHTML=sorted.map((c,i)=>{
-    const aporte=c.megas*c.precio;
+    const aporte=precioNetoCliente(c);
     const pctA=total>0?Math.round(aporte/total*100):0;
     const mora=getMora(c);
-    return `<tr>
-      <td class="mono text-muted">${i+1}</td>
-      <td><strong style="cursor:pointer;text-decoration:underline dotted" onclick="verHistorialCliente(${c.id})">${c.nombre}</strong></td>
-      <td class="mono">${c.megas} Mb</td>
-      <td class="mono text-green">${fmt(aporte)}</td>
-      <td><span class="pct-pill">${pctA}%</span></td>
-      <td>${mora>0?`<span class="status-badge badge-mora">${mora} mes${mora>1?'es':''}</span>`:'<span class="text-muted">—</span>'}</td>
-      <td>${clientLabel(c)}</td>
+    const plan=getPlanCliente(c);
+    const descTxt=c.descuento?`<div style="font-size:0.62rem;color:var(--green)">🎁 −${c.descuentoTipo==='pct'?c.descuento+'%':fmt(c.descuento)}</div>`:'';
+    const planTxt=plan?`<div style="font-size:0.62rem;color:var(--blue)">📋 ${plan.nombre}</div>`:'';
+    return `<tr class="${c.pagado?'estado-ok':getMora(c)>0?'con-mora':'estado-warn'}">
+      <td data-label="#" class="mono text-muted rank-num">${i+1}</td>
+      <td data-label="Cliente"><strong style="cursor:pointer;text-decoration:underline dotted" onclick="verHistorialCliente(${c.id})">${c.nombre}</strong>${planTxt}${descTxt}</td>
+      <td data-label="Megas" class="mono">${c.megas} Mb</td>
+      <td data-label="$/mes" class="mono text-green">${fmt(aporte)}</td>
+      <td data-label="% del total"><span class="pct-pill">${pctA}%</span></td>
+      <td data-label="Mora">${mora>0?`<span class="status-badge badge-mora">${mora} mes${mora>1?'es':''}</span>`:'<span class="text-muted">—</span>'}</td>
+      <td data-label="Estado">${clientLabel(c)}</td>
     </tr>`;
   }).join('')||'<tr><td colspan="7" class="empty-state">Sin clientes</td></tr>';
 

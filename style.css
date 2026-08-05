@@ -633,3 +633,63 @@
     #cal-dia-modal .caldia-row{flex-direction:column;align-items:stretch;}
     #cal-dia-modal .caldia-accion{margin-top:8px;}
   }
+
+  /* ═══════════════════════════════════════════════════════════
+     RANKING TABLE — Responsive (móvil como tarjetas)
+     ═══════════════════════════════════════════════════════════ */
+  /* En móvil, ocultar el thead (las tarjetas muestran sus propios labels) */
+  @media(max-width:768px){
+    .rank-table.cards-mobile thead{display:none;}
+    .rank-table.cards-mobile tbody tr{
+      display:flex;flex-wrap:wrap;align-items:flex-start;
+      background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
+      margin-bottom:10px;padding:13px 14px 12px;box-shadow:var(--shadow-sm);
+      border-left:3px solid var(--border);
+    }
+    .rank-table.cards-mobile tr:hover td{background:transparent;}
+    .rank-table.cards-mobile td{padding:0;border:none;white-space:normal;}
+    .rank-table.cards-mobile td::before{
+      content:attr(data-label);font-family:var(--mono);font-size:0.56rem;
+      text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);
+      display:block;margin-bottom:3px;
+    }
+    /* # y Cliente en la primera fila, Cliente ocupa el ancho completo */
+    .rank-table.cards-mobile td[data-label="#"]{
+      flex:0 0 auto;margin-right:8px;font-size:1.1rem;font-weight:700;
+      color:var(--text-muted);
+    }
+    .rank-table.cards-mobile td[data-label="#"]::before{display:none;}
+    .rank-table.cards-mobile td[data-label="Cliente"]{
+      flex:1 0 calc(100% - 40px);padding:0 0 10px;margin-bottom:10px;
+      border-bottom:1px solid var(--border);font-size:1rem;
+    }
+    .rank-table.cards-mobile td[data-label="Cliente"]::before{display:none;}
+    .rank-table.cards-mobile td[data-label="Cliente"] strong{font-size:1rem;}
+    /* Trío de datos: Megas / $/mes / % del total como chips */
+    .rank-table.cards-mobile td[data-label="Megas"],
+    .rank-table.cards-mobile td[data-label="$/mes"],
+    .rank-table.cards-mobile td[data-label="% del total"]{
+      flex:1 1 30%;min-width:0;display:flex;flex-direction:column;gap:3px;
+      background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);
+      padding:7px 4px;margin-right:5px;text-align:center;align-items:center;
+      font-size:0.82rem;
+    }
+    .rank-table.cards-mobile td[data-label="$/mes"]{margin-right:0;color:var(--green);font-weight:600;}
+    .rank-table.cards-mobile td[data-label="$/mes"]::after{
+      content:'';flex-basis:100%;height:0;
+    }
+    /* Mora y Estado en la última fila */
+    .rank-table.cards-mobile td[data-label="Mora"],
+    .rank-table.cards-mobile td[data-label="Estado"]{
+      flex:0 0 auto;margin-top:9px;display:flex;align-items:center;gap:4px;
+    }
+    .rank-table.cards-mobile td[data-label="Mora"]{margin-right:10px;}
+    .rank-table.cards-mobile td[data-label="Mora"]::before,
+    .rank-table.cards-mobile td[data-label="Estado"]::before{
+      display:inline;margin-right:4px;font-size:0.56rem;
+    }
+    /* Bordes de color según estado */
+    .rank-table.cards-mobile tr.estado-ok{border-left-color:var(--green);}
+    .rank-table.cards-mobile tr.estado-warn{border-left-color:var(--amber);}
+    .rank-table.cards-mobile tr.con-mora{border-left-color:var(--purple);}
+  }
