@@ -1,12 +1,13 @@
 // calculations.js
 // Cómputos financieros y de estado del cliente (totales, mora, formato).
 
-const totalVendido    = ()=>clients.reduce((s,c)=>s+(c.megas||0),0);
+const totalVendido    = ()=>clients.reduce((s,c)=>s+((c.suspendido?0:(c.megas||0))),0);
 // Mb realmente disponibles para vender, reservando el margen personal (config.margenMegas)
 // y sumando la sobreventa permitida (config.sobreventaMegas), es decir, el total
 // vendible = paquete contratado + sobreventa - margen personal.
+// F4: los clientes suspendidos no cuentan contra el ancho de banda vendido.
 const megasDisponiblesParaVenta = (excluirId=null)=>{
-  const vendidoOtros = clients.filter(c=>c.id!==excluirId).reduce((s,c)=>s+(c.megas||0),0);
+  const vendidoOtros = clients.filter(c=>c.id!==excluirId).reduce((s,c)=>s+(c.suspendido?0:(c.megas||0)),0);
   return config.megas + (config.sobreventaMegas||0) - (config.margenMegas||0) - vendidoOtros;
 };
 // Feature #5: precio por mega de un cliente. Si el cliente tiene un plan asignado

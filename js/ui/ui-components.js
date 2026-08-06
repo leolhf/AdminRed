@@ -220,3 +220,63 @@ if(document.readyState === 'loading') {
 } else {
   initUIComponents();
 }
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  ANIMACIÓN COUNT-UP (Feature V4)
+//  Anima los números grandes de los KPIs desde 0 hasta su valor real al
+//  renderizar, dando sensación de "vida". Respeta prefers-reduced-motion.
+//  Uso: tras renderizar tarjetas, llamar animateCountUpCards(container).
+//  Cada .card-value / .big-num puede llevar:
+//    data-countup="<numero>"        → valor crudo a animar
+//    data-countup-suffix="K"        → sufijo fijo (ej. "K", "%", " Mb")
+//    data-countup-decimals="1"      → decimales (default 0)
+//    data-countup-format="cup"      → formato moneda CUP (miles + " CUP")
+// ═════════════════════════════════════════════════════════════════════════════
+const _countUpAnims = new WeakMap(); // evita re-animar el mismo elemento
+
+function _easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
+
+function _formatCountUp(value, decimals, format, suffix) {
+  if(format === 'cup') {
+    return Math.round(value).toLocaleString('es-CU') + ' CUP';
+  }
+  const v = value.toFixed(decimals);
+  return v + (suffix || '');
+}
+
+function animateCountUpEl(el) {
+  if(!el) return;
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const target = parseFloat(el.getAttribute('data-countup'));
+  if(isNaN(target)) return;
+  const suffix  = el.getAttribute('data-countup-suffix') || '';
+  const decimals= parseInt(el.getAttribute('data-countup-decimals')||'0',10) || 0;
+  const format  = el.getAttribute('data-countup-format') || '';
+  const dur     = 700; // ms
+
+  if(reduce) {
+    el.textContent = _formatCountUp(target, decimals, format, suffix);
+    return;
+  }
+  // Cancelar animación previa del mismo elemento
+  const prev = _countUpAnims.get(el);
+  if(prev) cancelAnimationFrame(prev);
+
+  const start = performance.now();
+  function frame(now) {
+    const t = Math.min(1, (now - start) / dur);
+    const val = target * _easeOutCubic(t);
+    el.textContent = _formatCountUp(val, decimals, format, suffix);
+    if(t < 1) {
+      _countUpAnims.set(el, requestAnimationFrame(frame));
+    } else {
+      _countUpAnims.delete(el);
+    }
+  }
+  _countUpAnims.set(el, requestAnimationFrame(frame));
+}
+
+function animateCountUpCards(container) {
+  if(!container) container = document;
+  container.querySelectorAll('[data-countup]').forEach(el => animateCountUpEl(el));
+}

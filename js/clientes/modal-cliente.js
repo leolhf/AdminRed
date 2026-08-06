@@ -17,6 +17,9 @@ function openAddModal() {
   poblarSelectPlanes(null);
   document.getElementById('f-descuento').value='';
   document.getElementById('f-descuento-tipo').value='monto';
+  // F4: reset suspendido checkbox (nuevo cliente siempre activo)
+  const suspEl=document.getElementById('f-suspendido');
+  if(suspEl) suspEl.checked=false;
   document.getElementById('modal').classList.add('open');
   checkMegasDisponibles(null);
 }
@@ -91,8 +94,20 @@ function checkMegasDisponibles(editId) {
         ${botonAmpliar}`;
     }
   } else {
-    hint.className='megas-hint megas-hint-ok';
-    hint.textContent=`✓ Alcanza. Quedaran ${disponible-megas} Mb libres tras este cliente.`;
+    const restante=disponible-megas;
+    // F5: alerta temprana cuando se acerca al limite de banda.
+    // Si tras asignar este cliente quedan pocos megas libres (menos del 20%
+    // del paquete contratado o menos de 10 Mb), mostramos aviso ambar en
+    // lugar del verde "Alcanza", para que el admin lo tenga en cuenta.
+    const umbralPct=Math.ceil(config.megas*0.2);
+    const umbralCerca=Math.min(umbralPct, 10);
+    if(restante<=umbralCerca){
+      hint.className='megas-hint megas-hint-warn';
+      hint.innerHTML=`⚠ Alcanza, pero apenas te quedaran ${restante} Mb libres tras este cliente. Considera ampliar el paquete pronto.`;
+    } else {
+      hint.className='megas-hint megas-hint-ok';
+      hint.textContent=`✓ Alcanza. Quedaran ${restante} Mb libres tras este cliente.`;
+    }
   }
 }
 
@@ -129,6 +144,9 @@ function editClient(id) {
   // Feature #10: descuento
   document.getElementById('f-descuento').value=c.descuento||'';
   document.getElementById('f-descuento-tipo').value=c.descuentoTipo||'monto';
+  // F4: estado de conexión suspendido
+  const suspEditEl=document.getElementById('f-suspendido');
+  if(suspEditEl) suspEditEl.checked=!!c.suspendido;
   document.getElementById('mes-inicio-wrap').style.display='none';
   document.getElementById('modal').classList.add('open');
   checkMegasDisponibles(id);
@@ -151,6 +169,9 @@ function saveClient() {
   // Feature #10: descuento (opcional)
   const descuento=parseInt(document.getElementById('f-descuento').value)||0;
   const descuentoTipo=document.getElementById('f-descuento-tipo').value||'monto';
+  // F4: estado de conexión suspendido
+  const suspendidoEl=document.getElementById('f-suspendido');
+  const suspendido=suspendidoEl?suspendidoEl.checked:false;
   if(!nombre){notify('El nombre es obligatorio',true);return;}
   const existe = clients.find(x=>x.id!==id && x.nombre.toLowerCase()===nombre.toLowerCase());
   if(existe && !confirm(`Ya existe un cliente llamado "${nombre}". ¿Continuar de todos modos?`)) return;
@@ -205,11 +226,11 @@ function saveClient() {
       // cliente se recalcule de forma normal (getStatus) con el dia nuevo.
       const diaCambio=dia!==clients[idx].diaPago;
       const fechaInicioActualizada=diaCambio?undefined:clients[idx].fechaInicio;
-      clients[idx]={...clients[idx],nombre,megas,precio,diaPago:dia,telefono,ip,planId,descuento,descuentoTipo,fechaInicio:fechaInicioActualizada,ultimaEdicion:ahora.toISOString()};
+      clients[idx]={...clients[idx],nombre,megas,precio,diaPago:dia,telefono,ip,planId,descuento,descuentoTipo,suspendido,fechaInicio:fechaInicioActualizada,ultimaEdicion:ahora.toISOString()};
     }
   } else {
     const newId=clients.length?Math.max(...clients.map(c=>c.id))+1:1;
-    clients.push({id:newId,nombre,megas,precio,diaPago:dia,pagado:false,telefono,ip,planId,descuento:descuento||0,descuentoTipo,mesInicio,fechaInicio,mora:0,ultimaEdicion:ahora.toISOString()});
+    clients.push({id:newId,nombre,megas,precio,diaPago:dia,pagado:false,telefono,ip,planId,descuento:descuento||0,descuentoTipo,mesInicio,fechaInicio,mora:0,suspendido:false,ultimaEdicion:ahora.toISOString()});
     clienteId=newId;
   }
   save(); render(); closeModal();

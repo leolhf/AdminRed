@@ -16,14 +16,15 @@ function renderEstadisticas() {
   const moraTotal=conMora.reduce((s,c)=>s+precioNetoCliente(c)*getMora(c),0);
 
   document.getElementById('stat-cards').innerHTML=`
-    <div class="stat-card"><div class="card-label">Ingresos proyectados/mes</div><div class="big-num green">${(total/1000).toFixed(1)}K</div><div class="sub">CUP si todos pagan</div></div>
-    <div class="stat-card"><div class="card-label">Ganancia neta/mes</div><div class="big-num ${gan>=0?'green':'red'}">${(gan/1000).toFixed(1)}K</div><div class="sub">tras costo ${fmt(costo)}</div></div>
-    <div class="stat-card"><div class="card-label">Tasa de cobro</div><div class="big-num blue">${pct}%</div><div class="sub">${pagados} de ${clients.length} clientes</div></div>
-    <div class="stat-card"><div class="card-label">Total historial</div><div class="big-num amber">${(totalHist/1000).toFixed(1)}K</div><div class="sub">${history.length} cobros</div></div>
-    <div class="stat-card"><div class="card-label">Precio prom/mega</div><div class="big-num">${promMega.toLocaleString()}</div><div class="sub">CUP por Mb</div></div>
-    <div class="stat-card"><div class="card-label">Mora pendiente</div><div class="big-num" style="color:var(--purple)">${moraTotal>0?(moraTotal/1000).toFixed(1)+'K':'—'}</div><div class="sub">${conMora.length} cliente${conMora.length!==1?'s':''}</div></div>
-    <div class="stat-card"><div class="card-label">Margen</div><div class="big-num ${gan>=0?'green':'red'}">${total>0?Math.round(gan/total*100):0}%</div><div class="sub">sobre ingresos brutos</div></div>
+    <div class="stat-card"><div class="card-label">Ingresos proyectados/mes</div><div class="big-num green" data-countup="${total/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="sub">CUP si todos pagan</div></div>
+    <div class="stat-card"><div class="card-label">Ganancia neta/mes</div><div class="big-num ${gan>=0?'green':'red'}" data-countup="${gan/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="sub">tras costo ${fmt(costo)}</div></div>
+    <div class="stat-card"><div class="card-label">Tasa de cobro</div><div class="big-num blue" data-countup="${pct}" data-countup-suffix="%">0%</div><div class="sub">${pagados} de ${clients.length} clientes</div></div>
+    <div class="stat-card"><div class="card-label">Total historial</div><div class="big-num amber" data-countup="${totalHist/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="sub">${history.length} cobros</div></div>
+    <div class="stat-card"><div class="card-label">Precio prom/mega</div><div class="big-num" data-countup="${promMega}" data-countup-format="cup">0 CUP</div><div class="sub">CUP por Mb</div></div>
+    <div class="stat-card"><div class="card-label">Mora pendiente</div><div class="big-num" style="color:var(--purple)" ${moraTotal>0?`data-countup="${moraTotal/1000}" data-countup-decimals="1" data-countup-suffix="K"`:''}>${moraTotal>0?'0K':'—'}</div><div class="sub">${conMora.length} cliente${conMora.length!==1?'s':''}</div></div>
+    <div class="stat-card"><div class="card-label">Margen</div><div class="big-num ${gan>=0?'green':'red'}" data-countup="${total>0?Math.round(gan/total*100):0}" data-countup-suffix="%">0%</div><div class="sub">sobre ingresos brutos</div></div>
   `;
+  animateCountUpCards(document.getElementById('stat-cards'));
 
   const maxAporte=clients.length?Math.max(...clients.map(c=>precioNetoCliente(c))):1;
   document.getElementById('stat-bars').innerHTML=clients.length

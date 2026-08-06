@@ -14,7 +14,7 @@ function verHistorialCliente(id) {
   document.getElementById('hc-content').innerHTML=`
     <div style="background:var(--bg);border-radius:6px;padding:10px;margin-bottom:12px;font-family:var(--mono);font-size:0.78rem;">
       <div style="display:flex;justify-content:space-between;padding:3px 0"><span class="text-muted">Megas:</span><strong>${c.megas} Mb</strong></div>
-      <div style="display:flex;justify-content:space-between;padding:3px 0"><span class="text-muted">$/mes:</span><strong class="text-green">${fmt(c.megas*c.precio)}</strong></div>
+      <div style="display:flex;justify-content:space-between;padding:3px 0"><span class="text-muted">$/mes:</span><strong class="text-green">${fmt(precioNetoCliente(c))}</strong></div>
       <div style="display:flex;justify-content:space-between;padding:3px 0"><span class="text-muted">Día de pago:</span><strong>día ${c.diaPago||config.diaInicio}</strong></div>
       <div style="display:flex;justify-content:space-between;padding:3px 0"><span class="text-muted">Total cobrado:</span><strong class="text-blue">${fmt(totalPagado)}</strong></div>
       ${mora>0?`<div style="display:flex;justify-content:space-between;padding:3px 0"><span class="text-muted">Meses mora:</span><strong style="color:var(--purple)">${mora} mes${mora>1?'es':''}</strong></div>`:''}

@@ -296,9 +296,20 @@ function renderInventario() {
   const el = document.getElementById('inventario-list');
   if(!el) return;
   if(!inventario.length){ el.innerHTML='<div class="empty-state">Sin lotes registrados</div>'; return; }
+  // F1: filtro de búsqueda por descripción o fecha
+  const qEl = document.getElementById('inventario-search');
+  const q = (qEl && qEl.value || '').toLowerCase().trim();
+  const lista = q
+    ? inventario.filter(inv => {
+        const desc  = (inv.desc||'').toLowerCase();
+        const fecha = (inv.fecha||'').toLowerCase();
+        return desc.includes(q) || fecha.includes(q);
+      })
+    : inventario;
+  if(!lista.length){ el.innerHTML='<div class="empty-state">Sin lotes que coincidan con «'+q+'»</div>'; return; }
   const opcionesClientes = clients.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
 
-  el.innerHTML = [...inventario].reverse().map(inv=>{
+  el.innerHTML = [...lista].reverse().map(inv=>{
     // Compatibilidad con lotes viejos creados antes de este cambio (solo tenían monto, sin cantidad)
     if(inv.cantidadTotal==null){
       return `

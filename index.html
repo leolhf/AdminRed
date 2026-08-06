@@ -291,6 +291,11 @@
       <button class="btn btn-blue btn-sm" onclick="openPlanesModal()">Gestionar planes</button>
     </div>
     <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:10px">Define planes con megas y precio fijos. Asígnalos a clientes para automatizar el precio sin setearlo manualmente cada vez.</p>
+
+    <div class="section-header" style="margin-top:18px">
+      <span class="section-title">💬 Plantillas de WhatsApp</span>
+    </div>
+    <div id="wa-templates-editor" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:13px 14px;margin-bottom:14px;box-shadow:var(--shadow-sm)"></div>
   </div>
 
   <!-- ESTADÍSTICAS -->
@@ -369,7 +374,13 @@
   <div id="tab-inventario" class="tab-content">
     <div class="section-header">
       <span class="section-title">Inventario de equipos</span>
-      <button class="btn btn-amber" onclick="openInventarioModal()">+ Comprar lote</button>
+      <div style="display:flex;gap:7px;flex-wrap:wrap">
+        <div class="search-wrap" style="position:relative">
+          <input id="inventario-search" class="inline-input" type="search" placeholder="Buscar lote (descripción o fecha)…" oninput="renderInventario()" style="width:200px;padding-left:26px">
+          <span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:0.8rem;pointer-events:none">🔍</span>
+        </div>
+        <button class="btn btn-amber" onclick="openInventarioModal()">+ Comprar lote</button>
+      </div>
     </div>
     <div class="history-panel"><div id="inventario-list" class="gastos-list"><div class="empty-state">Sin lotes registrados</div></div></div>
   </div>
@@ -379,6 +390,10 @@
     <div class="section-header">
       <span class="section-title">Historial de cobros</span>
       <div style="display:flex;gap:7px;flex-wrap:wrap">
+        <div class="search-wrap" style="position:relative">
+          <input id="history-search" class="inline-input" type="search" placeholder="Buscar cobro (nombre o fecha)…" oninput="renderHistory()" style="width:190px;padding-left:26px">
+          <span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:0.8rem;pointer-events:none">🔍</span>
+        </div>
         <button class="btn btn-ghost btn-sm" onclick="exportCSV()">⬇ CSV cobros</button>
         <button class="btn btn-ghost btn-sm" onclick="exportClientesCSV()">⬇ CSV clientes</button>
         <button class="btn btn-ghost btn-sm" onclick="clearHistory()">Nuevo mes / Limpiar</button>
@@ -482,6 +497,12 @@
             <option value="pct">Porcentaje (%)</option>
           </select>
         </div>
+      </div>
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="f-suspendido" style="width:auto;cursor:pointer">
+          <span>🔌 Conexión suspendida (no consume ancho de banda)</span>
+        </label>
       </div>
     </div>
     <div class="modal-actions">
@@ -875,6 +896,7 @@
 <!-- NOTIFICACIONES: WhatsApp y notificaciones -->
 <script src="./js/notificaciones/notifications.js"></script>
 <script src="./js/notificaciones/whatsapp.js"></script>
+<script src="./js/notificaciones/wa-templates.js"></script>
 
 <!-- OTROS: Funcionalidades específicas -->
 <script src="./js/gastos.js"></script>

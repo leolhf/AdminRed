@@ -72,19 +72,19 @@ function scheduleNotifications() {
       const mora=getMora(c);
       if(s==='warn'){
         reg.showNotification(`RedNet — Cobrar a ${c.nombre}`,{
-          body:`${c.megas} Mb · ${fmt(c.megas*c.precio)} · día ${c.diaPago||config.diaInicio}`,
+          body:`${c.megas} Mb · ${fmt(precioNetoCliente(c))} · día ${c.diaPago||config.diaInicio}`,
           icon:'./icons/icon-192.png',
           badge:'./icons/icon-192.png'
         });
       } else if(s==='due'){
         reg.showNotification(`RedNet — ⚠ VENCIDO: ${c.nombre}`,{
-          body:`${fmt(c.megas*c.precio)} sin cobrar`,
+          body:`${fmt(precioNetoCliente(c))} sin cobrar`,
           icon:'./icons/icon-192.png',
           badge:'./icons/icon-192.png'
         });
       } else if(mora>0){
         reg.showNotification(`RedNet — Mora: ${c.nombre}`,{
-          body:`${mora} mes${mora>1?'es':''} de mora · ${fmt(c.megas*c.precio)} adeudado`,
+          body:`${mora} mes${mora>1?'es':''} de mora · ${fmt(precioNetoCliente(c))} adeudado`,
           icon:'./icons/icon-192.png',
           badge:'./icons/icon-192.png'
         });

@@ -118,21 +118,22 @@ function renderSummary() {
   const invPend=deudaEquipoPendienteTotal();
   const invPct=invTotal>0?Math.round(invRec/invTotal*100):0;
   document.getElementById('summary-cards').innerHTML=`
-    <div class="card"><div class="card-label">Ingreso mensual</div><div class="card-value green">${(ingresosMes()/1000).toFixed(1)}K</div><div class="card-sub">CUP esperado</div></div>
-    <div class="card"><div class="card-label">Costo del paquete</div><div class="card-value red">${(costoMes()/1000).toFixed(1)}K</div><div class="card-sub">${config.megas} Mb × ${fmt(config.costoPorMega)}</div></div>
-    <div class="card"><div class="card-label">Ganancia Mensual</div><div class="card-value ${gananciaMensual()>=0?'green':'red'}">${(gananciaMensual()/1000).toFixed(1)}K</div><div class="card-sub">Ingreso − costo paquete</div></div>
-    <div class="card"><div class="card-label">Cobrado</div><div class="card-value blue">${(cobrado()/1000).toFixed(1)}K</div><div class="card-sub">${pct}% del total</div></div>
-    <div class="card"><div class="card-label">Pendiente</div><div class="card-value amber">${(pendienteTotal()/1000).toFixed(1)}K</div><div class="card-sub">${clients.filter(c=>!c.pagado && facturacionIniciada(c)).length} clientes</div></div>
-    <div class="card"><div class="card-label">Ganancia neta</div><div class="card-value ${ganancia()>=0?'green':'red'}">${(ganancia()/1000).toFixed(1)}K</div><div class="card-sub">tras costo ${fmt(costoMes())}</div></div>
-    <div class="card"><div class="card-label">Clientes</div><div class="card-value">${clients.length}</div><div class="card-sub">${totalVendido()} Mb vendidos</div></div>
-    ${conMora>0?`<div class="card"><div class="card-label">Con mora</div><div class="card-value" style="color:var(--purple)">${conMora}</div><div class="card-sub">clientes atrasados</div></div>`:''}
-    ${invTotal>0?`<div class="card"><div class="card-label">Inversión recuperada</div><div class="card-value amber">${invPct}%</div><div class="card-sub">${fmt(invRec)} de ${fmt(invTotal)}</div></div>`:''}
+    <div class="card"><div class="card-label">Ingreso mensual</div><div class="card-value green" data-countup="${ingresosMes()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">CUP esperado</div></div>
+    <div class="card"><div class="card-label">Costo del paquete</div><div class="card-value red" data-countup="${costoMes()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">${config.megas} Mb × ${fmt(config.costoPorMega)}</div></div>
+    <div class="card"><div class="card-label">Ganancia Mensual</div><div class="card-value ${gananciaMensual()>=0?'green':'red'}" data-countup="${gananciaMensual()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">Ingreso − costo paquete</div></div>
+    <div class="card"><div class="card-label">Cobrado</div><div class="card-value blue" data-countup="${cobrado()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">${pct}% del total</div></div>
+    <div class="card"><div class="card-label">Pendiente</div><div class="card-value amber" data-countup="${pendienteTotal()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">${clients.filter(c=>!c.pagado && facturacionIniciada(c)).length} clientes</div></div>
+    <div class="card"><div class="card-label">Ganancia neta</div><div class="card-value ${ganancia()>=0?'green':'red'}" data-countup="${ganancia()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">tras costo ${fmt(costoMes())}</div></div>
+    <div class="card"><div class="card-label">Clientes</div><div class="card-value" data-countup="${clients.length}">0</div><div class="card-sub">${totalVendido()} Mb vendidos</div></div>
+    ${conMora>0?`<div class="card"><div class="card-label">Con mora</div><div class="card-value" style="color:var(--purple)" data-countup="${conMora}">0</div><div class="card-sub">clientes atrasados</div></div>`:''}
+    ${invTotal>0?`<div class="card"><div class="card-label">Inversión recuperada</div><div class="card-value amber" data-countup="${invPct}" data-countup-suffix="%">0%</div><div class="card-sub">${fmt(invRec)} de ${fmt(invTotal)}</div></div>`:''}
     ${invPend>0?`<div class="card" onclick="openModalInversionPendiente()" style="cursor:pointer;border-color:var(--amber)">
   <div class="card-label">Inversión pendiente ›</div>
-  <div class="card-value amber">${(invPend/1000).toFixed(1)}K</div>
+  <div class="card-value amber" data-countup="${invPend/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div>
   <div class="card-sub">toca para ver detalle</div>
 </div>`:''}
   `;
+  animateCountUpCards(document.getElementById('summary-cards'));
 }
 
 function renderBandwidth() {
@@ -239,10 +240,13 @@ function renderProfit() {
 
 function renderTable1() {
   const pendientes=clients.filter(requiereAtencion);
-  const rows=ordenarPorUrgenciaCobro(pendientes).map(c=>`
-    <tr>
+  const hoyEs=new Date().getDate();
+  const rows=ordenarPorUrgenciaCobro(pendientes).map(c=>{
+    const pagaHoy=(c.diaPago||config.diaInicio)===hoyEs && c.megas;
+    const hoyDot=pagaHoy?`<span class="paga-hoy-dot" title="Paga hoy"></span>`:'';
+    return `<tr class="${pagaHoy?'paga-hoy-row':''}">
       <td>
-        <strong>${c.nombre}</strong>
+        <strong>${c.nombre}</strong>${hoyDot}
         ${c.ip?`<div style="font-size:0.66rem;color:var(--text-muted)">IP: ${c.ip}</div>`:''}
         ${getMora(c)>0?`<div class="mora-tag">⚠ ${getMora(c)} mes${getMora(c)>1?'es':''} mora</div>`:''}
       </td>
@@ -252,13 +256,15 @@ function renderTable1() {
       <td>${c.megas?clientLabel(c):'<span class="status-badge" style="background:rgba(120,120,120,.18);color:var(--text-muted)">Pendiente megas</span>'}</td>
       <td class="mono hide-sm">día ${c.diaPago}</td>
       <td>${c.megas?`<button class="btn btn-green btn-sm" onclick="openCobroModal(${c.id})">${c.pagado?'Re-cobrar':'Cobrar'}</button>`:'<span style="color:var(--text-muted);font-size:0.72rem">Sin megas</span>'}</td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
   document.getElementById('client-table-body').innerHTML=rows||'<tr><td colspan="7" class="empty-state">Sin deudas ni cobros pendientes 🎉</td></tr>';
 }
 
 function renderTable2() {
   const q=(document.getElementById('search-input').value||'').toLowerCase();
   const f=document.getElementById('filter-status').value;
+  const hoyEs=new Date().getDate();
   const filtered=clients.filter(c=>{
     const matchQ=!q||c.nombre.toLowerCase().includes(q)||(c.ip||'').toLowerCase().includes(q);
     if(!matchQ) return false;
@@ -267,9 +273,9 @@ function renderTable2() {
     return getStatus(c)===f;
   });
   const rows=[...filtered].sort(compararPorIP).map(c=>`
-    <tr class="estado-${getStatus(c)}${getMora(c)>0?' con-mora':''}">
+    <tr class="estado-${getStatus(c)}${getMora(c)>0?' con-mora':''}${(c.diaPago||config.diaInicio)===hoyEs&&!c.pagado&&c.megas?' paga-hoy-row':''}${c.suspendido?' suspendido-row':''}">
       <td data-label="Cliente">
-        <strong style="cursor:pointer" onclick="verHistorialCliente(${c.id})">${c.nombre} <span style="font-size:0.7rem;color:var(--text-muted)">›</span></strong>
+        <strong style="cursor:pointer" onclick="verHistorialCliente(${c.id})">${c.nombre} <span style="font-size:0.7rem;color:var(--text-muted)">›</span></strong>${(c.diaPago||config.diaInicio)===hoyEs&&!c.pagado&&c.megas?'<span class="paga-hoy-dot" title="Paga hoy"></span>':''}${c.suspendido?'<span class="status-badge badge-suspendido" title="Conexión suspendida">🔌 Suspendido</span>':''}
         ${c.ip?`<div style="font-size:0.66rem;color:var(--text-muted)">IP: ${c.ip}</div>`:''}
         ${getPlanCliente(c)?`<div style="font-size:0.66rem;color:var(--blue)">📋 Plan: ${getPlanCliente(c).nombre}</div>`:''}
         ${c.descuento?`<div style="font-size:0.66rem;color:var(--green)">🎁 Descuento: −${c.descuentoTipo==='pct'?c.descuento+'%':fmt(c.descuento)}</div>`:''}
@@ -302,6 +308,7 @@ ${(()=>{const p=getProgresoEquipoCliente(c);return p.total>0?`<div class="progre
         ${c.telefono ? `<button class="btn btn-ghost btn-sm" onclick="sendWhatsAppReminder(${c.id})" title="Enviar recordatorio WhatsApp">📱</button>` : ''}
         ${c.megas ? `<button class="btn btn-green btn-sm" onclick="openCobroModal(${c.id})" title="Cobrar">💰</button>` : ''}
         <button class="btn btn-red btn-sm"   onclick="confirmDelete(${c.id})" title="Eliminar">🗑</button>
+        ${c.megas?`<button class="btn btn-ghost btn-sm" onclick="toggleSuspendido(${c.id})" title="${c.suspendido?'Reactivar conexión':'Suspender conexión'}">${c.suspendido?'🔌':'✅'}</button>`:''}
       </div></td>
     </tr>`).join('');
   document.getElementById('client-table-body2').innerHTML=rows||`<tr><td colspan="7" class="empty-state">${q||f?'Sin resultados':'Sin clientes'}</td></tr>`;

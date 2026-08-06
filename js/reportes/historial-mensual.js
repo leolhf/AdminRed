@@ -16,16 +16,32 @@ function renderHistory() {
   const el = document.getElementById('history-list');
   if(!history.length) { el.innerHTML='<div class="empty-state">Sin registros aún</div>'; return; }
 
+  // F1: filtro de búsqueda por nombre o fecha
+  const qEl = document.getElementById('history-search');
+  const q = (qEl && qEl.value || '').toLowerCase().trim();
+  const baseHistory = q
+    ? history.filter(h => {
+        const nombre = (h.nombre||'').toLowerCase();
+        const fecha  = (h.fecha||'').toLowerCase();
+        const nota   = (h.nota||'').toLowerCase();
+        return nombre.includes(q) || fecha.includes(q) || nota.includes(q);
+      })
+    : history;
+
+  if(!baseHistory.length) { el.innerHTML='<div class="empty-state">Sin cobros que coincidan con «'+q+'»</div>'; return; }
+
   const grouped = {};
-  [...history].reverse().forEach(h=>{
+  [...baseHistory].reverse().forEach(h=>{
     const mes = h.fecha ? h.fecha.substring(0,7) : 'sin-fecha';
     if(!grouped[mes]) grouped[mes]=[];
     grouped[mes].push(h);
   });
   const meses = Object.keys(grouped);
 
-  // BUG FIX #9: si el número de meses creció, colapsar los que no estaban antes
-  if(meses.length > _histMesesCount) {
+  // BUG FIX #9: si el número de meses creció, colapsar los que no estaban antes.
+  // Solo se evalúa sin filtro de búsqueda, para no alterar el estado de colapso
+  // mientras el usuario filtra.
+  if(!q && meses.length > _histMesesCount) {
     // Colapsar todos excepto el más reciente
     meses.slice(1).forEach(m => _histCollapsed.add(m));
     _histMesesCount = meses.length;

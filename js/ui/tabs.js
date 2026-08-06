@@ -63,6 +63,7 @@ function switchTab(name) {
   if(resolved === 'equipos') renderEquiposRed();
   if(resolved === 'cobros') renderHistory();
   if(resolved === 'inventario') renderInventario();
+  if(resolved === 'ajustes' && typeof renderWaTemplatesEditor === 'function') renderWaTemplatesEditor();
   if(resolved === 'reportes') {
     if(typeof renderCalendario === 'function') renderCalendario();
     if(typeof renderReporteMensual === 'function') renderReporteMensual();

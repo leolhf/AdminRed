@@ -62,7 +62,8 @@ El orden de carga de los scripts en `index.html` es CRÍTICO. Los scripts deben 
 
 7. NOTIFICACIONES (WhatsApp y notificaciones)
    ├── notifications.js       (Depende de: state.js, keys.js)
-   └── whatsapp.js            (Depende de: state.js, calculations.js)
+   ├── whatsapp.js            (Depende de: state.js, calculations.js)
+   └── wa-templates.js        (Depende de: state.js, calculations.js; carga después de whatsapp.js)
 
 8. OTROS (Funcionalidades específicas)
    ├── gastos.js              (Depende de: state.js, calculations.js)

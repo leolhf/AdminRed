@@ -15,7 +15,9 @@ function normalizePhone(phone) {
   return phone.replace(/[^0-9]/g, '');
 }
 
-// Generar mensaje de recordatorio según el estado del cliente
+// Generar mensaje de recordatorio según el estado del cliente.
+// F6: si el admin definió plantillas personalizadas (config.waTemplates),
+// se usan esas; si no, se mantienen los textos por defecto originales.
 function generateReminderMessage(client) {
   // BUG FIX: el monto usaba solo megas*precio (el servicio de 1 mes), sin
   // contar la cuota de deuda de equipo ni descontar abonos ya hechos — igual
@@ -32,6 +34,15 @@ function generateReminderMessage(client) {
     : '';
 
   let message = '';
+
+  // F6: usar plantillas personalizadas si están definidas
+  const tpls = (typeof getWaTemplates === 'function') ? getWaTemplates() : null;
+  if(tpls) {
+    const fechaLimiteTpl = fechaLimitePago(client);
+    const extraTpl = { mora, deudaLinea, fechaLimite: fechaLimiteTpl.getDate() };
+    const keyTpl = status === 'due' ? 'due' : status === 'warn' ? 'warn' : 'ok';
+    return fillWaTemplate(tpls[keyTpl], client, monto, extraTpl);
+  }
 
   if(status === 'due') {
     message = `Hola ${client.nombre}, te recordamos que tu pago de internet está VENCIDO. `;

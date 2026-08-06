@@ -17,7 +17,34 @@
     --text:#161d26;--text-muted:#5b6675;
     --shadow-sm:0 1px 2px rgba(20,30,40,.06);
     --shadow-md:0 8px 20px rgba(20,30,40,.08);
+    /* Acentos oscurecidos para mejor contraste sobre fondos claros
+       (los neon del tema oscuro quedan ilegibles como texto sobre blanco). */
+    --green:#0f9e74;--amber:#c97a14;--red:#d63a45;--blue:#2f6fe0;--purple:#7c5bd6;
   }
+  /* Ajustes específicos de tema claro: tintes de fondo más visibles,
+     barras y badges con contraste adecuado sobre superficies blancas. */
+  .theme-light .badge-ok{background:rgba(15,158,116,.12);}
+  .theme-light .badge-warn{background:rgba(201,122,20,.12);}
+  .theme-light .badge-due{background:rgba(214,58,69,.12);}
+  .theme-light .badge-paid{background:rgba(47,111,224,.12);}
+  .theme-light .badge-partial{background:rgba(201,122,20,.16);}
+  .theme-light .pct-pill{background:rgba(15,158,116,.12);}
+  .theme-light .progreso-equipo-track{background:rgba(201,122,20,.18);}
+  .theme-light .mora-tag,.theme-light .mora-detail{color:var(--purple);}
+  .theme-light .cal-dia-ok{background:rgba(15,158,116,.08);}
+  .theme-light .cal-dia-ok:hover{background:rgba(15,158,116,.16);}
+  .theme-light .cal-dia-parcial{background:rgba(201,122,20,.08);}
+  .theme-light .cal-dia-parcial:hover{background:rgba(201,122,20,.16);}
+  .theme-light .cal-dia-pendiente{background:rgba(214,58,69,.07);border-color:rgba(214,58,69,.45);}
+  .theme-light .cal-dia-pendiente:hover{background:rgba(214,58,69,.14);}
+  .theme-light .cal-dia-mora{background:rgba(124,91,214,.08);}
+  .theme-light .cal-dia-mora:hover{background:rgba(124,91,214,.16);}
+  .theme-light .notif-item.warning{background:rgba(201,122,20,.10);}
+  .theme-light .notif-item.error{background:rgba(214,58,69,.10);}
+  .theme-light .notif-item.success{background:rgba(15,158,116,.10);}
+  .theme-light .bw-bar-bg,.theme-light .bar-track{background:var(--surface2);}
+  .theme-light .cal-dia-vacio-num{background:var(--surface2);}
+  .theme-light .paga-hoy-row{background:linear-gradient(90deg,rgba(47,111,224,.10),transparent 60%)!important;}
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
   html{-webkit-text-size-adjust:100%;text-size-adjust:100%;height:100%;overflow-x:hidden;}
   ::selection{background:rgba(42,214,168,.28);color:var(--text);}
@@ -693,3 +720,42 @@
     .rank-table.cards-mobile tr.estado-warn{border-left-color:var(--amber);}
     .rank-table.cards-mobile tr.con-mora{border-left-color:var(--purple);}
   }
+
+/* ═══════════════════════════════════════════════════════════════
+   FEATURE V3: Indicador "paga hoy" — punto azul pulsante junto al
+   nombre del cliente cuyo día de pago es hoy. Fila con tinte azul.
+   ═══════════════════════════════════════════════════════════════ */
+.paga-hoy-dot{
+  display:inline-block;width:9px;height:9px;border-radius:50%;
+  background:var(--blue);margin-left:6px;vertical-align:middle;
+  box-shadow:0 0 0 0 rgba(59,130,246,.6);
+  animation:pagaHoyPulse 1.8s infinite;
+}
+@keyframes pagaHoyPulse{
+  0%{box-shadow:0 0 0 0 rgba(59,130,246,.55);}
+  70%{box-shadow:0 0 0 7px rgba(59,130,246,0);}
+  100%{box-shadow:0 0 0 0 rgba(59,130,246,0);}
+}
+.paga-hoy-row{
+  background:linear-gradient(90deg,rgba(59,130,246,.10),transparent 60%)!important;
+}
+.paga-hoy-row td:first-child{
+  border-left:3px solid var(--blue);
+}
+@media (prefers-reduced-motion: reduce){
+  .paga-hoy-dot{animation:none;}
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FEATURE F4: Estado de conexión (activo/suspendido)
+   Cliente suspendido → fila atenuada + badge visible. No cuenta
+   contra el ancho de banda vendido (cálculo en calculations.js).
+   ═══════════════════════════════════════════════════════════════ */
+.badge-suspendido{
+  background:rgba(138,148,163,.18);color:var(--text-muted);
+  margin-left:6px;
+}
+.badge-suspendido::before{background:var(--text-muted);}
+.suspendido-row{opacity:.62;}
+.suspendido-row td:first-child{border-left:3px solid var(--text-muted);}
+.suspendido-row:hover{opacity:.85;}

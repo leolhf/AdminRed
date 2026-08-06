@@ -44,4 +44,23 @@ function updateField(id,field,value) {
     }
   }
   c[field]=value; save(); render();
+  // F5: aviso temprano de sobreventa al editar megas inline.
+  // Si tras asignar estos megas quedan pocos megas libres (menos del 20%
+  // del paquete o menos de 10 Mb), avisa sin bloquear.
+  if(field==='megas' && value>0){
+    const dispAhora=megasDisponiblesParaVenta(id);
+    if(dispAhora<=Math.min(Math.ceil(config.megas*0.2),10) && dispAhora>=0){
+      notify(`⚠ Banda casi al limite: quedan ${dispAhora} Mb libres tras ${c.nombre}.`);
+    }
+  }
+}
+
+// F4: suspender / reactivar la conexión de un cliente.
+// Los clientes suspendidos se excluyen del ancho de banda vendido y se
+// muestran diferenciados en las tablas (badge "Suspendido" + fila atenuada).
+function toggleSuspendido(id){
+  const c=clients.find(x=>x.id===id); if(!c) return;
+  c.suspendido=!c.suspendido;
+  save(); render();
+  notify(c.suspendido?`🔌 ${c.nombre} suspendido`:`✅ ${c.nombre} reactivado`);
 }

@@ -97,6 +97,7 @@ const PRECACHE = [
   // Notificaciones
   './js/notificaciones/notifications.js',
   './js/notificaciones/whatsapp.js',
+  './js/notificaciones/wa-templates.js',
   // Otros
   './js/gastos.js',
   './js/red/equipos-red.js',
