@@ -287,6 +287,10 @@
       <div id="cfg-warn" class="cfg-warn" style="display:none"></div>
     </div>
     <div class="section-header" style="margin-top:18px">
+      <span class="section-title">💱 Moneda / Tasa USD</span>
+    </div>
+    <div id="moneda-editor" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:13px 14px;margin-bottom:14px;box-shadow:var(--shadow-sm)"></div>
+    <div class="section-header" style="margin-top:18px">
       <span class="section-title">📦 Planes de Internet</span>
       <button class="btn btn-blue btn-sm" onclick="openPlanesModal()">Gestionar planes</button>
     </div>
@@ -825,6 +829,10 @@
         <td colspan="2"><strong>TOTAL COBRADO</strong></td>
         <td class="recibo-monto-total" id="recibo-total">—</td>
       </tr>
+      <tr id="recibo-total-equiv-row" style="display:none">
+        <td colspan="2" style="font-size:0.8em;color:#666">Equivalente en USD</td>
+        <td id="recibo-total-equiv" style="font-size:0.85em;color:#666;text-align:right">—</td>
+      </tr>
     </table>
     <div class="recibo-nota" id="recibo-nota"></div>
     <div class="recibo-footer">RedNet — Control de Servicio de Internet</div>
@@ -848,6 +856,7 @@
 <script src="./js/core/keys.js"></script>
 <script src="./js/core/config.js"></script>
 <script src="./js/core/calculations.js"></script>
+<script src="./js/core/moneda.js"></script>
 <script src="./js/core/reset-app.js"></script>
 <script src="./js/core/models/investment.js"></script>
 <script src="./js/core/migration.js"></script>

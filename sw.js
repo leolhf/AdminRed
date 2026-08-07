@@ -48,6 +48,7 @@ const PRECACHE = [
   './js/core/validacion.js',
   './js/core/undo.js',
   './js/core/calculations.js',
+  './js/core/moneda.js',
   './js/core/reset-app.js',
   './js/core/models/investment.js',
   './js/core/migration.js',

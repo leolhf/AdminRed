@@ -74,6 +74,19 @@ function generarRecibo(h) {
   setVal('recibo-total',fmt(h.monto));
   setVal('recibo-nota',h.nota||'');
 
+  // Equivalencia USD del total (solo si hay tasa configurada)
+  const equivRow=clone.querySelector('#recibo-total-equiv-row');
+  const equivCell=clone.querySelector('#recibo-total-equiv');
+  if(equivRow&&equivCell){
+    const equiv=typeof equivUsd==='function'?equivUsd(h.monto):'';
+    if(equiv){
+      equivCell.textContent=equiv;
+      equivRow.style.display='';
+    } else {
+      equivRow.style.display='none';
+    }
+  }
+
   // Mostrar el recibo en un overlay y disparar print
   const overlay=document.createElement('div');
   overlay.id='recibo-overlay';

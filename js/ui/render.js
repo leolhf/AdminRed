@@ -121,13 +121,16 @@ function renderSummary() {
   const invRec=recuperadoInversion();
   const invPend=deudaEquipoPendienteTotal();
   const invPct=invTotal>0?Math.round(invRec/invTotal*100):0;
+  // v5.6.0: equivalencia USD en las tarjetas financieras (solo si hay tasa).
+  // subUsd(cup) devuelve " · ≈ $X.XX USD" para añadirlo al card-sub, o '' si no hay tasa.
+  const subUsd=(cup)=>{const u=cupToUsd(cup);return u===null?'':` · ≈ ${fmtUsd(u)} USD`;};
   document.getElementById('summary-cards').innerHTML=`
-    <div class="card"><div class="card-label">Ingreso mensual</div><div class="card-value green" data-countup="${ingresosMes()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">CUP esperado</div></div>
+    <div class="card"><div class="card-label">Ingreso mensual</div><div class="card-value green" data-countup="${ingresosMes()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">CUP esperado${subUsd(ingresosMes())}</div></div>
     <div class="card"><div class="card-label">Costo del paquete</div><div class="card-value red" data-countup="${costoMes()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">${config.megas} Mb × ${fmt(config.costoPorMega)}</div></div>
     <div class="card"><div class="card-label">Ganancia Mensual</div><div class="card-value ${gananciaMensual()>=0?'green':'red'}" data-countup="${gananciaMensual()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">Ingreso − costo paquete</div></div>
-    <div class="card"><div class="card-label">Cobrado</div><div class="card-value blue" data-countup="${cobrado()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">${pct}% al corte · ${pctMes}% del mes</div></div>
-    <div class="card"><div class="card-label">Pendiente</div><div class="card-value amber" data-countup="${pendienteTotal()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">${clients.filter(c=>!c.pagado && facturacionIniciada(c)).length} clientes</div></div>
-    <div class="card"><div class="card-label">Ganancia neta</div><div class="card-value ${ganancia()>=0?'green':'red'}" data-countup="${ganancia()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">tras costo ${fmt(costoMes())}</div></div>
+    <div class="card"><div class="card-label">Cobrado</div><div class="card-value blue" data-countup="${cobrado()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">${pct}% al corte · ${pctMes}% del mes${subUsd(cobrado())}</div></div>
+    <div class="card"><div class="card-label">Pendiente</div><div class="card-value amber" data-countup="${pendienteTotal()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">${clients.filter(c=>!c.pagado && facturacionIniciada(c)).length} clientes${subUsd(pendienteTotal())}</div></div>
+    <div class="card"><div class="card-label">Ganancia neta</div><div class="card-value ${ganancia()>=0?'green':'red'}" data-countup="${ganancia()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">tras costo ${fmt(costoMes())}${subUsd(ganancia())}</div></div>
     <div class="card"><div class="card-label">Clientes</div><div class="card-value" data-countup="${clients.length}">0</div><div class="card-sub">${totalVendido()} Mb vendidos</div></div>
     ${conMora>0?`<div class="card"><div class="card-label">Con mora</div><div class="card-value" style="color:var(--purple)" data-countup="${conMora}">0</div><div class="card-sub">clientes atrasados</div></div>`:''}
     ${invTotal>0?`<div class="card"><div class="card-label">Inversión recuperada</div><div class="card-value amber" data-countup="${invPct}" data-countup-suffix="%">0%</div><div class="card-sub">${fmt(invRec)} de ${fmt(invTotal)}</div></div>`:''}

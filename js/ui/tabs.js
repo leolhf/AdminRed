@@ -64,6 +64,7 @@ function switchTab(name) {
   if(resolved === 'cobros') renderHistory();
   if(resolved === 'inventario') renderInventario();
   if(resolved === 'ajustes' && typeof renderWaTemplatesEditor === 'function') renderWaTemplatesEditor();
+  if(resolved === 'ajustes' && typeof renderMonedaEditor === 'function') renderMonedaEditor();
   if(resolved === 'reportes') {
     if(typeof renderCalendario === 'function') renderCalendario();
     if(typeof renderReporteMensual === 'function') renderReporteMensual();

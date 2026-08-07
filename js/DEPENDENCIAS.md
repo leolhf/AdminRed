@@ -14,6 +14,7 @@ El orden de carga de los scripts en `index.html` es CRÍTICO. Los scripts deben 
    ├── config.js              (Depende de: state.js)
    ├── crypto.js              (Depende de: keys.js)
    ├── calculations.js        (Depende de: state.js) [v5.4.0 — +getPrecioCliente, +calcularDescuento, +snapshots, +recibos]
+   ├── moneda.js              (Depende de: state.js, calculations.js; carga tras calculations.js) [v5.6.0 — doble moneda USD/CUP, tasa auto vía proxy CORS]
    ├── reset-app.js           (Depende de: state.js)
    ├── models/investment.js   (Depende de: state.js, calculations.js)
    ├── migration.js           (Depende de: state.js, calculations.js)
@@ -191,3 +192,9 @@ ENCRYPTION.VERSION            // 'v1'
 | `formatoRecibo(n)` | Formatea un número de recibo como `R-YYYY-0000` |
 | `mesActualHoy()` | Devuelve el mes actual como `YYYY-MM` |
 | `labelMes(mesKey)` | Convierte `YYYY-MM` a etiqueta legible (`enero 2025`) |
+
+## Módulo Nuevo v5.6.0 — Doble Moneda USD/CUP
+
+| Módulo | Función |
+|---------|----------|
+| `core/moneda.js` | Soporte de doble moneda (Variante B híbrida). CUP es la moneda principal; el USD se muestra como equivalencia informativa. Funciones: `tasaUsd()`, `cupToUsd()`, `usdToCup()`, `fmtUsd()`, `fmtCup()`, `equivUsd()`, `actualizarTasaUsd()` (consulta mdiv.pro vía proxy.cors.sh), `guardarTasaUsdManual()`, `renderMonedaEditor()`. La tasa se persiste en `config.tasaUsd` / `config.tasaUsdFecha` / `config.tasaUsdFuente`. El dashboard (`render.js`) y los recibos (`recibo.js`) muestran la equivalencia en USD solo cuando hay tasa configurada. |
