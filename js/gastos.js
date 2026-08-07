@@ -5,13 +5,29 @@
 // ═══════════════════════════════════════════════════════════
 //  MÓDULO DE GASTOS ADICIONALES
 // ═══════════════════════════════════════════════════════════
+// Cambio E (v5.7): el pago del paquete al proveedor se registra con UN SOLO CLIC,
+// sin abrir el modal de gasto. Se crea un gasto de categoria 'paquete' con el
+// monto = costoMes() y se marca config.paquetePagadoMes = mes actual.
+// Ese gasto es el registro de CAJA (cuando se pago al proveedor); NO se suma a
+// totalGastos() (que excluye 'paquete') para evitar el doble descuento con
+// costoMes(). Se cuenta una sola vez, a traves de costoPaqueteContadoMes().
 function marcarPaquetePagado() {
-  openGastoModal();
-  document.getElementById('g-desc').value=`Pago paquete contratado (${config.megas} Mb)`;
-  document.getElementById('g-monto').value=costoMes();
-  document.getElementById('g-categoria').value='paquete';
-  onGastoCategoriaChange();
-  document.getElementById('modal-gasto').classList.add('open');
+  const mes = mesActualHoy();
+  if(config.paquetePagadoMes === mes){
+    notify('El paquete ya est\u00e1 marcado como pagado este mes', true);
+    return;
+  }
+  if(typeof registrarParaDeshacer==='function') registrarParaDeshacer(`Marcar paquete pagado (${config.megas} Mb)`);
+  const monto = costoMes();
+  gastos.push({
+    desc: `Pago paquete contratado (${config.megas} Mb)`,
+    monto,
+    fecha: fechaLocalISO(),
+    categoria: 'paquete'
+  });
+  config.paquetePagadoMes = mes;
+  save(); renderGastos(); renderProfit(); renderSummary(); renderPaqueteStatus();
+  notify(`Paquete marcado como pagado \u2014 ${fmt(monto)} registrado en caja`);
 }
 
 function openGastoModal(idx) {
@@ -115,29 +131,44 @@ function deleteGasto(idx) {
 function renderGastos() {
   const el=document.getElementById('gastos-list');
 
-  // BUG FIX #7: separar correctamente las categorías de gasto para el resumen
-  const opGastos   = gastos.filter(g=>g.categoria==='operativo').reduce((s,g)=>s+g.monto,0);
-  const invGastos  = gastos.filter(g=>g.categoria==='inversion').reduce((s,g)=>s+g.monto,0);
-  const crecGastos = gastos.filter(g=>g.categoria==='crecimiento').reduce((s,g)=>s+g.monto,0);
-  const gan  = ganancia();
-  // BUG FIX: antes usaba recuperadoInversion() (histórica, de toda la vida) para
-  // mostrar "Recuperación de inversión cobrada" junto a "Ganancia ajustada", que
-  // ahora se calcula solo con lo recuperado en el mes en curso (recuperadoInversionMes).
-  // Si se mezclaban, la fila mostrada no cuadraba con la suma real de la tarjeta.
-  const rec  = recuperadoInversionMes();
-  const ganAj= gananciaAjustada();
+  // v5.7: separar correctamente las categorias de gasto para el resumen.
+  // Solo se cuentan los gastos DEL MES en curso (gastosDelMes), no los
+  // acumulados de inversion de meses anteriores.
+  const gMes = gastosDelMes();
+  const opGastos   = gMes.filter(g=>g.categoria==='operativo').reduce((s,g)=>s+g.monto,0);
+  const invGastos  = gMes.filter(g=>g.categoria==='inversion').reduce((s,g)=>s+g.monto,0);
+  const crecGastos = gMes.filter(g=>g.categoria==='crecimiento').reduce((s,g)=>s+g.monto,0);
+  const paqGasto   = pagoPaqueteMes();        // lo pagado al proveedor este mes (caja)
+  const paqPagado  = paquetePagadoEsteMes();
+
+  // --- CAJA REAL DEL MES (lo que realmente entro/salio) ---
+  const cobServ = cobradoServiciosMes();
+  const cobEq   = cobradoEquipoMes();
+  const cobTot  = cobradoTotalMes();
+  const gastosReales = gastosRealesMes();
+  const ganR    = gananciaReal();
+
+  // --- PROYECCION (lo esperado, solo informativo) ---
+  const ingEsp  = ingresosMes();
+  const pend    = pendienteTotal();
+  const ganProj = ganancia();
 
   document.getElementById('gastos-resumen').innerHTML=`
-    <div class="pb-row"><span>Ingreso bruto esperado</span><span class="text-green">${fmt(ingresosMes())}</span></div>
-    <div class="pb-row"><span>Costo servicio contratado</span><span class="text-red">−${fmt(costoMes())}</span></div>
-    ${opGastos>0?`<div class="pb-row"><span>Gastos operativos</span><span class="text-red">−${fmt(opGastos)}</span></div>`:''}
-    ${invGastos>0?`<div class="pb-row"><span>Inversión en equipo/material</span><span class="text-amber">−${fmt(invGastos)}</span></div>`:''}
-    ${crecGastos>0?`<div class="pb-row"><span>Crecimiento de red</span><span class="text-red">−${fmt(crecGastos)}</span></div>`:''}
-    <div class="pb-row"><span><strong>Ganancia neta real</strong></span><span class="${gan>=0?'text-green':'text-red'}"><strong>${fmt(gan)}</strong></span></div>
-    ${rec>0?`
-    <div class="pb-row"><span>Recuperación de inversión cobrada</span><span class="text-amber">+${fmt(rec)}</span></div>
-    <div class="pb-row"><span>Ganancia ajustada (con recuperación)</span><span class="${ganAj>=0?'text-green':'text-red'}">${fmt(ganAj)}</span></div>
-    `:''}
+    <div class="bw-title" style="margin:2px 0 6px;font-size:0.8rem">Caja del mes (real)</div>
+    <div class="pb-row"><span>Cobrado en servicios</span><span class="text-green">+${fmt(cobServ)}</span></div>
+    ${cobEq>0?`<div class="pb-row"><span>Cobrado en cuotas de equipo</span><span class="text-amber">+${fmt(cobEq)}</span></div>`:''}
+    <div class="pb-row"><span>Total cobrado este mes</span><span class="text-green"><strong>+${fmt(cobTot)}</strong></span></div>
+    <div class="pb-row"><span>Pago paquete al proveedor</span><span class="text-red">${paqPagado?`-${fmt(paqGasto)}`:`<span style="color:var(--amber)">Pendiente (${fmt(costoMes())})</span>`}</span></div>
+    ${opGastos>0?`<div class="pb-row"><span>Gastos operativos</span><span class="text-red">-${fmt(opGastos)}</span></div>`:''}
+    ${invGastos>0?`<div class="pb-row"><span>Inversion en equipo/material</span><span class="text-amber">-${fmt(invGastos)}</span></div>`:''}
+    ${crecGastos>0?`<div class="pb-row"><span>Crecimiento de red</span><span class="text-red">-${fmt(crecGastos)}</span></div>`:''}
+    <div class="pb-row"><span><strong>Ganancia neta real (caja)</strong></span><span class="${ganR>=0?'text-green':'text-red'}"><strong>${fmt(ganR)}</strong></span></div>
+
+    <div class="bw-title" style="margin:12px 0 6px;font-size:0.8rem;color:var(--text-muted)">Proyeccion (esperado)</div>
+    <div class="pb-row"><span>Ingreso esperado del mes</span><span class="text-green">${fmt(ingEsp)}</span></div>
+    <div class="pb-row"><span>Costo paquete contratado</span><span class="text-red">-${fmt(costoMes())}</span></div>
+    <div class="pb-row"><span>Pendiente por cobrar</span><span style="color:var(--purple)">${fmt(pend)}</span></div>
+    <div class="pb-row"><span>Ganancia proyectada (si todos pagan)</span><span class="${ganProj>=0?'text-green':'text-red'}">${fmt(ganProj)}</span></div>
   `;
   if(!gastos.length){el.innerHTML='<div class="empty-state">Sin gastos registrados este mes</div>';return;}
   el.innerHTML=gastos.map((g,i)=>`

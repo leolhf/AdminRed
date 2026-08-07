@@ -54,10 +54,57 @@ const costoMes        = ()=>config.megas*config.costoPorMega;
 // curso (config.mesActual, formato YYYY-MM), que es lo que realmente representa
 // el gasto "de este mes".
 const gastosDelMes    = ()=>gastos.filter(g=>!config.mesActual || (g.fecha||'').startsWith(config.mesActual));
-const totalGastos     = ()=>gastosDelMes().reduce((s,g)=>s+g.monto,0);
+const gastosDelMesSinPaquete = ()=>gastosDelMes().filter(g=>g.categoria!=='paquete');
+const totalGastos     = ()=>gastosDelMesSinPaquete().reduce((s,g)=>s+g.monto,0);
+
+// Monto del gasto de paquete registrado este mes (lo que se pago al proveedor en
+// caja). Se usa en el "libro de caja" real, no en la proyeccion de ganancia.
+const pagoPaqueteMes  = ()=>gastosDelMes().filter(g=>g.categoria==='paquete').reduce((s,g)=>s+g.monto,0);
+// El paquete ya se marco como pagado este mes? (config.paquetePagadoMes === mes actual)
+const paquetePagadoEsteMes = ()=>config.paquetePagadoMes===mesActualHoy();
+
 const ganancia        = ()=>ingresosMes()-costoMes()-totalGastos();
 const gananciaMensual  = ()=>ingresosMes()-costoMes();
 const cobrado         = ()=>clients.filter(c=>c.pagado).reduce((s,c)=>s+precioNetoCliente(c),0);
+
+// ===========================================================================
+//  LIBRO DE CAJA REAL DEL MES (v5.7)
+// ===========================================================================
+// Lo que REALMENTE entro y salio de caja este mes, registrado a medida que se
+// cobra y se paga. A diferencia de la proyeccion (ganancia/ingresosMes) que usa
+// el ingreso esperado de todos los clientes, estas funciones reflejan la caja.
+
+// Servicios realmente cobrados este mes: solo la parte de servicio (sin cuota
+// de equipo) de los cobros de 'servicio' con fecha dentro del mes en curso.
+const cobradoServiciosMes = ()=>history
+  .filter(h=>(!h.tipo || h.tipo==='servicio') && (!config.mesActual || (h.fecha||'').startsWith(config.mesActual)))
+  .reduce((s,h)=>s+Math.max(0,(h.monto||0)-(h.montoEquipo||0)),0);
+
+// Cuotas de equipo realmente cobradas este mes (history[].montoEquipo del mes),
+// incluidas liquidaciones de deuda de equipo.
+const cobradoEquipoMes = ()=>history
+  .filter(h=>(!config.mesActual || (h.fecha||'').startsWith(config.mesActual)))
+  .reduce((s,h)=>s+(h.montoEquipo||0),0);
+
+// Total realmente cobrado este mes (servicios + equipo).
+const cobradoTotalMes = ()=>cobradoServiciosMes()+cobradoEquipoMes();
+
+// Costo del paquete realmente pagado este mes (lo que salio al proveedor).
+// Si aun no se marco pagado, es 0 (no ha salido de caja).
+const costoPaqueteContadoMes = ()=>pagoPaqueteMes();
+
+// Gastos operativos/crecimiento/inversion realmente pagados este mes
+// (excluyendo el paquete, que se cuenta aparte como costoPaqueteContadoMes).
+const gastosRealesMes = ()=>totalGastos();
+
+// GANANCIA NETA REAL: dinero que entro - dinero que salio, este mes.
+// Entradas: cobrado servicios + cobrado equipo (recuperacion de inversion).
+// Salidas: pago del paquete al proveedor + gastos del mes.
+// Refleja la caja real, no la proyeccion. Crece a medida que cobras/pagas.
+const gananciaReal    = ()=>cobradoTotalMes()-costoPaqueteContadoMes()-gastosRealesMes();
+// Ganancia real ajustada ya incluye la recuperacion de equipo (esta dentro de
+// cobradoEquipoMes), por lo que NO se le suma recuperadoInversionMes de nuevo.
+const gananciaRealAjustada = ()=>gananciaReal();
 // BUG FIX: pendienteTotal() (y el conteo de "clientes" de la tarjeta Pendiente
 // en render.js) contaban a TODOS los no pagados, incluyendo clientes agregados
 // para el próximo mes (fechaInicio futura) que aún no deben nada del ciclo
@@ -308,15 +355,21 @@ function generarSnapshot(mes) {
   const totalCobrado = cobrosMes.reduce((s,h)=>s+(h.monto||0),0);
   const totalCobradoEquipo = cobrosMes.reduce((s,h)=>s+(h.montoEquipo||0),0);
   const gastosMes = gastos.filter(g => (g.fecha||'').startsWith(mesKey));
-  const totalGastosMes = gastosMes.reduce((s,g)=>s+(g.monto||0),0);
+  // v5.7: excluir el gasto 'paquete' de totalGastosMes (ya cubierto por costoPaquete)
+  // para evitar doble descuento en la ganancia del snapshot.
+  const totalGastosMes = gastosMes.filter(g=>g.categoria!=='paquete').reduce((s,g)=>s+(g.monto||0),0);
+  const pagoPaqueteMesSnap = gastosMes.filter(g=>g.categoria==='paquete').reduce((s,g)=>s+(g.monto||0),0);
   const nClientes = clients.length;
   const nPagados = clients.filter(c=>c.pagado).length;
   const nConMora = clients.filter(c=>getMora(c)>0).length;
   const ing = ingresosMes();
   const costo = costoMes();
-  const gan = ing - costo - totalGastosMes;
+  const gan = ing - costo - totalGastosMes;          // proyeccion (sin doble descuento)
   const cobradoReal = cobrado();
   const tasaCobro = ing>0 ? Math.round(cobradoReal/ing*100) : 0;
+  // v5.7: caja real del mes del snapshot
+  const cobradoServSnap = cobrosMes.filter(h=>!h.tipo||h.tipo==='servicio').reduce((s,h)=>s+Math.max(0,(h.monto||0)-(h.montoEquipo||0)),0);
+  const gananciaRealSnap = (cobradoServSnap + totalCobradoEquipo) - pagoPaqueteMesSnap - totalGastosMes;
 
   // Gastos desglosados por categoria
   const gastosPorCat = {};
@@ -336,6 +389,9 @@ function generarSnapshot(mes) {
     cobrado: cobradoReal,
     cobradoEquipo: totalCobradoEquipo,
     pendiente: pendienteTotal(),
+    // v5.7: campos de caja real del mes
+    pagoPaquete: pagoPaqueteMesSnap,
+    gananciaReal: gananciaRealSnap,
     nClientes,
     nPagados,
     nConMora,

@@ -185,19 +185,28 @@ function exportReporteMensual() {
   const nClientes=clients.length, nPagados=clients.filter(c=>c.pagado).length;
   const nConMora=clients.filter(c=>getMora(c)>0).length;
   const tasaCobro=ing>0?Math.round(cobradoAhora/ing*100):0;
+  // v5.7: caja real del mes
+  const ganR=gananciaReal(), cobTotMes=cobradoTotalMes(), pagoPaq=pagoPaqueteMes();
 
   let txt=`REPORTE EJECUTIVO MENSUAL — ${labelMes(mesKey)}\n`;
   txt+=`Generado: ${new Date().toLocaleString('es-CU')}\n`;
   txt+=`${'='.repeat(50)}\n\n`;
-  txt+=`Ingresos esperados:    ${fmt(ing)} CUP\n`;
-  txt+=`Costo del paquete:     ${fmt(costo)} CUP\n`;
-  txt+=`Gastos del mes:        ${fmt(gastosTotal)} CUP\n`;
-  txt+=`Ganancia neta:         ${fmt(gan)} CUP\n`;
-  txt+=`Margen:                ${ing>0?Math.round(gan/ing*100):0}%\n`;
-  txt+=`Cobrado:               ${fmt(cobradoAhora)} CUP (${tasaCobro}%)\n`;
-  txt+=`Pendiente:             ${fmt(pend)} CUP\n`;
-  txt+=`Clientes:              ${nClientes} (${nPagados} pagados, ${nConMora} con mora)\n`;
-  txt+=`Megas vendidos:        ${totalVendido()} Mb\n`;
+  txt+=`--- CAJA REAL DEL MES (lo que entro/salio) ---\n`;
+txt+=`Cobrado este mes:      ${fmt(cobTotMes)} CUP\n`;
+txt+=`  - en servicios:      ${fmt(cobradoServiciosMes())} CUP\n`;
+txt+=`  - en cuotas equipo:  ${fmt(cobradoEquipoMes())} CUP\n`;
+txt+=`Pago paquete proveedor:${pagoPaq>0?'':' (pendiente)'} ${fmt(pagoPaq||costo)} CUP\n`;
+txt+=`Gastos del mes:        ${fmt(gastosTotal)} CUP\n`;
+txt+=`Ganancia neta real:    ${fmt(ganR)} CUP\n`;
+txt+=`\n--- PROYECCION (esperado) ---\n`;
+txt+=`Ingresos esperados:    ${fmt(ing)} CUP\n`;
+txt+=`Costo del paquete:     ${fmt(costo)} CUP\n`;
+txt+=`Ganancia proyectada:   ${fmt(gan)} CUP\n`;
+txt+=`Margen proyectado:     ${ing>0?Math.round(gan/ing*100):0}%\n`;
+txt+=`Cobrado:               ${fmt(cobradoAhora)} CUP (${tasaCobro}%)\n`;
+txt+=`Pendiente:             ${fmt(pend)} CUP\n`;
+txt+=`Clientes:              ${nClientes} (${nPagados} pagados, ${nConMora} con mora)\n`;
+txt+=`Megas vendidos:        ${totalVendido()} Mb\n`;
   if(snapAnterior){
     txt+=`\n${'='.repeat(50)}\nCOMPARACION vs ${labelMes(snapAnterior.mes)}\n${'='.repeat(50)}\n`;
     txt+=`Ingresos:  ${fmt(ing)} vs ${fmt(snapAnterior.ingresos)} (diff: ${ing-snapAnterior.ingresos>0?'+':''}${fmt(ing-snapAnterior.ingresos)})\n`;

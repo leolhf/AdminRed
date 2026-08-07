@@ -29,7 +29,12 @@ function renderSalud() {
   const pctMora=nClientes>0?Math.round(nConMora/nClientes*100):0;
   const sold=totalVendido();
   const pctBanda=config.megas>0?Math.round(sold/config.megas*100):0;
-  const liquidez=(cobradoAhora-gastosTotal-costo);
+  // v5.7: liquidez = caja real del mes (cobrado real - pagado real).
+  // Antes usaba cobradoAhora - gastosTotal - costo, donde costo (costoMes) se
+  // restaba SIEMPRE aunque el paquete no se hubiera pagado al proveedor. Ahora
+  // se usa el modelo de caja real: lo cobrado este mes menos lo pagado (paquete
+  // solo si se marco pagado + gastos del mes).
+  const liquidez=gananciaReal();
 
   // ── COBRANZA POR CORTES (v5.5.1) ──────────────────────────────────
   // La tasa de cobro ya no divide entre todos los clientes del mes, sino
@@ -116,8 +121,8 @@ function renderSalud() {
 
   // 6. Liquidez (cobrado - gastos)
   let nivelLiq, recLiq;
-  if(liquidez>0){nivelLiq='verde';recLiq=`Flujo positivo: ${fmt(liquidez)} CUP disponibles`;}
-  else if(liquidez>-costo){nivelLiq='amarillo';recLiq='Flujo ajustado. Los gastos consumen casi todo lo cobrado.';}
+  if(liquidez>0){nivelLiq='verde';recLiq=`Flujo positivo: ${fmt(liquidez)} CUP disponibles este mes`;}
+  else if(liquidez>-costoMes()){nivelLiq='amarillo';recLiq='Flujo ajustado. Lo cobrado apenas cubre lo pagado este mes.';}
   else {nivelLiq='rojo';recLiq='Flujo negativo. Gastas más de lo que cobras este mes.';}
 
   // Score general (promedio de niveles)

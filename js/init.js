@@ -14,37 +14,9 @@
 //  tardara más en cachear la app para uso offline.
 //  Ahora se registra de inmediato, en paralelo, sin bloquear ni ser
 //  bloqueado por el resto del arranque de la app.
-//  ACTUALIZACIÓN AUTOMÁTICA
-//  BUG FIX: el navegador solo revisa si hay un sw.js nuevo cada 24h como
-//  máximo (throttle interno), así que subir una versión al repo no se
-//  reflejaba hasta que el navegador decidía revisar por su cuenta. Ahora,
-//  además de registrar, se fuerza reg.update() (que SÍ evita ese throttle
-//  y el caché HTTP normal) al cargar y cada vez que la pestaña vuelve a
-//  primer plano. Como sw.js ya hace skipWaiting()+clients.claim() sin
-//  preguntar, en cuanto el navegador detecta el archivo nuevo el SW nuevo
-//  toma control solo — y aquí escuchamos ese momento (controllerchange)
-//  para recargar la página una sola vez y que el usuario vea la versión
-//  nueva sin tener que hacer nada.
 if('serviceWorker' in navigator) {
-  let swRecargando = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (swRecargando) return;
-    swRecargando = true;
-    notify('Actualizando a la nueva versión…');
-    setTimeout(() => location.reload(), 600);
-  });
-
   navigator.serviceWorker.register('./sw.js')
-    .then(reg => {
-      console.log('SW registrado:', reg.scope);
-      reg.update().catch(() => {});
-      // Revisa de nuevo cada vez que el usuario vuelve a la app
-      // (útil sobre todo en la app TWA de Android, que puede quedar
-      // en segundo plano horas o días).
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') reg.update().catch(() => {});
-      });
-    })
+    .then(reg => console.log('SW registrado:', reg.scope))
     .catch(e => console.warn('SW no pudo registrarse:', e));
 }
 

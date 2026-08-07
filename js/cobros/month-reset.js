@@ -42,8 +42,18 @@ function iniciarNuevoMes() {
   });
 
   // Conservar solo gastos de inversión (incluyendo lotes de inventario)
-  gastos = gastos.filter(g => g.categoria === 'inversion' || g.categoria === 'paquete');
+  // v5.7 (Cambio D): los gastos de categoria 'paquete' (pago al proveedor) YA NO
+  // se conservan al cerrar el mes. Antes se acumulaban mes a mes, provocando
+  // que el costo del paquete se restara multiples veces. Ahora el costo del
+  // paquete se cuenta una sola vez (al marcarlo pagado, via costoPaqueteContadoMes),
+  // y al iniciar un mes nuevo el paquete vuelve a estar pendiente de pago, por
+  // lo que el gasto 'paquete' del mes que cierra se borra igual que los operativos.
+  gastos = gastos.filter(g => g.categoria === 'inversion');
   config.mesActual = mesActual;
+  // v5.7: reiniciar el estado de 'paquete pagado' para el nuevo mes, asi el
+  // boton 'Marcar como pagado' vuelve a estar disponible y el costo del paquete
+  // se registra de nuevo solo cuando se pague en el nuevo ciclo.
+  config.paquetePagadoMes = '';
   save(); render();
   notify('✅ Nuevo mes iniciado — gastos y abonos reiniciados');
   if(window.FirebaseSync) clients.forEach(c=>window.FirebaseSync.syncCliente(c));

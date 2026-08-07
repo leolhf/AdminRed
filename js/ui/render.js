@@ -124,14 +124,16 @@ function renderSummary() {
   // v5.6.0: equivalencia USD en las tarjetas financieras (solo si hay tasa).
   // subUsd(cup) devuelve " · ≈ $X.XX USD" para añadirlo al card-sub, o '' si no hay tasa.
   const subUsd=(cup)=>{const u=cupToUsd(cup);return u===null?'':` · ≈ ${fmtUsd(u)} USD`;};
+  // v5.7: ganancia REAL de caja del mes (cobrado - pagado).
+  const ganR=gananciaReal();
+  const ganRColor=ganR>=0?'green':'red';
   document.getElementById('summary-cards').innerHTML=`
     <div class="card"><div class="card-label">Ingreso mensual</div><div class="card-value green" data-countup="${ingresosMes()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">CUP esperado${subUsd(ingresosMes())}</div></div>
     <div class="card"><div class="card-label">Costo del paquete</div><div class="card-value red" data-countup="${costoMes()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">${config.megas} Mb × ${fmt(config.costoPorMega)}</div></div>
     <div class="card"><div class="card-label">Ganancia Mensual</div><div class="card-value ${gananciaMensual()>=0?'green':'red'}" data-countup="${gananciaMensual()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">Ingreso − costo paquete</div></div>
     <div class="card"><div class="card-label">Cobrado</div><div class="card-value blue" data-countup="${cobrado()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">${pct}% al corte · ${pctMes}% del mes${subUsd(cobrado())}</div></div>
     <div class="card"><div class="card-label">Pendiente</div><div class="card-value amber" data-countup="${pendienteTotal()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">${clients.filter(c=>!c.pagado && facturacionIniciada(c)).length} clientes${subUsd(pendienteTotal())}</div></div>
-    <div class="card"><div class="card-label">Ganancia neta</div><div class="card-value ${ganancia()>=0?'green':'red'}" data-countup="${ganancia()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">tras costo ${fmt(costoMes())}${subUsd(ganancia())}</div></div>
-    <div class="card"><div class="card-label">Clientes</div><div class="card-value" data-countup="${clients.length}">0</div><div class="card-sub">${totalVendido()} Mb vendidos</div></div>
+    <div class="card"><div class="card-label">Ganancia neta (caja)</div><div class="card-value ${ganRColor}" data-countup="${ganR/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">cobrado - pagado del mes${subUsd(ganR)}</div></div><div class="card"><div class="card-label">Clientes</div><div class="card-value" data-countup="${clients.length}">0</div><div class="card-sub">${totalVendido()} Mb vendidos</div></div>
     ${conMora>0?`<div class="card"><div class="card-label">Con mora</div><div class="card-value" style="color:var(--purple)" data-countup="${conMora}">0</div><div class="card-sub">clientes atrasados</div></div>`:''}
     ${invTotal>0?`<div class="card"><div class="card-label">Inversión recuperada</div><div class="card-value amber" data-countup="${invPct}" data-countup-suffix="%">0%</div><div class="card-sub">${fmt(invRec)} de ${fmt(invTotal)}</div></div>`:''}
     ${invPend>0?`<div class="card" onclick="openModalInversionPendiente()" style="cursor:pointer;border-color:var(--amber)">
@@ -230,18 +232,38 @@ function renderAlarms() {
 
 function renderProfit() {
   const moraPendiente=clients.filter(c=>!c.pagado&&getMora(c)>0).reduce((s,c)=>s+precioNetoCliente(c)*getMora(c),0);
-  const tg=totalGastos();
-  const rec=recuperadoInversionMes();
   const invPend=deudaEquipoPendienteTotal();
+
+  // --- v5.7: CAJA REAL DEL MES (lo que realmente entro/salio) ---
+  const cobServ = cobradoServiciosMes();
+  const cobEq   = cobradoEquipoMes();
+  const cobTot  = cobradoTotalMes();
+  const paqGasto= pagoPaqueteMes();
+  const paqPag  = paquetePagadoEsteMes();
+  const tg      = totalGastos();          // gastos del mes sin el paquete
+  const ganR    = gananciaReal();
+
+  // --- PROYECCION (lo esperado, solo informativo) ---
+  const ingEsp  = ingresosMes();
+  const pend    = pendienteTotal();
+  const ganProj = ganancia();
+
   document.getElementById('profit-rows').innerHTML=`
-    <div class="pb-row"><span>Costo servicio (${config.megas} Mb × ${fmt(config.costoPorMega)})</span><span class="text-red">−${fmt(costoMes())}</span></div>
-    <div class="pb-row"><span>Ingresos brutos clientes</span><span class="text-green">+${fmt(ingresosMes())}</span></div>
-    ${tg>0?`<div class="pb-row"><span>Gastos adicionales</span><span class="text-red">−${fmt(tg)}</span></div>`:''}
+    <div class="bw-title" style="margin:2px 0 6px;font-size:0.8rem">Caja del mes (real)</div>
+    <div class="pb-row"><span>Cobrado en servicios</span><span class="text-green">+${fmt(cobServ)}</span></div>
+    ${cobEq>0?`<div class="pb-row"><span>Cobrado en cuotas de equipo</span><span class="text-amber">+${fmt(cobEq)}</span></div>`:''}
+    <div class="pb-row"><span>Total cobrado este mes</span><span class="text-green"><strong>+${fmt(cobTot)}</strong></span></div>
+    <div class="pb-row"><span>Pago paquete al proveedor</span><span class="text-red">${paqPag?`-${fmt(paqGasto)}`:`<span style="color:var(--amber)">Pendiente (${fmt(costoMes())})</span>`}</span></div>
+    ${tg>0?`<div class="pb-row"><span>Gastos del mes</span><span class="text-red">-${fmt(tg)}</span></div>`:''}
+    <div class="pb-row"><span><strong>Ganancia neta real (caja)</strong></span><span class="${ganR>=0?'text-green':'text-red'}"><strong>${fmt(ganR)}</strong></span></div>
+
+    <div class="bw-title" style="margin:12px 0 6px;font-size:0.8rem;color:var(--text-muted)">Proyeccion (esperado)</div>
+    <div class="pb-row"><span>Ingresos brutos esperados</span><span class="text-green">+${fmt(ingEsp)}</span></div>
+    <div class="pb-row"><span>Costo servicio (${config.megas} Mb x ${fmt(config.costoPorMega)})</span><span class="text-red">-${fmt(costoMes())}</span></div>
     ${moraPendiente>0?`<div class="pb-row"><span>Mora pendiente por cobrar</span><span style="color:var(--purple)">+${fmt(moraPendiente)}</span></div>`:''}
-    ${rec>0?`<div class="pb-row"><span>Recuperación de inversión cobrada</span><span class="text-amber">+${fmt(rec)}</span></div>`:''}
-    <div class="pb-row"><span>Ganancia neta estimada</span><span class="${ganancia()>=0?'text-green':'text-red'}">${fmt(ganancia())}</span></div>
-    ${rec>0?`<div class="pb-row"><span>Ganancia ajustada (con recuperación)</span><span class="${gananciaAjustada()>=0?'text-green':'text-red'}">${fmt(gananciaAjustada())}</span></div>`:''}
-    ${invPend>0?`<div class="pb-row"><span>Inversión aún pendiente por cobrar</span><span class="text-amber">${fmt(invPend)}</span></div>`:''}
+    <div class="pb-row"><span>Pendiente por cobrar</span><span style="color:var(--purple)">${fmt(pend)}</span></div>
+    <div class="pb-row"><span>Ganancia proyectada (si todos pagan)</span><span class="${ganProj>=0?'text-green':'text-red'}">${fmt(ganProj)}</span></div>
+    ${invPend>0?`<div class="pb-row"><span>Inversion aun pendiente por cobrar</span><span class="text-amber">${fmt(invPend)}</span></div>`:''}
   `;
 }
 
