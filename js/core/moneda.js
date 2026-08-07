@@ -63,6 +63,34 @@ function tasaUsdDesactualizada() {
   return (Date.now() - entonces) > 3 * 24 * 60 * 60 * 1000; // >3 días
 }
 
+// ¿La tasa no se ha actualizado hace más de 5 horas? Se usa en el modal de cobro
+// para sugerir al admin que actualice antes de registrar un pago en USD.
+function tasaUsdStale5h() {
+  const f = tasaUsdFecha();
+  if (!f) return true;
+  const entonces = new Date(f).getTime();
+  if (isNaN(entonces)) return true;
+  return (Date.now() - entonces) > 5 * 60 * 60 * 1000; // >5 horas
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  TASA AJUSTADA PARA COBRO EN USD
+// ─────────────────────────────────────────────────────────────────────────────
+// Cuando un cliente paga en USD, no se usa la tasa del día tal cual. Se le resta
+// 5 CUP y luego se redondea al múltiplo de 5 más cercano. Ejemplo:
+//   tasa del día 678 → 678 − 5 = 673 → múltiplo de 5 más cercano = 675
+// Esta es la tasa que se aplica para convertir los USD que entrega el cliente
+// a CUP y calcular el vuelto a devolver.
+// Devuelve null si no hay tasa configurada.
+function tasaAjustadaUsd() {
+  const t = tasaUsd();
+  if (t === null) return null;
+  const rebajada = t - 5;
+  // Redondear al múltiplo de 5 más cercano.
+  const ajustada = Math.round(rebajada / 5) * 5;
+  return Math.max(5, ajustada); // nunca menor que 5
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  CONVERSIONES Y FORMATO
 // ─────────────────────────────────────────────────────────────────────────────

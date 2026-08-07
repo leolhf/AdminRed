@@ -523,10 +523,35 @@
     <div class="form-grid">
       <input type="hidden" id="cobro-id">
       <div id="cobro-info" style="font-size:0.78rem;color:var(--text-muted);font-family:var(--mono);padding:9px;background:var(--bg);border-radius:5px;"></div>
-      <div class="field"><label>Monto servicio (CUP)</label><input type="number" id="cobro-monto-servicio"></div>
-      <div class="field" id="cobro-monto-equipo-wrap"><label>Monto deuda equipo (CUP)</label><input type="number" id="cobro-monto-equipo"></div>
+      <div class="field"><label>Monto servicio (CUP)</label><input type="number" id="cobro-monto-servicio" oninput="calcularCobroUsd()"></div>
+      <div class="field" id="cobro-monto-equipo-wrap"><label>Monto deuda equipo (CUP)</label><input type="number" id="cobro-monto-equipo" oninput="calcularCobroUsd()"></div>
       <div class="field"><label>Fecha</label><input type="date" id="cobro-fecha"></div>
       <div class="field"><label>Nota (opcional)</label><input type="text" id="cobro-nota" placeholder="Pago parcial, adelantado..."></div>
+    </div>
+
+    <!-- PAGO EN USD: selector de moneda + conversión + vuelto -->
+    <div id="cobro-usd-section" style="margin-top:6px;border-top:1px solid var(--border);padding-top:12px">
+      <div style="display:flex;gap:14px;align-items:center;margin-bottom:10px">
+        <label style="font-size:0.82rem;font-weight:600">Moneda del pago:</label>
+        <label style="font-size:0.82rem;cursor:pointer"><input type="radio" name="cobro-moneda" value="CUP" checked onchange="onCobroMonedaChange()"> CUP</label>
+        <label style="font-size:0.82rem;cursor:pointer"><input type="radio" name="cobro-moneda" value="USD" onchange="onCobroMonedaChange()"> USD</label>
+        <div style="flex:1"></div>
+        <button type="button" class="btn btn-blue btn-sm" id="btn-actualizar-tasa-cobro" onclick="clickActualizarTasaUsdCobro()" style="display:none">🔄 Actualizar tasa</button>
+      </div>
+
+      <!-- Panel USD (visible solo si se selecciona USD) -->
+      <div id="cobro-usd-panel" style="display:none">
+        <div id="cobro-usd-stale-aviso" style="display:none;font-size:0.72rem;color:var(--amber);margin-bottom:8px">⚠ Tasa sin actualizar hace más de 5 h. Pulsa «Actualizar tasa» para tener el valor actual.</div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
+          <div class="field" style="flex:1;min-width:140px;margin:0">
+            <label>USD recibidos</label>
+            <input type="number" id="cobro-usd-recibidos" min="0" step="0.01" placeholder="ej. 3" oninput="calcularCobroUsd()">
+          </div>
+        </div>
+        <div id="cobro-usd-desglose" style="font-size:0.78rem;font-family:var(--mono);padding:9px;background:var(--bg);border-radius:5px;margin-top:8px;line-height:1.7">
+          Ingresa los USD recibidos para ver el desglose.
+        </div>
+      </div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeCobroModal()">Cancelar</button>

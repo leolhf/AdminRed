@@ -56,20 +56,139 @@ function openCobroModal(id) {
 
   document.getElementById('cobro-fecha').value=fechaLocalISO();
   document.getElementById('cobro-nota').value='';
+  // Resetear la sección de pago en USD: siempre arranca en CUP.
+  const radioCup = document.querySelector('input[name="cobro-moneda"][value="CUP"]');
+  if (radioCup) radioCup.checked = true;
+  const usdPanel = document.getElementById('cobro-usd-panel');
+  if (usdPanel) usdPanel.style.display = 'none';
+  const btnTasaCobro = document.getElementById('btn-actualizar-tasa-cobro');
+  if (btnTasaCobro) btnTasaCobro.style.display = 'none';
+  const usdInput = document.getElementById('cobro-usd-recibidos');
+  if (usdInput) usdInput.value = '';
+  const usdDesglose = document.getElementById('cobro-usd-desglose');
+  if (usdDesglose) usdDesglose.innerHTML = 'Ingresa los USD recibidos para ver el desglose.';
   document.getElementById('modal-cobro').classList.add('open');
 }
 
 function closeCobroModal(){ document.getElementById('modal-cobro').classList.remove('open'); }
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  PAGO EN USD — conversión y cálculo de vuelto
+// ─────────────────────────────────────────────────────────────────────────────
+// Cuando el cliente paga en USD, se usa una tasa ajustada: la tasa del día menos
+// 5 CUP, redondeada al múltiplo de 5 más cercano. Los USD que entrega el cliente
+// se convierten a CUP con esa tasa ajustada y se compara con el monto a cobrar
+// (servicio + equipo) para calcular el vuelto a devolver.
+
+// Devuelve la moneda seleccionada actualmente en el modal ('CUP' o 'USD').
+function _cobroMonedaSel() {
+  const radios = document.getElementsByName('cobro-moneda');
+  for (const r of radios) { if (r.checked) return r.value; }
+  return 'CUP';
+}
+
+// Handler al cambiar el radio de moneda. Muestra/oculta el panel USD y
+// habilita/deshabilita el botón de actualizar tasa.
+function onCobroMonedaChange() {
+  const moneda = _cobroMonedaSel();
+  const panel = document.getElementById('cobro-usd-panel');
+  const btnTasa = document.getElementById('btn-actualizar-tasa-cobro');
+  if (moneda === 'USD') {
+    if (panel) panel.style.display = '';
+    if (btnTasa) btnTasa.style.display = '';
+    _actualizarAvisoStaleCobro();
+    calcularCobroUsd();
+  } else {
+    if (panel) panel.style.display = 'none';
+    if (btnTasa) btnTasa.style.display = 'none';
+  }
+}
+
+// Muestra u oculta el aviso de "tasa sin actualizar hace más de 5 h".
+function _actualizarAvisoStaleCobro() {
+  const aviso = document.getElementById('cobro-usd-stale-aviso');
+  if (!aviso) return;
+  if (typeof tasaUsdStale5h === 'function' && tasaUsdStale5h()) {
+    aviso.style.display = '';
+  } else {
+    aviso.style.display = 'none';
+  }
+}
+
+// Calcula el desglose del pago en USD en tiempo real mientras el admin escribe.
+// Muestra: tasa del día, tasa ajustada, USD×tasa = CUP, monto a cobrar, vuelto.
+function calcularCobroUsd() {
+  const desglose = document.getElementById('cobro-usd-desglose');
+  if (!desglose) return;
+
+  const tasaDia = typeof tasaUsd === 'function' ? tasaUsd() : null;
+  if (tasaDia === null) {
+    desglose.innerHTML = '<span style="color:var(--amber)">No hay tasa USD configurada. Pulsa «Actualizar tasa» o configúrala en Ajustes.</span>';
+    return;
+  }
+
+  const ajustada = typeof tasaAjustadaUsd === 'function' ? tasaAjustadaUsd() : null;
+  if (ajustada === null) {
+    desglose.innerHTML = '<span style="color:var(--amber)">No hay tasa USD configurada.</span>';
+    return;
+  }
+
+  const usdInput = document.getElementById('cobro-usd-recibidos');
+  const usd = parseFloat(usdInput ? usdInput.value : 0) || 0;
+  const cupConvertido = Math.round(usd * ajustada);
+
+  // Monto a cobrar = servicio + equipo (lo que hay en los campos del modal).
+  const montoServicio = parseInt(document.getElementById('cobro-monto-servicio').value) || 0;
+  const montoEquipo = parseInt(document.getElementById('cobro-monto-equipo').value) || 0;
+  const aCobrar = montoServicio + montoEquipo;
+
+  const vuelto = cupConvertido - aCobrar;
+  const vueltoColor = vuelto >= 0 ? 'var(--green)' : 'var(--red)';
+  const vueltoLabel = vuelto >= 0 ? 'Vuelto a devolver' : 'Falta (cliente debe completar)';
+
+  if (usd <= 0) {
+    desglose.innerHTML = `
+      Tasa del día: <strong>${tasaDia} CUP/USD</strong><br>
+      Tasa ajustada: <strong>${ajustada} CUP/USD</strong> (−5, redondeo múltiplo 5)<br>
+      <span style="color:var(--text-muted)">Ingresa los USD recibidos para ver el desglose.</span>
+    `;
+    return;
+  }
+
+  desglose.innerHTML = `
+    Tasa del día: <strong>${tasaDia} CUP/USD</strong><br>
+    Tasa ajustada: <strong>${ajustada} CUP/USD</strong> (−5, redondeo múltiplo 5)<br>
+    ${usd} USD × ${ajustada} = <strong>${cupConvertido.toLocaleString('es-CU')} CUP</strong><br>
+    Monto a cobrar: <strong>${aCobrar.toLocaleString('es-CU')} CUP</strong><br>
+    <span style="color:${vueltoColor};font-weight:600">${vueltoLabel}: ${Math.abs(vuelto).toLocaleString('es-CU')} CUP</span>
+  `;
+}
+
+// Handler del botón "Actualizar tasa" dentro del modal de cobro.
+// Reutiliza actualizarTasaUsd() de moneda.js y refresca el desglose.
+async function clickActualizarTasaUsdCobro() {
+  const btn = document.getElementById('btn-actualizar-tasa-cobro');
+  const desglose = document.getElementById('cobro-usd-desglose');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Actualizando…'; }
+  if (desglose) desglose.innerHTML = '<span style="color:var(--text-muted)">Consultando tasa…</span>';
+
+  const ok = await actualizarTasaUsd((msg) => {
+    if (desglose) desglose.innerHTML = `<span style="color:var(--text-muted)">${msg}</span>`;
+  });
+
+  if (btn) { btn.disabled = false; btn.textContent = '🔄 Actualizar tasa'; }
+  _actualizarAvisoStaleCobro();
+  calcularCobroUsd();
+  if (ok) notify('Tasa USD actualizada');
+  else notify('No se pudo actualizar automáticamente — usa el valor manual en Ajustes', 'warn');
+}
+
 function registrarCobro() {
   const id             = parseInt(document.getElementById('cobro-id').value);
-  const montoServicio  = parseInt(document.getElementById('cobro-monto-servicio').value) || 0;
-  const montoEquipoIn  = parseInt(document.getElementById('cobro-monto-equipo').value) || 0;
   const fecha = document.getElementById('cobro-fecha').value;
-  const nota  = document.getElementById('cobro-nota').value.trim();
+  let nota  = document.getElementById('cobro-nota').value.trim();
   const c = clients.find(x=>x.id===id);
-  if(!c || (montoServicio + montoEquipoIn) <= 0){notify('Ingresa un monto valido',true);return;}
-  if(typeof registrarParaDeshacer==='function') registrarParaDeshacer(`Cobro a ${c.nombre}`);
+  if(!c){notify('Cliente no encontrado',true);return;}
 
   const mora          = getMora(c);
   const precioMega    = getPrecioCliente(c);
@@ -78,6 +197,45 @@ function registrarCobro() {
   const precioNeto    = Math.max(0, precioPorMes - descuento);
   const servicioTotal = precioNeto * (mora + 1);
   const deudaEqActual = getDeudaEquipoCliente(c);
+
+  // ── Determinar moneda del pago y calcular montos ──
+  const moneda = _cobroMonedaSel();
+  let montoServicio, montoEquipoIn;
+
+  if (moneda === 'USD') {
+    // Pago en USD: el cliente entrega una cantidad de USD que se convierte a CUP
+    // con la tasa ajustada (tasa del día −5, redondeo múltiplo 5). El CUP total
+    // convertido se asigna primero al servicio y el resto al equipo.
+    const ajustada = tasaAjustadaUsd();
+    if (ajustada === null) {
+      notify('No hay tasa USD configurada. Configúrala en Ajustes o pulsa «Actualizar tasa».', true);
+      return;
+    }
+    const usdRecibidos = parseFloat(document.getElementById('cobro-usd-recibidos').value) || 0;
+    if (usdRecibidos <= 0) {
+      notify('Ingresa la cantidad de USD recibidos', true);
+      return;
+    }
+    const cupTotal = Math.round(usdRecibidos * ajustada);
+    const faltaServicio = Math.max(0, servicioTotal - (c.abono || 0));
+    // Asignar al servicio primero, luego al equipo
+    montoServicio = Math.min(cupTotal, faltaServicio);
+    montoEquipoIn = Math.min(cupTotal - montoServicio, deudaEqActual);
+    // Actualizar los campos visibles del modal para que el admin vea el desglose
+    document.getElementById('cobro-monto-servicio').value = montoServicio;
+    document.getElementById('cobro-monto-equipo').value = montoEquipoIn;
+    // Construir nota del desglose en USD
+    const vuelto = cupTotal - (montoServicio + montoEquipoIn);
+    const desgloseUsd = `Pago en USD: ${usdRecibidos} USD × ${ajustada} (tasa ${tasaUsd()}−5 redond.) = ${cupTotal.toLocaleString('es-CU')} CUP. Vuelto: ${vuelto.toLocaleString('es-CU')} CUP.`;
+    nota = nota ? `${nota} | ${desgloseUsd}` : desgloseUsd;
+  } else {
+    // Pago en CUP: usar los valores de los campos directamente
+    montoServicio  = parseInt(document.getElementById('cobro-monto-servicio').value) || 0;
+    montoEquipoIn  = parseInt(document.getElementById('cobro-monto-equipo').value) || 0;
+  }
+
+  if((montoServicio + montoEquipoIn) <= 0){notify('Ingresa un monto válido',true);return;}
+  if(typeof registrarParaDeshacer==='function') registrarParaDeshacer(`Cobro a ${c.nombre}`);
 
   // Snapshot del estado previo para poder revertir con eliminarCobro
   const prevState = { pagado:c.pagado, mora:c.mora||0, abono:c.abono||0, deudaEquipo:c.deudaEquipo||0 };
