@@ -24,14 +24,25 @@ function renderSalud() {
   const cobradoAhora=cobrado();
   const pend=pendienteTotal();
   const nClientes=clients.length;
-  const nPagados=clients.filter(c=>c.pagado).length;
   const nConMora=clients.filter(c=>getMora(c)>0).length;
-  const tasaCobro=ing>0?Math.round(cobradoAhora/ing*100):0;
   const margen=ing>0?Math.round(gan/ing*100):0;
   const pctMora=nClientes>0?Math.round(nConMora/nClientes*100):0;
   const sold=totalVendido();
   const pctBanda=config.megas>0?Math.round(sold/config.megas*100):0;
   const liquidez=(cobradoAhora-gastosTotal-costo);
+
+  // ── COBRANZA POR CORTES (v5.5.1) ──────────────────────────────────
+  // La tasa de cobro ya no divide entre todos los clientes del mes, sino
+  // solo entre los clientes cuyo día de pago ya llegó o pasó (su "corte"
+  // ya estaba activo a la fecha de hoy). Los clientes de cortes futuros
+  // (día de pago todavía no llega) no se cuentan — no es justo penalizar
+  // la cobranza por clientes que todavía no tenían que pagar.
+  const esperados=clientesEsperadosCobro();
+  const nEsperados=esperados.length;
+  const nPagadosCorte=esperados.filter(c=>c.pagado).length;
+  const ingEsperadosHoy=ingresosEsperadosHoy();
+  const cobradoCorte=cobradoAlCorte();
+  const tasaCobro=ingEsperadosHoy>0?Math.round(cobradoCorte/ingEsperadosHoy*100):0;
 
   // Snapshot anterior para crecimiento
   const mesKey=config.mesActual||mesActualHoy();
@@ -70,11 +81,16 @@ function renderSalud() {
   const detalleMargen=deltaGanancia!=null?
     (deltaGanancia>0?`▲ +${fmt(deltaGanancia)} vs mes anterior`:`▼ ${fmt(deltaGanancia)} vs mes anterior`):'';
 
-  // 2. Cobranza (tasa)
+  // 2. Cobranza (tasa al corte actual)
+  // Nota: la tasa se calcula solo sobre los clientes cuyo día de pago ya
+  // llegó (su corte está activo), no sobre todos los del mes. Si hay
+  // clientes de cortes futuros, se menciona en la recomendación para que
+  // quede claro que el % es del corte, no del mes completo.
+  const nFuturos = nClientes - nEsperados;
   let nivelCobro, recCobro;
-  if(tasaCobro>=85){nivelCobro='verde';recCobro='';}
-  else if(tasaCobro>=60){nivelCobro='amarillo';recCobro='Hay cobranza pendiente. Envía recordatorios a clientes morosos.';}
-  else {nivelCobro='rojo';recCobro='Cobranza baja. Prioriza el cobro a clientes pendientes y morosos.';}
+  if(tasaCobro>=85){nivelCobro='verde';recCobro=nFuturos>0?`Cobranza al corriente. ${nFuturos} cliente(s) en cortes futuros aún.`:'';}
+  else if(tasaCobro>=60){nivelCobro='amarillo';recCobro='Hay cobranza pendiente en el corte actual. Envía recordatorios a clientes morosos.';}
+  else {nivelCobro='rojo';recCobro='Cobranza baja en el corte actual. Prioriza el cobro a clientes pendientes y morosos.';}
 
   // 3. Mora
   let nivelMora, recMora;
@@ -123,7 +139,7 @@ function renderSalud() {
       </div>
       <div class="salud-grid">
         ${semaforo(nivelMargen,'Rentabilidad (margen)',margen+'%',detalleMargen,recMargen)}
-        ${semaforo(nivelCobro,'Cobranza',tasaCobro+'%',`${nPagados}/${nClientes} clientes pagados`,recCobro)}
+        ${semaforo(nivelCobro,'Cobranza',tasaCobro+'%',`${nPagadosCorte}/${nEsperados} al corte${nEsperados<nClientes?` de ${nClientes}`:''}`,recCobro)}
         ${semaforo(nivelMora,'Mora',nConMora+' clientes',`${pctMora}% del total`,recMora)}
         ${semaforo(nivelBanda,'Ocupación de banda',pctBanda+'%',`${sold}/${config.megas} Mb vendidos`,recBanda)}
         ${semaforo(nivelCrec,'Crecimiento',deltaClientes!=null?(deltaClientes>=0?'+'+deltaClientes:deltaClientes)+' clientes':'—',snapAnt?`vs ${labelMes(snapAnt.mes)}`:'',recCrec)}

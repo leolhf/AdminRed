@@ -222,6 +222,44 @@ function requiereAtencion(c) {
   return s==='warn' || s==='due';
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// COBRANZA POR CORTES (v5.5.1)
+// ─────────────────────────────────────────────────────────────────────
+// Muchos ISP no cobran a todos sus clientes el mismo día, sino en "cortes"
+// o tandas (ej. días 1-5, 10-15, 20-25). La métrica de cobranza del
+// dashboard de salud marcaba "Crítico" a mitad de mes porque dividía los
+// clientes pagados entre TODOS los clientes — incluyendo los de cortes
+// cuyo día de pago aún no llegó. No es justo evaluar la cobranza contra
+// clientes que todavía no tenían que pagar.
+//
+// Estas funciones identifican qué clientes ya deberían haber pagado a la
+// fecha de hoy (su día de pago ya llegó o pasó este ciclo), para que la
+// tasa de cobro se calcule solo sobre los clientes "esperados" y no sobre
+// el total mensual.
+
+// ¿El día de pago de este cliente ya llegó (o ya pasó) en el ciclo actual?
+// Un cliente pagado SIEMPRE cuenta como "ya le tocaba pagar" (porque pagó).
+// Un cliente no pagado cuenta si su día de pago ya llegó (getStatus !== 'ok').
+// Los clientes no pagados cuyo día de pago es futuro (getStatus === 'ok')
+// NO cuentan — todavía no era su turno.
+function cobroVencidoHoy(c) {
+  if(!c.megas) return false; // sin megas, no se le cobra servicio
+  if(!facturacionIniciada(c)) return false; // cliente futuro (fechaInicio > hoy)
+  if(c.pagado) return true; // ya pagó → su corte ya pasó
+  return getStatus(c) !== 'ok'; // día de pago ya llegó/pasó
+}
+
+// Clientes que ya deberían haber pagado a la fecha de hoy (numerador y
+// denominador de la tasa de cobro realista).
+const clientesEsperadosCobro = ()=>clients.filter(cobroVencidoHoy);
+
+// Cuánto dinero se ESPERA haber cobrado a la fecha de hoy: la suma de
+// precioNetoCliente(c) solo de los clientes cuyo corte ya llegó.
+const ingresosEsperadosHoy = ()=>clientesEsperadosCobro().reduce((s,c)=>s+precioNetoCliente(c),0);
+
+// Cuánto se ha cobrado de los clientes cuyo corte ya llegó (pagados al corte).
+const cobradoAlCorte = ()=>clientesEsperadosCobro().filter(c=>c.pagado).reduce((s,c)=>s+precioNetoCliente(c),0);
+
 const statusLabel = s=>({ok:'Al día',warn:'Cobrar pronto',due:'Vencido',paid:'Pagado'}[s]);
 const statusClass = s=>({ok:'badge-ok',warn:'badge-warn',due:'badge-due',paid:'badge-paid'}[s]);
 

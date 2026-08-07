@@ -111,7 +111,11 @@ function renderRevSpark() {
 }
 
 function renderSummary() {
-  const pct=ingresosMes()>0?Math.round(cobrado()/ingresosMes()*100):0;
+  // v5.5.1: el % de cobro se calcula sobre los clientes cuyo corte ya
+  // llegó (ingresosEsperadosHoy), no sobre el total mensual completo.
+  const ingEsperadaHoy=ingresosEsperadosHoy();
+  const pct=ingEsperadaHoy>0?Math.round(cobradoAlCorte()/ingEsperadaHoy*100):0;
+  const pctMes=ingresosMes()>0?Math.round(cobrado()/ingresosMes()*100):0;
   const conMora=clients.filter(c=>getMora(c)>0).length;
   const invTotal=inversionTotalHistorica();
   const invRec=recuperadoInversion();
@@ -121,7 +125,7 @@ function renderSummary() {
     <div class="card"><div class="card-label">Ingreso mensual</div><div class="card-value green" data-countup="${ingresosMes()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">CUP esperado</div></div>
     <div class="card"><div class="card-label">Costo del paquete</div><div class="card-value red" data-countup="${costoMes()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">${config.megas} Mb × ${fmt(config.costoPorMega)}</div></div>
     <div class="card"><div class="card-label">Ganancia Mensual</div><div class="card-value ${gananciaMensual()>=0?'green':'red'}" data-countup="${gananciaMensual()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">Ingreso − costo paquete</div></div>
-    <div class="card"><div class="card-label">Cobrado</div><div class="card-value blue" data-countup="${cobrado()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">${pct}% del total</div></div>
+    <div class="card"><div class="card-label">Cobrado</div><div class="card-value blue" data-countup="${cobrado()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">${pct}% al corte · ${pctMes}% del mes</div></div>
     <div class="card"><div class="card-label">Pendiente</div><div class="card-value amber" data-countup="${pendienteTotal()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">${clients.filter(c=>!c.pagado && facturacionIniciada(c)).length} clientes</div></div>
     <div class="card"><div class="card-label">Ganancia neta</div><div class="card-value ${ganancia()>=0?'green':'red'}" data-countup="${ganancia()/1000}" data-countup-decimals="1" data-countup-suffix="K">0K</div><div class="card-sub">tras costo ${fmt(costoMes())}</div></div>
     <div class="card"><div class="card-label">Clientes</div><div class="card-value" data-countup="${clients.length}">0</div><div class="card-sub">${totalVendido()} Mb vendidos</div></div>
