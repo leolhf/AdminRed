@@ -987,20 +987,9 @@ function actualizarTotalGastoLote() {
     </main>
   </div>
 
-  <!-- REGISTRAR SERVICE WORKER PARA PWA -->
+  <!-- El registro del Service Worker vive en js/init.js (incluye el flujo
+       de auto-actualización); se quitó de aquí para no registrarlo dos veces. -->
   <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then(registration => {
-            console.log('Service Worker registrado:', registration.scope);
-          })
-          .catch(error => {
-            console.log('Error al registrar Service Worker:', error);
-          });
-      });
-    }
-
     // Función de sincronización manual (se define globalmente)
     window.syncManual = async function() {
       if (!window.FirebaseSync) {
