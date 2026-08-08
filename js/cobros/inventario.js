@@ -13,6 +13,39 @@
 // Recuerda qué lotes tienen su lista de "Ventas de este lote" expandida (colapsada por defecto)
 let ventasLoteAbiertas = {};
 
+// Escapa un string para incrustarlo de forma segura dentro de un literal JS
+// entre comillas simples (atributos onclick, etc.). Sustituye las comillas
+// simples y las barras invertidas por sus secuencias de escape, de modo que
+// una descripción de lote como "Cable UTP 5e (caja de 305')" no rompa el
+// atributo onclick ni permita inyectar código (XSS por escape de comilla).
+// Es independiente del escapado HTML, que se hace con escapeHtml donde toque.
+function escapeForJsSingle(str) {
+  return String(str == null ? '' : str)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'");
+}
+
+// Escapa un string para incrustarlo de forma segura dentro de HTML (contenido
+// de texto entre etiquetas). Evita que una descripción con caracteres como
+// '<', '>', '&' o '"' se interprete como marcado (HTML injection / XSS).
+// NOTA: este archivo se carga como módulo global; si ya existiera una función
+// escapeHtml global (definida por otro módulo) se respeta y no se redefine.
+if (typeof window !== 'undefined' && typeof window.escapeHtml !== 'function') {
+  window.escapeHtml = function(str) {
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  };
+}
+const escapeHtml = (typeof window !== 'undefined' && window.escapeHtml) ? window.escapeHtml : function(str){
+  return String(str == null ? '' : str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+};
+
 // ═══════════════════════════════════════════════════════════
 //  COMPRA DE UN LOTE (gasto real a costo, una sola vez)
 // ═══════════════════════════════════════════════════════════
@@ -315,7 +348,7 @@ function renderInventario() {
       return `
         <div class="gasto-item">
           <div style="flex:1">
-            <div class="gasto-desc">📦 ${inv.desc}</div>
+            <div class="gasto-desc">📦 ${escapeHtml(inv.desc)}</div>
             <div style="font-size:0.62rem;color:var(--text-muted)">${inv.fecha} · lote antiguo, sin control por cantidad</div>
           </div>
           <span class="gasto-monto">${fmt(inv.montoTotal||0)}</span>
@@ -333,7 +366,7 @@ function renderInventario() {
       <div class="gasto-item" style="flex-direction:column;align-items:stretch;gap:8px">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div>
-            <div class="gasto-desc">📦 ${inv.desc}</div>
+            <div class="gasto-desc">📦 ${escapeHtml(inv.desc)}</div>
             <div style="font-size:0.62rem;color:var(--text-muted);font-family:var(--mono)">
               ${inv.fecha} · costo ${fmt(inv.costoPorUnidad)}/${uTxt} · margen objetivo ${Math.round(inv.margenObjetivo*100)}%
             </div>
@@ -341,7 +374,7 @@ function renderInventario() {
           <div style="text-align:right">
             <div class="mono ${disponible>0?'text-amber':'text-muted'}" style="font-size:0.8rem">${disponible} ${uTxt} disp.</div>
             <div style="font-size:0.62rem;color:var(--text-muted)">de ${inv.cantidadTotal} ${uTxt}</div>
-            ${disponible>0 ? `<button class="btn btn-red btn-sm" onclick="openRebajaModal(${inv.id}, '${inv.desc}', ${inv.costoPorUnidad}, '${inv.unidad}')" style="margin-top:4px;font-size:0.66rem;padding:3px 8px">📉 Rebaja</button>` : ''}
+            ${disponible>0 ? `<button class="btn btn-red btn-sm" onclick="openRebajaModal(${inv.id}, '${escapeForJsSingle(inv.desc)}', ${inv.costoPorUnidad}, '${inv.unidad}')" style="margin-top:4px;font-size:0.66rem;padding:3px 8px">📉 Rebaja</button>` : ''}
           </div>
         </div>
 

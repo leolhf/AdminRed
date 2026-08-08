@@ -3,6 +3,36 @@
 // Los clientes vinculados NO tienen deuda — solo contribuyen con su ingreso de servicio
 // para calcular en cuántos meses el ISP recupera la inversión.
 // Depende de: state.js (investments, clients, gastos), calculations.js (fmt)
+//
+// ─────────────────────────────────────────────────────────────────────────────
+//  TRES MODELOS DE INVERSIÓN EN AdminRed (referencia única de diseño)
+// ─────────────────────────────────────────────────────────────────────────────
+//  El sistema distingue tres formas de invertir que NUNCA deben mezclarse ni
+//  contabilizarse dos veces. resumenInversion() (calculations.js) es la única
+//  fuente de verdad que los consolida:
+//
+//  MODELO 1 — Inversiones personales (este archivo, investments[])
+//    Capital propio en infraestructura compartida (antena, router core, torre).
+//    Los clientes vinculados NO generan deuda: solo aportan su GANANCIA NETA de
+//    servicio (precio − costoPorMega) para PROYECTAR en cuántos meses se recupera.
+//    NO crea history.montoEquipo (no hay cuota que cobrar). Su recuperación se
+//    calcula por proyección (proyeccionInversion().recuperadoEstimado).
+//
+//  MODELO 2 — Deuda de equipo de un cliente (inversion.js + clients[].deudaEquipo)
+//    Compra puntual de equipo para un cliente concreto, que lo paga en cuotas
+//    mensuales junto al servicio. SÍ genera cobro real: cada abono/liquidación
+//    registra history.montoEquipo. El gasto se crea como categoría 'inversion'.
+//
+//  MODELO 3 — Inventario compartido (inventario.js, inventario[] + asignacionesInventario[])
+//    Compra de un lote de material (cable, conectores) que se vende por unidades.
+//    Vender "al momento" → cobro inmediato (history.montoEquipo, tipo 'inventario').
+//    Vender "a plazo"    → crea deudaEquipo del cliente (modelo 2 reutilizado) y se
+//    cobra después por cuotas (también history.montoEquipo). El costo del lote se
+//    contabiliza UNA sola vez, completo, al comprarlo (gasto 'inversion' con loteId).
+//
+//  Regla anti-doble-conteo: history.montoEquipo alimenta los modelos 2 y 3; el
+//  modelo 1 se alimenta solo de proyeccionInversion(). Nunca se suma
+//  history.montoEquipo como recuperación de una inversión personal.
 
 // ═══════════════════════════════════════════════════════════
 //  MODELO DE INVERSIÓN PERSONAL

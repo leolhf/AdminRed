@@ -119,7 +119,18 @@ function renderSalud() {
     nivelCrec='amarillo';recCrec='Sin snapshot anterior para comparar. Guarda snapshots mensuales.';
   }
 
-  // 6. Liquidez (cobrado - gastos)
+  // 6. Liquidez (caja operativa real del mes)
+  // v5.7.1: liquidez = gananciaReal() (caja operativa del mes: cobrado real −
+  // paquete pagado − gastos operativos). Antes el desglose textual mostraba
+  // "Cobrado {cobrado()} − Gastos {totalGastos+costoMes}", que mezclaba la
+  // PROYECCIÓN de cobrados (clientes marcados pagados) con un gasto que volvía
+  // a sumar costoMes() (reintroduciendo el paquete que liquidez ya NO resta).
+  // El número mostrado y su desglose no coincidían. Ahora el desglose usa las
+  // mismas magnitudes de caja real que gananciaReal(), para que sean coherentes.
+  const cobTotMes = cobradoTotalMes();
+  const pagoPaq   = pagoPaqueteMes();
+  const paqPag    = paquetePagadoEsteMes();
+  const gastosOpReales = gastosRealesMes();
   let nivelLiq, recLiq;
   if(liquidez>0){nivelLiq='verde';recLiq=`Flujo positivo: ${fmt(liquidez)} CUP disponibles este mes`;}
   else if(liquidez>-costoMes()){nivelLiq='amarillo';recLiq='Flujo ajustado. Lo cobrado apenas cubre lo pagado este mes.';}
@@ -148,7 +159,7 @@ function renderSalud() {
         ${semaforo(nivelMora,'Mora',nConMora+' clientes',`${pctMora}% del total`,recMora)}
         ${semaforo(nivelBanda,'Ocupación de banda',pctBanda+'%',`${sold}/${config.megas} Mb vendidos`,recBanda)}
         ${semaforo(nivelCrec,'Crecimiento',deltaClientes!=null?(deltaClientes>=0?'+'+deltaClientes:deltaClientes)+' clientes':'—',snapAnt?`vs ${labelMes(snapAnt.mes)}`:'',recCrec)}
-        ${semaforo(nivelLiq,'Liquidez del mes',fmt(liquidez),`Cobrado ${fmt(cobradoAhora)} − Gastos ${fmt(gastosTotal+costo)}`,recLiq)}
+        ${semaforo(nivelLiq,'Liquidez del mes',fmt(liquidez),`Cobrado ${fmt(cobTotMes)} − Paquete ${paqPag?fmt(pagoPaq):'0 (pendiente)'} − Operativos ${fmt(gastosOpReales)}`,recLiq)}
       </div>
     </div>
   `;

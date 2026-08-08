@@ -115,13 +115,48 @@ function deleteGasto(idx) {
   }
   if(inv){
     const uTxt = inv.unidad==='m' ? 'm' : 'u';
+    // v5.7.1: además de avisar, enumerar las ventas asociadas y, si las hay,
+    // ofrecer revertirlas automáticamente ANTES de borrar el gasto/lote, para no
+    // dejar cobros (history) ni deudas (deudaEquipo) huérfanos apuntando a un
+    // lote que ya no existe. Si el usuario insiste en borrar sin revertir, se le
+    // exige una segunda confirmación explícita para que sea consciente del
+    // estado inconsistente que queda.
+    const ventasLote = asignacionesInventario.filter(v => v.inventarioId === inv.id);
     const vendido = inv.cantidadAsignada > 0;
+    const listadoVentas = ventasLote.length
+      ? ventasLote.map(v=>{
+          const cli = clients.find(x=>x.id===v.clienteId);
+          const modo = v.modoPago==='momento' ? 'pagado al momento' : 'a plazo (deuda)';
+          return `   • ${cli?cli.nombre:'(cliente eliminado)'} — ${v.cantidad}${uTxt} · ${fmt(v.monto)} (${modo})`;
+        }).join('\n')
+      : '';
     const msg = vendido
-      ? `Este gasto es la compra del lote "${inv.desc}", que ya tiene ${inv.cantidadAsignada} ${uTxt} vendidas.\n\nEliminarlo también eliminará el lote completo del inventario, pero las ventas ya registradas (y los cobros/deudas que generaron) NO se revierten automáticamente.\n\nRecomendado: elimina primero cada venta de ese lote desde la pestaña Inventario, y luego borra este gasto.\n\n¿Eliminar de todas formas?`
+      ? `Este gasto es la compra del lote "${inv.desc}", que ya tiene ${inv.cantidadAsignada} ${uTxt} vendidas en ${ventasLote.length} venta(s):\n\n${listadoVentas}\n\n` +
+        `OPCIÓN RECOMENDADA: elimina primero cada venta desde la pestaña Inventario (el material vuelve al lote y se revierten cobros/deudas).\n\n` +
+        `Si eliminas este gasto ahora SIN revertir las ventas:\n  • el lote se borrará del inventario\n  • los cobros/deudas que generaron esas ventas QUEDARÁN HUÉRFANOS (sin lote de referencia)\n\n` +
+        `¿Eliminar el gasto y el lote de TODOS MODOS (dejar ventas huérfanas)?`
       : `Este gasto es la compra del lote "${inv.desc}" (aún sin ventas). Eliminarlo también quitará el lote del inventario.\n\n¿Continuar?`;
     if(!confirm(msg)) return;
+    // Si había ventas, exigir una segunda confirmación explícita (acciones
+    // destructivas en dos pasos) para reducir borrados accidentales que dejan
+    // datos inconsistentes.
+    if(vendido && !confirm(`Última confirmación: vas a borrar el lote "${inv.desc}" con ${ventasLote.length} venta(s) SIN revertir. ¿Estás seguro?`)) return;
     const invIdx = inventario.findIndex(i => i.id === inv.id);
     if(invIdx !== -1) inventario.splice(invIdx, 1);
+  } else if (g && g.categoria === 'inversion') {
+    // Inversión de equipo PUNTUAL de un cliente (sin lote de inventario): el
+    // gasto se creó desde ajustarInversion()/saveInversion() como
+    // "Inversión equipo — {nombre}". Si se borra el gasto, el cliente sigue
+    // teniendo su deudaEquipo y los cobros de cuota en history — pero el capital
+    // invertido ya no se contabiliza en la "recuperación de inversión". Avisar
+    // para que el usuario sepa que la métrica de recuperación puede quedar
+    // inconsistente, y dejarle decidir.
+    const esEquipoCliente = /Inversión[ -]?equipo/i.test(g.desc || '');
+    if(esEquipoCliente){
+      const msg2 = `Este gasto es una inversión en equipo de un cliente ("${g.desc}").\n\n` +
+        `Borrarlo NO elimina la deuda del cliente ni sus cobros de cuota (eso se gestiona desde el cliente), pero el capital invertido dejará de contar en la sección "Recuperación de inversión", por lo que el % podría verse inconsistente.\n\n¿Eliminar el gasto de todos modos?`;
+      if(!confirm(msg2)) return;
+    }
   }
   gastos.splice(idx,1);
   save(); renderGastos(); renderProfit(); renderSummary(); renderInventario();
@@ -136,7 +171,7 @@ function renderGastos() {
   // acumulados de inversion de meses anteriores.
   const gMes = gastosDelMes();
   const opGastos   = gMes.filter(g=>g.categoria==='operativo').reduce((s,g)=>s+g.monto,0);
-  const invGastos  = gMes.filter(g=>g.categoria==='inversion').reduce((s,g)=>s+g.monto,0);
+  const invGastos  = gMes.filter(g=>g.categoria==='inversion' || g.categoria==='rebaja').reduce((s,g)=>s+g.monto,0);
   const crecGastos = gMes.filter(g=>g.categoria==='crecimiento').reduce((s,g)=>s+g.monto,0);
   const paqGasto   = pagoPaqueteMes();        // lo pagado al proveedor este mes (caja)
   const paqPagado  = paquetePagadoEsteMes();
@@ -160,7 +195,7 @@ function renderGastos() {
     <div class="pb-row"><span>Total cobrado este mes</span><span class="text-green"><strong>+${fmt(cobTot)}</strong></span></div>
     <div class="pb-row"><span>Pago paquete al proveedor</span><span class="text-red">${paqPagado?`-${fmt(paqGasto)}`:`<span style="color:var(--amber)">Pendiente (${fmt(costoMes())})</span>`}</span></div>
     ${opGastos>0?`<div class="pb-row"><span>Gastos operativos</span><span class="text-red">-${fmt(opGastos)}</span></div>`:''}
-    ${invGastos>0?`<div class="pb-row"><span>Inversion en equipo/material</span><span class="text-amber">-${fmt(invGastos)}</span></div>`:''}
+    ${invGastos>0?`<div class="pb-row"><span>Inversion del mes (capital)</span><span class="text-amber">-${fmt(invGastos)}</span></div>`:''}
     ${crecGastos>0?`<div class="pb-row"><span>Crecimiento de red</span><span class="text-red">-${fmt(crecGastos)}</span></div>`:''}
     <div class="pb-row"><span><strong>Ganancia neta real (caja)</strong></span><span class="${ganR>=0?'text-green':'text-red'}"><strong>${fmt(ganR)}</strong></span></div>
 

@@ -89,44 +89,47 @@ function renderEstadisticas() {
     :'<div class="empty-state">Sin cobros registrados</div>';
 
   // ── RECUPERACIÓN DE INVERSIÓN ──
-  const invHistTotal  = inversionTotalHistorica();
-  const invRecuperado = recuperadoInversion();
-  const invPendEquipo = deudaEquipoPendienteTotal();
+  // v5.7.1: se usa el helper unificado resumenInversion() (calculations.js), que
+  // separa correctamente los TRES modelos de inversión y evita el doble conteo
+  // que tenía el cálculo anterior:
+  //  - recuperadoInversion() suma TODO history.montoEquipo (deuda de equipo +
+  //    inventario), pero las "inversiones personales" NO generan montoEquipo
+  //    (son proyección), así que su capital aparecía como "nunca recuperado".
+  //  - Además se volvía a sumar history.montoEquipo filtrando por nota '📦'
+  //    (recuperadoInv), contando los cobros de inventario DOS veces.
+  // Ahora cada modelo usa su fuente correcta y el % es coherente.
+  const rInv = resumenInversion();
 
-  // Inversión de inventario: total comprado vs lo vendido a plazo pendiente
-  const totalCompradoInv = inventario.reduce((s,i) => s + (i.montoTotal||0), 0);
-  const vendidoPlazo     = asignacionesInventario
-    .filter(v => v.modoPago === 'plazo')
-    .reduce((s,v) => s + v.monto, 0);
-  // Lo ya recuperado de inventario viene de history.montoEquipo (ventas al momento + cobros cuota)
-  const recuperadoInv = history
-    .filter(h => h.nota && h.nota.includes('📦'))
-    .reduce((s,h) => s + (h.montoEquipo||0), 0);
+  // Inventario disponible (sin vender), a costo — capital aún inmovilizado.
+  const invDisponible = inventario.reduce((s,i)=>{
+    if(i.cantidadTotal==null) return s; // lote antiguo sin control por cantidad, se omite
+    return s + ((i.cantidadTotal - i.cantidadAsignada) * i.costoPorUnidad);
+  },0);
 
-  const totalPendiente = invPendEquipo + vendidoPlazo;
-  const pctRecuperado  = (invHistTotal + totalCompradoInv) > 0
-    ? Math.round(invRecuperado / (invHistTotal + totalCompradoInv) * 100) : 0;
-
-  // Agregar esta sección al DOM después del div stat-recent existente:
   const secInv = document.createElement('div');
   secInv.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:14px';
   secInv.innerHTML = `
     <div class="bw-title" style="margin-bottom:10px">💰 Recuperación de inversión</div>
-    <div class="pb-row"><span>Total invertido (equipo + inventario)</span>
-      <span class="mono text-red">−${fmt(invHistTotal + totalCompradoInv)}</span></div>
+    <div class="pb-row"><span>Total invertido (personal + equipo/inventario)</span>
+      <span class="mono text-red">−${fmt(rInv.capitalTotal)}</span></div>
+    <div class="pb-row"><span>&nbsp;&nbsp;• Inversiones personales (infraestructura)</span>
+      <span class="mono text-muted">−${fmt(rInv.capitalPersonalTotal)}</span></div>
+    <div class="pb-row"><span>&nbsp;&nbsp;• Equipo/lotes (capital recuperable por cobros)</span>
+      <span class="mono text-muted">−${fmt(rInv.capitalEquipoTotal)}</span></div>
     <div class="pb-row"><span>Recuperado hasta hoy</span>
-      <span class="mono text-green">+${fmt(invRecuperado)}</span></div>
-    <div class="pb-row"><span>Pendiente por recuperar de clientes</span>
-      <span class="mono text-amber">${fmt(totalPendiente)}</span></div>
-    <div class="pb-row"><span>Inventario disponible (sin vender)</span>
-      <span class="mono text-blue">${fmt(inventario.reduce((s,i)=>{
-        if(i.cantidadTotal==null) return s; // lote antiguo sin control por cantidad, se omite
-        return s + ((i.cantidadTotal - i.cantidadAsignada) * i.costoPorUnidad);
-      },0))}</span></div>
+      <span class="mono text-green">+${fmt(rInv.recuperadoTotal)}</span></div>
+    <div class="pb-row"><span>&nbsp;&nbsp;• Recuperación proyectada (inversiones personales)</span>
+      <span class="mono text-muted">+${fmt(rInv.recuperadoPersonal)}</span></div>
+    <div class="pb-row"><span>&nbsp;&nbsp;• Cobrado en cuotas/ventas (equipo + inventario)</span>
+      <span class="mono text-muted">+${fmt(rInv.recuperadoEquipo)}</span></div>
+    <div class="pb-row"><span>Pendiente por cobrar de clientes (equipo + inventario a plazo)</span>
+      <span class="mono text-amber">${fmt(rInv.pendienteTotal)}</span></div>
+    <div class="pb-row"><span>Inventario disponible (sin vender, a costo)</span>
+      <span class="mono text-blue">${fmt(invDisponible)}</span></div>
     <div style="margin-top:10px">
       <div class="bw-header"><span style="font-size:0.68rem;color:var(--text-muted);font-family:var(--mono)">Progreso de recuperación</span>
-      <span style="font-size:0.68rem;font-family:var(--mono)">${pctRecuperado}%</span></div>
-      <div class="bw-bar-bg"><div class="bw-bar-fill" style="width:${pctRecuperado}%;background:var(--amber)"></div></div>
+      <span style="font-size:0.68rem;font-family:var(--mono)">${rInv.pct}%</span></div>
+      <div class="bw-bar-bg"><div class="bw-bar-fill" style="width:${rInv.pct}%;background:var(--amber)"></div></div>
     </div>
     <div style="margin-top:10px;text-align:right">
       <button class="btn btn-amber btn-sm" onclick="openModalInversionPendiente()">Ver detalle por cliente ›</button>

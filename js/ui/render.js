@@ -240,7 +240,8 @@ function renderProfit() {
   const cobTot  = cobradoTotalMes();
   const paqGasto= pagoPaqueteMes();
   const paqPag  = paquetePagadoEsteMes();
-  const tg      = totalGastos();          // gastos del mes sin el paquete
+  const tg      = totalGastos();          // gastos operativos del mes (sin paquete ni inversion)
+  const invCap  = inversionCapitalMes();  // capital invertido este mes (equipo/rebaja) — se recupera, no es gasto operativo
   const ganR    = gananciaReal();
 
   // --- PROYECCION (lo esperado, solo informativo) ---
@@ -255,6 +256,7 @@ function renderProfit() {
     <div class="pb-row"><span>Total cobrado este mes</span><span class="text-green"><strong>+${fmt(cobTot)}</strong></span></div>
     <div class="pb-row"><span>Pago paquete al proveedor</span><span class="text-red">${paqPag?`-${fmt(paqGasto)}`:`<span style="color:var(--amber)">Pendiente (${fmt(costoMes())})</span>`}</span></div>
     ${tg>0?`<div class="pb-row"><span>Gastos del mes</span><span class="text-red">-${fmt(tg)}</span></div>`:''}
+    ${invCap>0?`<div class="pb-row"><span>Inversion del mes (capital)</span><span class="text-amber">-${fmt(invCap)}</span></div>`:''}
     <div class="pb-row"><span><strong>Ganancia neta real (caja)</strong></span><span class="${ganR>=0?'text-green':'text-red'}"><strong>${fmt(ganR)}</strong></span></div>
 
     <div class="bw-title" style="margin:12px 0 6px;font-size:0.8rem;color:var(--text-muted)">Proyeccion (esperado)</div>

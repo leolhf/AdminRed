@@ -55,7 +55,25 @@ const costoMes        = ()=>config.megas*config.costoPorMega;
 // el gasto "de este mes".
 const gastosDelMes    = ()=>gastos.filter(g=>!config.mesActual || (g.fecha||'').startsWith(config.mesActual));
 const gastosDelMesSinPaquete = ()=>gastosDelMes().filter(g=>g.categoria!=='paquete');
-const totalGastos     = ()=>gastosDelMesSinPaquete().reduce((s,g)=>s+g.monto,0);
+// gastosOperativosMes(): gastos del mes que SÍ son operativos (descuentan de la
+// ganancia proyectada): 'operativo', 'crecimiento' y cualquier categoría nueva
+// que no sea 'paquete' (costo del servicio, contado aparte vía costoMes()),
+// 'inversion' (compra de equipo/lote — es capital, se recupera por cuotas/ventas)
+// ni 'rebaja' (baja de inventario — salida de capital, no operativo).
+// Esto evita que una compra de equipo reste de la ganancia del mes en curso.
+const gastosOperativosMes = ()=>gastosDelMes()
+  .filter(g=>g.categoria!=='paquete' && g.categoria!=='inversion' && g.categoria!=='rebaja')
+  .reduce((s,g)=>s+g.monto,0);
+
+// totalGastos() ahora devuelve SOLO los operativos del mes (sin paquete ni
+// inversión/rebaja), para que ganancia() no reste dos veces el capital ni el
+// costo del servicio contratado. Se mantiene el nombre por compatibilidad con
+// los consumidores (render.js, salud.js, reporte-mensual.js, gastos.js).
+const totalGastos     = ()=>gastosOperativosMes();
+// totalGastosIncluyendoInversion(): conserva el comportamiento anterior para
+// los sitios que genuinamente quieren ver la salida total de caja del mes
+// (incluyendo capital invertido). No se usa en ganancia()/gananciaReal().
+const totalGastosIncluyendoInversion = ()=>gastosDelMesSinPaquete().reduce((s,g)=>s+g.monto,0);
 
 // Monto del gasto de paquete registrado este mes (lo que se pago al proveedor en
 // caja). Se usa en el "libro de caja" real, no en la proyeccion de ganancia.
@@ -93,14 +111,40 @@ const cobradoTotalMes = ()=>cobradoServiciosMes()+cobradoEquipoMes();
 // Si aun no se marco pagado, es 0 (no ha salido de caja).
 const costoPaqueteContadoMes = ()=>pagoPaqueteMes();
 
-// Gastos operativos/crecimiento/inversion realmente pagados este mes
-// (excluyendo el paquete, que se cuenta aparte como costoPaqueteContadoMes).
-const gastosRealesMes = ()=>totalGastos();
+// Gastos realmente pagados este mes EXCLUYENDO el paquete (que se cuenta aparte
+// como costoPaqueteContadoMes) y EXCLUYENDO la inversión de capital (categoría
+// 'inversion' y 'rebaja' de inventario). La inversión de equipo/lote es salida
+// de capital, NO gasto operativo: si se restara de la "ganancia neta real
+// (caja)", cada compra de equipo rebajaría la caja del mes sin distinguirla del
+// consumo operativo, mezclando conceptos. La inversión del mes se expone por
+// separado vía inversionCapitalMes() para que el admin la vea, pero no contamina
+// el flujo de caja operativo (gananciaReal).
+const gastosOperativosRealesMes = ()=>gastosDelMes()
+  .filter(g=>g.categoria!=='paquete' && g.categoria!=='inversion' && g.categoria!=='rebaja')
+  .reduce((s,g)=>s+g.monto,0);
 
-// GANANCIA NETA REAL: dinero que entro - dinero que salio, este mes.
-// Entradas: cobrado servicios + cobrado equipo (recuperacion de inversion).
-// Salidas: pago del paquete al proveedor + gastos del mes.
-// Refleja la caja real, no la proyeccion. Crece a medida que cobras/pagas.
+// Salida de CAPITAL este mes: gastos de categoría 'inversion' (compra de equipo
+// o lote de inventario) y 'rebaja' (baja de inventario por deterioro/pérdida/robo).
+// Es dinero que salió de caja pero NO es gasto operativo: se recupera después vía
+// cuotas de equipo o ventas de inventario. Se muestra aparte en el libro de caja.
+const inversionCapitalMes = ()=>gastosDelMes()
+  .filter(g=>g.categoria==='inversion' || g.categoria==='rebaja')
+  .reduce((s,g)=>s+g.monto,0);
+
+// Compatibilidad: gastosRealesMes() seguía sumando TODO (incluida inversión).
+// Se mantiene el nombre para no romper llamadas externas, pero ahora devuelve
+// SOLO los gastos operativos reales (sin paquete ni inversión), coherente con
+// gananciaReal(). La inversión del mes se consulta con inversionCapitalMes().
+const gastosRealesMes = ()=>gastosOperativosRealesMes();
+
+// GANANCIA NETA REAL (caja operativa): dinero que entró − dinero que salió
+// POR OPERACIÓN este mes. Entradas: cobrado servicios + cobrado equipo
+// (recuperación de inversión). Salidas: pago del paquete al proveedor + gastos
+// operativos del mes. NO resta la inversión de capital del mes (compra de
+// equipo/lote/rebaja): esa es salida de capital que se recupera después por
+// cuotas/ventas, no gasto operativo. La inversión del mes se ve aparte con
+// inversionCapitalMes() para no mezclar capital con flujo operativo.
+// Refleja la caja real, no la proyección. Crece a medida que cobras/pagas.
 const gananciaReal    = ()=>cobradoTotalMes()-costoPaqueteContadoMes()-gastosRealesMes();
 // Ganancia real ajustada ya incluye la recuperacion de equipo (esta dentro de
 // cobradoEquipoMes), por lo que NO se le suma recuperadoInversionMes de nuevo.
@@ -143,6 +187,92 @@ const recuperadoInversion       = ()=>history.reduce((s,h)=>s+(h.montoEquipo||0)
 const recuperadoInversionMes    = ()=>history.reduce((s,h)=>s+((config.mesActual && (h.fecha||'').startsWith(config.mesActual))?(h.montoEquipo||0):0),0);
 const deudaEquipoPendienteTotal = ()=>clients.reduce((s,c)=>s+getDeudaEquipoCliente(c),0);
 const gananciaAjustada          = ()=>ganancia()+recuperadoInversionMes();
+
+// ───────────────────────────────────────────────────────────────────────────
+//  RESUMEN UNIFICADO DE INVERSIÓN (v5.7.1)
+// ───────────────────────────────────────────────────────────────────────────
+//  El sistema maneja TRES modelos de inversión que NO deben mezclarse ni
+//  contabilizarse dos veces:
+//
+//  1) INVERSIONES PERSONALES (investments[]): capital propio en infraestructura
+//     (ej. una antena, un router core). Los clientes vinculados NO generan
+//     deuda; solo aportan su ganancia neta de servicio para PROYECTAR en cuántos
+//     meses se recupera el capital. Su recuperación NO se registra en
+//     history.montoEquipo (es una proyección, no un cobro de deuda).
+//
+//  2) DEUDA DE EQUIPO (clients[].deudaEquipo): compra puntual de equipo para un
+//     cliente, que la paga por cuotas mensuales junto al servicio. Sí genera un
+//     cobro real (history.montoEquipo en cada abono/liquidación).
+//
+//  3) INVENTARIO COMPARTIDO (inventario[] + asignacionesInventario[]): compra de
+//     un lote de material (cable, conectores) que se va vendiendo a clientes. Si
+//     se vende "al momento" genera un cobro history.montoEquipo de inmediato; si
+//     se vende "a plazo" crea deudaEquipo del cliente y se cobra después por
+//     cuotas (también history.montoEquipo).
+//
+//  El problema anterior: la sección "Recuperación de inversión" de Estadísticas
+//  sumaba investments[].costoTotal + inventario[].montoTotal como "total
+//  invertido", pero calculaba "recuperado" a partir de history.montoEquipo — que
+//  SOLO incluye cobros de los modelos 2 y 3, NO del modelo 1 (proyección). El % de
+//  recuperación quedaba distorsionado: el capital de inversiones personales
+//  (modelo 1) aparecía como "nunca recuperado" aunque su proyección dijera lo
+//  contrario, y los cobros de inventario se podían contar dos veces (una en
+//  recuperadoInversion() y otra en el filter por nota '📦').
+//
+//  resumenInversion() devuelve una estructura CONSISTENTE que separa cada modelo,
+//  suma cada "recuperado" de su fuente correcta, y evita el doble conteo. Es la
+//  única fuente de verdad para cualquier UI que muestre recuperación de capital.
+function resumenInversion() {
+  // --- Modelo 1: inversiones personales (proyección, sin cobros de deuda) ---
+  const invPersonales = (investments || []).filter(i => i.activo !== false);
+  const capitalPersonalTotal = invPersonales.reduce((s,i)=>s+(i.costoTotal||0),0);
+  // Recuperación PROYECTADA de inversiones personales: suma el recuperadoEstimado
+  // de cada una (ganancia neta de servicio realmente cobrada a los vinculados).
+  // NO usa history.montoEquipo (esos cobros son de deuda de equipo/inventario).
+  const recuperadoPersonal = invPersonales.reduce((s,i)=>{
+    try { return s + (proyeccionInversion(i).recuperadoEstimado||0); }
+    catch(e){ return s; }
+  },0);
+
+  // --- Modelos 2 y 3: deuda de equipo + inventario (cobros reales via montoEquipo) ---
+  // Capital total efectivamente invertido en equipo/lotes (gastos 'inversion' de
+  // toda la vida, que month-reset.js conserva). Se reconstruye desde gastos para
+  // incluir tanto deuda de equipo puntual como lotes de inventario.
+  const capitalEquipoTotal = gastos
+    .filter(g=>g.categoria==='inversion')
+    .reduce((s,g)=>s+(g.monto||0),0);
+  // Recuperación REAL de equipo + inventario: todo history.montoEquipo de toda la
+  // vida (abonos de cuota, liquidaciones, ventas de inventario al momento). Es la
+  // única fuente coherente para los modelos que sí generan cobro de deuda.
+  const recuperadoEquipo = history.reduce((s,h)=>s+Number(h.montoEquipo||0),0);
+
+  // --- Pendiente por recuperar (solo modelos 2 y 3 generan deuda cobrable) ---
+  // Deuda de equipo activa de clientes (modelo 2 + ventas de inventario a plazo
+  // que se materializaron como deudaEquipo).
+  const pendienteEquipo = deudaEquipoPendienteTotal();
+  // Ventas de inventario a plazo pendientes (modelo 3 a plazo, reflejo en
+  // asignacionesInventario). NOTA: estas YA están incluidas en deudaEquipo del
+  // cliente (asignarConsumoInventario las suma a c.deudaEquipo), así que NO se
+  // suman de nuevo para evitar doble conteo del pendiente.
+  const pendienteTotal = pendienteEquipo;
+
+  // --- Totales consolidados ---
+  const capitalTotal = capitalPersonalTotal + capitalEquipoTotal;
+  const recuperadoTotal = recuperadoPersonal + recuperadoEquipo;
+  const pct = capitalTotal>0 ? Math.min(100, Math.round(recuperadoTotal/capitalTotal*100)) : 0;
+
+  return {
+    // Modelo 1 — personales (proyección)
+    capitalPersonalTotal, recuperadoPersonal,
+    pctPersonal: capitalPersonalTotal>0 ? Math.min(100, Math.round(recuperadoPersonal/capitalPersonalTotal*100)) : 0,
+    nPersonales: invPersonales.length,
+    // Modelos 2+3 — equipo + inventario (cobros reales)
+    capitalEquipoTotal, recuperadoEquipo, pendienteEquipo,
+    pctEquipo: capitalEquipoTotal>0 ? Math.min(100, Math.round(recuperadoEquipo/capitalEquipoTotal*100)) : 0,
+    // Consolidado
+    capitalTotal, recuperadoTotal, pendienteTotal, pct
+  };
+}
 
 function getMora(c) {
   return (!c.mora || c.mora<=0) ? 0 : c.mora;
@@ -355,19 +485,28 @@ function generarSnapshot(mes) {
   const totalCobrado = cobrosMes.reduce((s,h)=>s+(h.monto||0),0);
   const totalCobradoEquipo = cobrosMes.reduce((s,h)=>s+(h.montoEquipo||0),0);
   const gastosMes = gastos.filter(g => (g.fecha||'').startsWith(mesKey));
-  // v5.7: excluir el gasto 'paquete' de totalGastosMes (ya cubierto por costoPaquete)
-  // para evitar doble descuento en la ganancia del snapshot.
-  const totalGastosMes = gastosMes.filter(g=>g.categoria!=='paquete').reduce((s,g)=>s+(g.monto||0),0);
+  // v5.7.1: separar el gasto del snapshot en tres bloques coherentes con el
+  // modelo de caja:
+  //  - pagoPaqueteMesSnap: gasto 'paquete' (costo del servicio al proveedor).
+  //  - gastosOperativosMesSnap: 'operativo'/'crecimiento' (consumo del mes).
+  //  - inversionCapitalMesSnap: 'inversion'/'rebaja' (salida de capital, se
+  //    recupera después, NO descuenta de la ganancia operativa del mes).
+  // Antes totalGastosMes incluía inversión/rebaja, lo que hacía que la
+  // "ganancia" del snapshot restara el capital invertido ese mes igual que un
+  // gasto operativo, mezclando conceptos. Ahora ganancia y gananciaReal del
+  // snapshot solo restan operativos; el capital se guarda aparte.
   const pagoPaqueteMesSnap = gastosMes.filter(g=>g.categoria==='paquete').reduce((s,g)=>s+(g.monto||0),0);
+  const totalGastosMes = gastosMes.filter(g=>g.categoria!=='paquete' && g.categoria!=='inversion' && g.categoria!=='rebaja').reduce((s,g)=>s+(g.monto||0),0);
+  const inversionCapitalMesSnap = gastosMes.filter(g=>g.categoria==='inversion' || g.categoria==='rebaja').reduce((s,g)=>s+(g.monto||0),0);
   const nClientes = clients.length;
   const nPagados = clients.filter(c=>c.pagado).length;
   const nConMora = clients.filter(c=>getMora(c)>0).length;
   const ing = ingresosMes();
   const costo = costoMes();
-  const gan = ing - costo - totalGastosMes;          // proyeccion (sin doble descuento)
+  const gan = ing - costo - totalGastosMes;          // proyeccion operativa (sin doble descuento ni capital)
   const cobradoReal = cobrado();
   const tasaCobro = ing>0 ? Math.round(cobradoReal/ing*100) : 0;
-  // v5.7: caja real del mes del snapshot
+  // v5.7.1: caja real operativa del mes del snapshot (sin restar capital invertido)
   const cobradoServSnap = cobrosMes.filter(h=>!h.tipo||h.tipo==='servicio').reduce((s,h)=>s+Math.max(0,(h.monto||0)-(h.montoEquipo||0)),0);
   const gananciaRealSnap = (cobradoServSnap + totalCobradoEquipo) - pagoPaqueteMesSnap - totalGastosMes;
 
@@ -392,6 +531,10 @@ function generarSnapshot(mes) {
     // v5.7: campos de caja real del mes
     pagoPaquete: pagoPaqueteMesSnap,
     gananciaReal: gananciaRealSnap,
+    // v5.7.1: capital invertido este mes (compra de equipo/lote/rebaja). Salida
+    // de caja que NO es gasto operativo y se recupera después. Se guarda aparte
+    // para no contaminar la ganancia operativa y poder mostrarlo en reportes.
+    inversionCapitalMes: inversionCapitalMesSnap,
     nClientes,
     nPagados,
     nConMora,
