@@ -477,16 +477,35 @@
         <div class="field"><label>Megas asignados</label><input type="number" id="f-megas" min="1" placeholder="5" oninput="checkMegasDisponibles(parseInt(document.getElementById('edit-id').value)||null)"><div id="f-megas-hint" class="megas-hint"></div></div>
         <div class="field"><label>Precio por mega (CUP)</label><input type="number" id="f-precio" min="1" placeholder="2500"></div>
       </div>
-      <div class="field"><label>Día de pago acordado</label><input type="number" id="f-dia" min="1" max="28"></div>
-      <div class="field"><label>Teléfono (WhatsApp)</label><input type="tel" id="f-telefono" placeholder="+53 5 1234567"></div>
-      <div id="mes-inicio-wrap" class="field" style="display:none">
-        <label>El cobro inicia desde</label>
-        <div class="mes-toggle">
-          <div class="mes-btn active" id="mes-btn-actual" onclick="selectMesInicio('actual')">Este mes</div>
-          <div class="mes-btn" id="mes-btn-proximo" onclick="selectMesInicio('proximo')">Próximo mes</div>
+      <div class="field"><label>Día de pago acordado</label>
+        <div class="pago-cal-wrap">
+          <div class="pago-cal-header">
+            <button type="button" class="pago-cal-nav" id="pago-cal-prev" onclick="pagoCalCambiarMes(-1)" aria-label="Mes anterior">‹</button>
+            <span class="pago-cal-titulo" id="pago-cal-titulo">—</span>
+            <button type="button" class="pago-cal-nav" id="pago-cal-next" onclick="pagoCalCambiarMes(1)" aria-label="Mes siguiente">›</button>
+          </div>
+          <div class="pago-cal-dow" id="pago-cal-dow"></div>
+          <div class="pago-cal-grid" id="pago-cal-grid"></div>
+          <div class="pago-cal-leyenda">
+            <span><i style="background:rgba(42,214,168,.30)"></i>Día hábil (1-5, 10-15, 20-25)</span>
+            <span><i style="background:var(--green)"></i>Seleccionado</span>
+          </div>
+          <div class="pago-cal-seleccion" id="pago-cal-seleccion">
+            <span>Inicio de cobro</span>
+            <span class="val" id="pago-cal-val">Sin seleccionar</span>
+          </div>
+          <label class="pago-pago-ciclo" id="pago-pago-ciclo">
+            <input type="checkbox" id="f-ya-pago">
+            <span>Este cliente ya pagó este ciclo
+              <small>Marca esto si el cliente viene de otro mes y ya está al día. Evita que se le genere mora retroactiva por un ciclo en que no existía en tu sistema.</small>
+            </span>
+          </label>
+          <input type="hidden" id="f-dia">
+          <input type="hidden" id="f-mes-inicio" value="actual">
+          <input type="hidden" id="f-fecha-inicio-iso">
         </div>
-        <input type="hidden" id="f-mes-inicio" value="actual">
       </div>
+      <div class="field"><label>Teléfono (WhatsApp)</label><input type="tel" id="f-telefono" placeholder="+53 5 1234567"></div>
       <div class="field"><label>Número de IP</label><input type="text" id="f-ip" placeholder="Ej: 192.168.1.10"></div>
       <div class="field" id="f-plan-wrap" style="display:none">
         <label>Plan de internet (opcional)</label>

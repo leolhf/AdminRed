@@ -6,13 +6,176 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 //  MODAL CLIENTE
 // ═══════════════════════════════════════════════════════════════════════════════
+// Rangos de dias habiles de pago (dias incluidos en cada "corte").
+const PAGO_CAL_RANGOS = [[1,5],[10,15],[20,25]];
+// Limite de navegacion hacia atras/adelante (meses).
+const PAGO_CAL_MAX_ATRAS = -12;
+const PAGO_CAL_MAX_ADELANTE = 12;
+
+// Estado interno del mini-calendario del modal.
+let pagoCalOffset = 0;      // 0 = mes actual, -1 = mes anterior, +1 = proximo...
+let pagoCalSeleccion = null; // { dia, anio, mes } del dia seleccionado, o null
+
+// ¿Un numero de dia cae dentro de algun rango habil?
+function pagoCalEsHabil(dia) {
+  return PAGO_CAL_RANGOS.some(function(r){ return dia >= r[0] && dia <= r[1]; });
+}
+
+// Nombres cortos de dias de la semana (L-D). El calendario arranca en lunes.
+const PAGO_CAL_DOW = ['L','M','X','J','V','S','D'];
+
+// Renderiza la cabecera de dias de la semana (fija, L-D).
+function pagoCalRenderDow() {
+  const el = document.getElementById('pago-cal-dow');
+  if (!el) return;
+  el.innerHTML = PAGO_CAL_DOW.map(function(d){ return '<span>'+d+'</span>'; }).join('');
+}
+
+// Devuelve la fecha base del mes que se esta mostrando (dia 1).
+function pagoCalFechaBase() {
+  const ahora = new Date();
+  return new Date(ahora.getFullYear(), ahora.getMonth() + pagoCalOffset, 1);
+}
+
+// Renderiza el grid del mes actual del mini-calendario.
+function pagoCalRender() {
+  const grid = document.getElementById('pago-cal-grid');
+  const titulo = document.getElementById('pago-cal-titulo');
+  if (!grid || !titulo) return;
+
+  const base = pagoCalFechaBase();
+  const anio = base.getFullYear();
+  const mes = base.getMonth(); // 0-11
+  const diasEnMes = new Date(anio, mes + 1, 0).getDate();
+  // Dia de la semana del dia 1 (0=domingo...6=sabado). Convertir a base Lunes=0.
+  let dow0 = new Date(anio, mes, 1).getDay();
+  dow0 = dow0 === 0 ? 6 : dow0 - 1; // lunes=0 ... domingo=6
+
+  titulo.textContent = base.toLocaleDateString('es-CU', { month: 'long', year: 'numeric' });
+
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const hoyMs = hoy.getTime();
+
+  let html = '';
+  for (let i = 0; i < dow0; i++) html += '<div class="pago-cal-cell empty"></div>';
+  for (let d = 1; d <= diasEnMes; d++) {
+    const fechaDia = new Date(anio, mes, d); fechaDia.setHours(0,0,0,0);
+    const esHoy = fechaDia.getTime() === hoyMs;
+    const esPasado = fechaDia < hoy;
+    const habil = pagoCalEsHabil(d);
+    let cls = 'pago-cal-cell';
+    if (habil) cls += ' habil';
+    if (esPasado) cls += ' pasado';
+    if (esHoy) cls += ' hoy';
+    if (pagoCalSeleccion && pagoCalSeleccion.dia === d &&
+        pagoCalSeleccion.mes === mes && pagoCalSeleccion.anio === anio) {
+      cls += ' selected';
+    }
+    const onclick = habil ? 'onclick="pagoCalSeleccionar('+d+','+mes+','+anio+')"' : '';
+    html += '<div class="'+cls+'" '+onclick+'>'+d+'</div>';
+  }
+  grid.innerHTML = html;
+
+  const prev = document.getElementById('pago-cal-prev');
+  const next = document.getElementById('pago-cal-next');
+  if (prev) prev.disabled = (pagoCalOffset <= PAGO_CAL_MAX_ATRAS);
+  if (next) next.disabled = (pagoCalOffset >= PAGO_CAL_MAX_ADELANTE);
+
+  pagoCalActualizarResumen();
+}
+
+// Navega un mes adelante (+1) o atras (-1).
+function pagoCalCambiarMes(delta) {
+  const nuevo = pagoCalOffset + delta;
+  if (nuevo < PAGO_CAL_MAX_ATRAS || nuevo > PAGO_CAL_MAX_ADELANTE) return;
+  pagoCalOffset = nuevo;
+  pagoCalRender();
+}
+
+// Selecciona un dia habil. Define diaPago + fechaInicio + mesInicio.
+function pagoCalSeleccionar(dia, mes, anio) {
+  pagoCalSeleccion = { dia: dia, mes: mes, anio: anio };
+  document.getElementById('f-dia').value = dia;
+  const fecha = new Date(anio, mes, dia);
+  document.getElementById('f-fecha-inicio-iso').value = fechaLocalISO(fecha);
+
+  // Determinar mesInicio relativo al mes de hoy (compat con logica existente).
+  const ahora = new Date();
+  const mesHoy = ahora.getMonth(), anioHoy = ahora.getFullYear();
+  let mesInicio = 'actual';
+  if (anio < anioHoy || (anio === anioHoy && mes < mesHoy)) mesInicio = 'pasado';
+  else if (anio > anioHoy || (anio === anioHoy && mes > mesHoy)) mesInicio = 'proximo';
+  document.getElementById('f-mes-inicio').value = mesInicio;
+
+  pagoCalRender();
+}
+
+// Actualiza el resumen "Inicio de cobro" y muestra/oculta el checkbox
+// "Ya pago este ciclo" cuando la fecha seleccionada ya vencio.
+function pagoCalActualizarResumen() {
+  const val = document.getElementById('pago-cal-val');
+  const box = document.getElementById('pago-pago-ciclo');
+  if (!val || !box) return;
+
+  if (!pagoCalSeleccion) {
+    val.textContent = 'Sin seleccionar';
+    val.classList.remove('pasado');
+    box.classList.remove('show');
+    const chk = document.getElementById('f-ya-pago');
+    if (chk) chk.checked = false;
+    return;
+  }
+
+  const dia = pagoCalSeleccion.dia, mes = pagoCalSeleccion.mes, anio = pagoCalSeleccion.anio;
+  const fecha = new Date(anio, mes, dia); fecha.setHours(0,0,0,0);
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const esPasado = fecha < hoy;
+  const label = fecha.toLocaleDateString('es-CU', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  const ahora = new Date();
+  const mesHoy = ahora.getMonth(), anioHoy = ahora.getFullYear();
+  let rel = '';
+  if (anio < anioHoy || (anio === anioHoy && mes < mesHoy)) rel = ' (mes pasado)';
+  else if (anio > anioHoy || (anio === anioHoy && mes > mesHoy)) rel = ' (proximo mes)';
+
+  val.textContent = 'Dia ' + dia + ' \u00b7 ' + label + rel;
+  val.classList.toggle('pasado', esPasado);
+
+  box.classList.toggle('show', esPasado);
+  if (!esPasado) { const chk = document.getElementById('f-ya-pago'); if (chk) chk.checked = false; }
+}
+
+// Inicializa el mini-calendario al abrir el modal.
+function pagoCalInit(diaPreseleccionado, fechaInicioExistente) {
+  pagoCalRenderDow();
+  pagoCalOffset = 0;
+  pagoCalSeleccion = null;
+
+  if (fechaInicioExistente) {
+    const fi = new Date(fechaInicioExistente + 'T00:00:00');
+    const ahora = new Date();
+    pagoCalOffset = (fi.getFullYear() - ahora.getFullYear()) * 12 +
+                    (fi.getMonth() - ahora.getMonth());
+    if (pagoCalOffset < PAGO_CAL_MAX_ATRAS) pagoCalOffset = PAGO_CAL_MAX_ATRAS;
+    if (pagoCalOffset > PAGO_CAL_MAX_ADELANTE) pagoCalOffset = PAGO_CAL_MAX_ADELANTE;
+    pagoCalSeleccionar(fi.getDate(), fi.getMonth(), fi.getFullYear());
+  } else {
+    const dia = diaPreseleccionado || config.diaInicio;
+    const ahora = new Date();
+    if (pagoCalEsHabil(dia)) {
+      pagoCalSeleccionar(dia, ahora.getMonth(), ahora.getFullYear());
+    }
+  }
+  pagoCalRender();
+}
+
 function openAddModal() {
   document.getElementById('modal-title').textContent='Nuevo cliente';
   document.getElementById('edit-id').value='';
   ['f-nombre','f-megas','f-precio','f-ip','f-telefono'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('f-dia').value=config.diaInicio;
-  document.getElementById('mes-inicio-wrap').style.display='block';
-  selectMesInicio('actual');
+  // Inicializar el mini-calendario de dia de pago (preselecciona config.diaInicio
+  // en el mes actual). Reemplaza al input numerico + toggle Este/Proximo mes.
+  pagoCalInit(config.diaInicio, null);
   // Reset plan selector y descuento
   poblarSelectPlanes(null);
   document.getElementById('f-descuento').value='';
@@ -123,11 +286,10 @@ function ampliarPaquete(nuevoValor, editId) {
   if(window.FirebaseSync) window.FirebaseSync.syncConfig(config);
 }
 
-function selectMesInicio(val) {
-  document.getElementById('f-mes-inicio').value=val;
-  document.getElementById('mes-btn-actual').classList.toggle('active',val==='actual');
-  document.getElementById('mes-btn-proximo').classList.toggle('active',val==='proximo');
-}
+// selectMesInicio(val): conservado por compatibilidad (algunas llamadas
+// antiguas podrian invocarlo). La seleccion de mes ahora se hace con el
+// mini-calendario (pagoCalSeleccionar), asi que esta funcion es un no-op.
+function selectMesInicio(val) { /* reemplazado por pagoCalInit/pagoCalSeleccionar */ }
 
 function editClient(id) {
   const c=clients.find(x=>x.id===id); if(!c) return;
@@ -136,7 +298,13 @@ function editClient(id) {
   document.getElementById('f-nombre').value=c.nombre;
   document.getElementById('f-megas').value=c.megas;
   document.getElementById('f-precio').value=c.precio;
-  document.getElementById('f-dia').value=c.diaPago;
+  // El dia de pago y la fecha de inicio se gestionan con el mini-calendario.
+  // Se inicializa con el diaPago del cliente y, si tiene fechaInicio, se
+  // navega a ese mes y se selecciona ese dia. Al editar NO se ofrece el
+  // checkbox "ya pago este ciclo" (eso se maneja desde la pantalla de cobros).
+  pagoCalInit(c.diaPago||config.diaInicio, c.fechaInicio||null);
+  const cicloBox=document.getElementById('pago-pago-ciclo');
+  if(cicloBox) cicloBox.classList.remove('show');
   document.getElementById('f-telefono').value=c.telefono||'';
   document.getElementById('f-ip').value=c.ip||'';
   // Feature #5: plan asignado
@@ -147,7 +315,7 @@ function editClient(id) {
   // F4: estado de conexión suspendido
   const suspEditEl=document.getElementById('f-suspendido');
   if(suspEditEl) suspEditEl.checked=!!c.suspendido;
-  document.getElementById('mes-inicio-wrap').style.display='none';
+  // mes-inicio-wrap fue reemplazado por el mini-calendario; nada que ocultar.
   document.getElementById('modal').classList.add('open');
   checkMegasDisponibles(id);
 }
@@ -159,10 +327,20 @@ function saveClient() {
   const nombre=document.getElementById('f-nombre').value.trim();
   const megas =parseInt(document.getElementById('f-megas').value);
   const precio=parseInt(document.getElementById('f-precio').value);
+  // dia de pago + fechaInicio ahora vienen del mini-calendario.
+  // f-dia y f-fecha-inicio-iso los setea pagoCalSeleccionar().
+  // f-mes-inicio se conserva como 'pasado'|'actual'|'proximo' para compat.
   const dia   =parseInt(document.getElementById('f-dia').value)||config.diaInicio;
   const telefono=document.getElementById('f-telefono').value.trim();
   const ip    =document.getElementById('f-ip').value.trim();
   const mesInicio=document.getElementById('f-mes-inicio').value||'actual';
+  const fechaInicioISO=document.getElementById('f-fecha-inicio-iso').value||'';
+  // Checkbox "Ya pago este ciclo": aparece solo cuando la fecha de inicio
+  // seleccionada ya vencio (alta retroactiva). Si se marca, el cliente se
+  // crea con pagado=true y mora=0 para que month-reset no le genere mora
+  // por un ciclo que el admin confirma que ya se cobro manualmente.
+  const yaPagoEl=document.getElementById('f-ya-pago');
+  const yaPago=yaPagoEl?yaPagoEl.checked:false;
   // Feature #5: plan asignado (opcional)
   const planIdEl=document.getElementById('f-plan');
   const planId=planIdEl&&planIdEl.value?parseInt(planIdEl.value):null;
@@ -190,20 +368,24 @@ function saveClient() {
     if(faltan>0) deficitMegas=faltan;
   }
   const ahora=new Date();
+  // fechaInicio ahora proviene del mini-calendario (f-fecha-inicio-iso),
+  // que el admin selecciono explicitamente. Esto reemplaza la logica anterior
+  // que inferia la fecha a partir del toggle "este mes / proximo mes".
+  // - Si el admin selecciono una fecha futura, el cliente arranca ese dia
+  //   (badge "Desde <mes>" via clientLabel).
+  // - Si selecciono una fecha pasada (alta retroactiva, ej. cliente del mes
+  //   pasado) y marco "Ya pago este ciclo", se guarda con pagado=true y mora=0
+  //   para que month-reset no le genere mora por un ciclo ya cobrado.
+  // - Si selecciono una fecha pasada y NO marco "Ya pago", se guarda con
+  //   pagado=false (month-reset le sumara la mora correspondiente al reiniciar).
   let fechaInicio;
   if(!id){
-    if(mesInicio==='proximo'){
-      const p=new Date(ahora.getFullYear(),ahora.getMonth()+1,dia);
-      fechaInicio=fechaLocalISO(p);
+    if(fechaInicioISO){
+      fechaInicio=fechaInicioISO;
     } else {
-      // BUG FIX: si el cliente se agrega con "mes actual" pero su dia de pago
-      // (dia) de ESTE mes ya paso (ej. se agrega el 28 con dia de pago 5),
-      // fechaInicio quedaba apuntando a una fecha ya vencida ANTES de que el
-      // cliente existiera. Eso lo mostraba "vencido" desde el momento de
-      // crearlo, y al iniciar el mes siguiente le sumaba 1 mes de mora por un
-      // ciclo que nunca tuvo oportunidad de pagar. Ahora, si el dia de pago
-      // de este mes ya paso, arranca en la proxima aparicion de ese dia
-      // (el mes que viene) en lugar de una fecha retroactiva.
+      // Fallback: si por alguna razon el calendario no dejo fecha (ej. dia
+      // no habil y no se selecciono nada), usar el dia de pago en el mes
+      // actual; si ese dia ya paso, arrancar el mes que viene.
       let a=new Date(ahora.getFullYear(),ahora.getMonth(),dia);
       const hoySinHora=new Date(ahora.getFullYear(),ahora.getMonth(),ahora.getDate());
       if(a<hoySinHora) a=new Date(ahora.getFullYear(),ahora.getMonth()+1,dia);
@@ -230,11 +412,14 @@ function saveClient() {
     }
   } else {
     const newId=clients.length?Math.max(...clients.map(c=>c.id))+1:1;
-    clients.push({id:newId,nombre,megas,precio,diaPago:dia,pagado:false,telefono,ip,planId,descuento:descuento||0,descuentoTipo,mesInicio,fechaInicio,mora:0,suspendido:false,ultimaEdicion:ahora.toISOString()});
+    // Si es alta retroactiva (fecha pasada) y el admin marco "Ya pago este
+    // ciclo", el cliente arranca con pagado=true y mora=0 para que
+    // month-reset no le genere mora por un ciclo ya cobrado manualmente.
+    clients.push({id:newId,nombre,megas,precio,diaPago:dia,pagado:yaPago,telefono,ip,planId,descuento:descuento||0,descuentoTipo,mesInicio,fechaInicio,mora:0,suspendido:false,ultimaEdicion:ahora.toISOString()});
     clienteId=newId;
   }
   save(); render(); closeModal();
-  notify(id?`${nombre} actualizado`:`${nombre} añadido${mesInicio==='proximo'?' (desde proximo mes)':''}`+(deficitMegas>0?` — 🔴 en numeros rojos: -${deficitMegas} Mb`:''));
+  notify(id?`${nombre} actualizado`:`${nombre} añadido${mesInicio==='proximo'?' (desde proximo mes)':''}${mesInicio==='pasado'?(yaPago?' — alta retroactiva, ciclo ya pagado':' — alta retroactiva'):''}`+(deficitMegas>0?` — 🔴 en numeros rojos: -${deficitMegas} Mb`:''));
   // Sincroniza solo los datos minimos (nombre, dia de pago, monto, pagado) con
   // Firebase, para que la Cloud Function programada pueda enviar recordatorios
   // push aunque la app este cerrada. Si Firebase no cargo (offline, bloqueado

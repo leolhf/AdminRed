@@ -1,6 +1,43 @@
 # CHANGELOG — AdminRed
 
+## v5.7.2 — Mini-calendario de selección de día de pago
+
+Reemplaza el input numérico simple (1-28) + toggle "Este mes / Próximo mes"
+del modal de Nuevo Cliente por un mini-calendario navegable (‹ ›) que
+resalta los días hábiles de pago (rangos 1-5, 10-15, 20-25) y permite
+seleccionar el día de pago **y** el mes de inicio de cobro en una sola
+interacción visual.
+
+### Novedades
+
+**Mini-calendario de pago (modal-cliente.js, index.html, style.css)**
+- Calendario mensual navegable hasta 12 meses atrás y 12 adelante.
+- Días hábiles (1-5, 10-15, 20-25) resaltados en verde y seleccionables;
+  el resto del mes se muestra atenuado y no es clicable.
+- Al hacer clic en un día hábil se define automáticamente `diaPago` y
+  `fechaInicio` (YYYY-MM-DD) según el mes visible (pasado / actual / futuro).
+- Resumen "Inicio de cobro: Día X · fecha (mes pasado / próximo mes)".
+- Soporta altas retroactivas: si se selecciona un día de un mes pasado,
+  aparece el checkbox **"Este cliente ya pagó este ciclo"**. Si se marca,
+  el cliente se guarda con `pagado=true` y `mora=0` para que el reinicio de
+  mes (`month-reset`) no le genere mora por un ciclo que el admin confirma
+  ya fue cobrado manualmente.
+- `selectMesInicio()` se conserva como no-op por compatibilidad.
+- `editClient()` ahora inicializa el calendario con el `diaPago` + `fechaInicio`
+  existentes del cliente y oculta el checkbox "ya pagó" (eso se gestiona
+  desde Cobros).
+- `saveClient()` lee `f-fecha-inicio-iso` directamente del calendario en
+  lugar de inferir la fecha desde el toggle Este/Próximo mes.
+
+### Compatibilidad verificada
+- `facturacionIniciada(c)`: clientes con `fechaInicio` futura siguen
+  excluidos de pendientes; pasados, incluidos.
+- `getStatus(c)` / `clientLabel(c)`: badge "Desde <mes>" para futuros.
+- `month-reset` (`debiaCobrar`): clientes retroactivos con `pagado=true`
+  no reciben mora; con `pagado=false` sí (comportamiento esperado).
+
 ## v5.7.1 — Parche de consistencia financiera (caja real vs. capital)
+ — Parche de consistencia financiera (caja real vs. capital)
 
 Esta versión corrige 5 bugs residuales detectados tras la auditoría de la
 línea v5.7 (caja real). Los problemas PROB1, PROB2-base y PROB3 reportados
