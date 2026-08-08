@@ -85,6 +85,7 @@ const PRECACHE = [
   './js/reportes/historial.js',
   './js/reportes/historial-mensual.js',
   './js/reportes/tendencia.js',
+  './js/reportes/evolucion-historica.js',
   './js/reportes/prediccion.js',
   './js/reportes/estadisticas.js',
   // BUG FIX: macrodroid-export.js está cargado en index.html pero faltaba en el

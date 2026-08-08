@@ -7,6 +7,7 @@
 // ═══════════════════════════════════════════════════════════
 function renderEstadisticas() {
   renderTrend();
+  renderEvolucionHistorica();
   const total=ingresosMes(),costo=costoMes(),gan=ganancia();
   const pagados=clients.filter(c=>c.pagado).length;
   const pct=clients.length?Math.round(pagados/clients.length*100):0;

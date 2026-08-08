@@ -310,6 +310,23 @@
       <div class="bw-title" style="margin-bottom:9px">Tendencia de ingresos (últimos 6 meses)</div>
       <div class="trend-chart" id="trend-chart"></div>
     </div>
+    <!-- EVOLUCIÓN HISTÓRICA (ganancias y deudas en el tiempo) -->
+    <div class="evo-wrap">
+      <div class="evo-header">
+        <span class="evo-title">📈 Evolución histórica</span>
+        <div class="evo-rangos">
+          <button type="button" class="evo-rango-btn" data-rango="6" onclick="evoCambiarRango(6)">6m</button>
+          <button type="button" class="evo-rango-btn active" data-rango="12" onclick="evoCambiarRango(12)">12m</button>
+          <button type="button" class="evo-rango-btn" data-rango="24" onclick="evoCambiarRango(24)">24m</button>
+        </div>
+      </div>
+      <div class="evo-kpis" id="evo-kpis"></div>
+      <div id="evo-chart"></div>
+      <div class="evo-tabla-wrap">
+        <div class="evo-tabla-title">📋 Detalle mes a mes <span style="font-size:0.6rem;color:var(--amber)">⟳ = reconstruido del historial</span></div>
+        <div id="evo-tabla"></div>
+      </div>
+    </div>
     <div id="recuperacion-anchor"></div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px">
       <div class="bw-title" style="margin-bottom:9px">Ranking por aporte mensual</div>
@@ -939,6 +956,7 @@
 <script src="./js/reportes/historial.js"></script>
 <script src="./js/reportes/historial-mensual.js"></script>
 <script src="./js/reportes/tendencia.js"></script>
+<script src="./js/reportes/evolucion-historica.js"></script>
 <script src="./js/reportes/prediccion.js"></script>
 <script src="./js/reportes/estadisticas.js"></script>
 <script src="./js/reportes/reporte-mensual.js"></script>

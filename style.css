@@ -364,6 +364,44 @@
   .trend-month-label{font-family:var(--mono);font-size:9.5px;fill:var(--text-muted);}
   .trend-month-label.cur{fill:var(--text);font-weight:700;}
 
+  /* ── Evolución Histórica (panel de series temporales) ── */
+  .evo-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:14px;margin-bottom:14px;}
+  .evo-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
+  .evo-title{font-size:0.88rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px;}
+  .evo-rangos{display:flex;gap:4px;}
+  .evo-rango-btn{padding:4px 12px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--bg);color:var(--text-muted);font-size:0.72rem;cursor:pointer;font-family:var(--mono);transition:all var(--ease);}
+  .evo-rango-btn:hover{border-color:var(--blue);color:var(--text);}
+  .evo-rango-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700;}
+  .evo-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:14px;}
+  .evo-kpi-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;}
+  .evo-kpi-label{font-size:0.62rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;}
+  .evo-kpi-val{font-family:var(--mono);font-size:1.05rem;font-weight:700;line-height:1.2;}
+  .evo-kpi-sub{font-size:0.6rem;color:var(--text-muted);margin-top:3px;}
+  .evo-leyenda{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:6px;padding-left:4px;}
+  .evo-leyenda-item{display:flex;align-items:center;gap:5px;font-size:0.72rem;color:var(--text-muted);}
+  .evo-leyenda-item i{width:10px;height:10px;border-radius:2px;display:inline-block;}
+  .evo-svg{width:100%;height:auto;display:block;overflow:visible;}
+  .evo-grid{stroke:var(--border);stroke-width:1;stroke-dasharray:3 4;}
+  .evo-zero{stroke:var(--text-muted);stroke-width:1;stroke-dasharray:5 3;opacity:.5;}
+  .evo-y-label{font-family:var(--mono);font-size:9px;fill:var(--text-muted);}
+  .evo-x-label{font-family:var(--mono);font-size:9.5px;fill:var(--text-muted);}
+  .evo-x-label.cur{fill:var(--text);font-weight:700;}
+  .evo-tabla-wrap{margin-top:14px;}
+  .evo-tabla-title{font-size:0.8rem;font-weight:700;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+  .evo-tabla-table{width:100%;border-collapse:collapse;font-size:0.74rem;}
+  .evo-tabla-table th{padding:7px 8px;text-align:left;font-size:0.62rem;text-transform:uppercase;letter-spacing:.03em;color:var(--text-muted);border-bottom:1px solid var(--border);white-space:nowrap;}
+  .evo-tabla-table td{padding:7px 8px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  .evo-tabla-table tr:hover td{background:var(--bg);}
+  .evo-delta{font-size:0.66rem;font-family:var(--mono);}
+  .evo-delta.muted{color:var(--text-muted);opacity:.5;}
+  .evo-delta-cell{min-width:54px;}
+  .evo-recon{font-size:0.62rem;color:var(--amber);cursor:help;}
+  @media(max-width:640px){
+    .evo-kpis{grid-template-columns:repeat(2,1fr);}
+    .evo-tabla-table td[data-label]::before{content:attr(data-label) ": ";font-weight:700;color:var(--text-muted);font-size:0.6rem;}
+  }
+
+
   /* ABONO badge */
   .badge-partial{background:rgba(242,167,60,.18);color:var(--amber);}
 
