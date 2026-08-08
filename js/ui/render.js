@@ -24,12 +24,29 @@ function renderPaqueteStatus() {
   const btn=document.getElementById('btn-marcar-paquete-pagado');
   if(!el||!btn) return;
   const mes=mesActualHoy();
-  const pagado = config.paquetePagadoMes===mes;
+  const costo=costoMes();
+  // v5.7.4: soporta pagos parciales. El acumulado es la suma de todos los
+  // gastos 'paquete' del mes. Si >= costo, está pagado. Si > 0 pero < costo,
+  // es un pago parcial con saldo pendiente.
+  const acumulado = (typeof _paquetePagadoAcumuladoMes==='function')
+    ? _paquetePagadoAcumuladoMes(mes)
+    : gastos.filter(g=>g.categoria==='paquete'&&(g.fecha||'').startsWith(mes)).reduce((s,g)=>s+(g.monto||0),0);
+  const pagado = acumulado >= costo;
   if(pagado){
-    el.innerHTML=`<span class="text-green">✓ Pagado</span> — ${fmt(costoMes())} · ${config.megas} Mb`;
+    el.innerHTML=`<span class="text-green">✓ Pagado</span> — ${fmt(costo)} · ${config.megas} Mb`;
     btn.style.display='none';
+  } else if(acumulado > 0) {
+    // Pago parcial: mostrar progreso
+    const pendiente = costo - acumulado;
+    const pct = Math.round(acumulado / costo * 100);
+    el.innerHTML=
+      `<span class="text-amber">⚠ Pago parcial</span> — ${fmt(acumulado)} / ${fmt(costo)} (${pct}%) · ${config.megas} Mb` +
+      `<br><span style="color:var(--text-muted);font-size:0.78rem">Faltan ${fmt(pendiente)} para completar</span>`;
+    btn.textContent = 'Completar pago';
+    btn.style.display='';
   } else {
-    el.innerHTML=`<span class="text-amber">⚠ Pendiente este mes</span> — ${fmt(costoMes())} · ${config.megas} Mb`;
+    el.innerHTML=`<span class="text-amber">⚠ Pendiente este mes</span> — ${fmt(costo)} · ${config.megas} Mb`;
+    btn.textContent = 'Pagar paquete';
     btn.style.display='';
   }
 }

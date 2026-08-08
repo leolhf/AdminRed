@@ -832,3 +832,46 @@
 .suspendido-row{opacity:.62;}
 .suspendido-row td:first-child{border-left:3px solid var(--text-muted);}
 .suspendido-row:hover{opacity:.85;}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MODAL DE PAGO DEL PAQUETE — desglose (transferencia + USD + efectivo)
+   v5.7.4
+   ═══════════════════════════════════════════════════════════════════════════ */
+.paq-info{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--r-md);padding:10px 12px;margin-top:8px;
+}
+.paq-info-row{
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:0.82rem;padding:3px 0;
+}
+.paq-info-row + .paq-info-row{border-top:1px solid var(--border);}
+.paq-info-row span:first-child{color:var(--text-muted);}
+.paq-desglose{
+  font-size:0.78rem;font-family:var(--mono);
+  padding:10px 12px;background:var(--bg);
+  border-radius:var(--r-sm);margin-top:10px;
+  line-height:1.7;min-height:40px;
+}
+.paq-line{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:2px 0;
+}
+.paq-line.paq-total{
+  border-top:1px solid var(--border);margin-top:4px;padding-top:6px;
+  font-weight:600;font-size:0.85rem;
+}
+.paq-estado{
+  margin-top:8px;padding:6px 10px;border-radius:var(--r-sm);
+  font-size:0.78rem;font-weight:600;
+}
+.paq-estado.paq-ok{
+  background:rgba(42,214,168,.12);color:var(--green);
+}
+.paq-estado.paq-warn{
+  background:rgba(242,167,60,.12);color:var(--amber);
+}
+@media(max-width:480px){
+  .paq-info-row{font-size:0.76rem;}
+  .paq-desglose{font-size:0.74rem;padding:8px 10px;}
+}

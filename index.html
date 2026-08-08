@@ -691,6 +691,53 @@
   </div>
 </div>
 
+<!-- MODAL PAQUETE — pago desglosado (transferencia + USD + efectivo) -->
+<div class="modal-overlay" id="modal-paquete">
+  <div class="modal" style="max-width:420px">
+    <h2 style="color:var(--amber)">📦 Pago del paquete contratado</h2>
+
+    <!-- Información del paquete -->
+    <div class="paq-info">
+      <div class="paq-info-row"><span>Costo del paquete</span><span class="mono" id="paq-costo">—</span></div>
+      <div class="paq-info-row"><span>Tamaño</span><span class="mono" id="paq-megas">—</span></div>
+      <div class="paq-info-row" id="paq-ya-pagado-row" style="display:none"><span>Ya pagado (abonos previos)</span><span class="mono text-green" id="paq-ya-pagado">—</span></div>
+      <div class="paq-info-row"><span>Saldo pendiente</span><span class="mono text-amber" id="paq-pendiente">—</span></div>
+    </div>
+
+    <!-- Campos de pago desglosado -->
+    <div class="form-grid" style="margin-top:14px">
+      <div class="field">
+        <label>💵 Transferencia CUP</label>
+        <input type="number" id="paq-transferencia" min="0" placeholder="0" oninput="calcularDesglosePaquete()">
+      </div>
+      <div class="field">
+        <label>💵 USD (tasa ajustada −5)</label>
+        <input type="number" id="paq-usd" min="0" step="0.01" placeholder="0" oninput="calcularDesglosePaquete()">
+      </div>
+      <div class="field">
+        <label>💵 Efectivo CUP</label>
+        <input type="number" id="paq-efectivo" min="0" placeholder="0" oninput="calcularDesglosePaquete()">
+      </div>
+      <div class="field"><label>Fecha</label><input type="date" id="paq-fecha"></div>
+      <div class="field"><label>Nota (opcional)</label><input type="text" id="paq-nota" placeholder="Referencia de transferencia, etc."></div>
+    </div>
+
+    <!-- Botón actualizar tasa + aviso stale -->
+    <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+      <button type="button" class="btn btn-blue btn-sm" id="btn-actualizar-tasa-paquete" onclick="clickActualizarTasaPaquete()">🔄 Actualizar tasa</button>
+      <div id="paq-usd-stale-aviso" style="display:none;font-size:0.72rem;color:var(--amber)">⚠ Tasa sin actualizar hace más de 5 h.</div>
+    </div>
+
+    <!-- Desglose en tiempo real -->
+    <div id="paq-desglose" class="paq-desglose"></div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="cerrarModalPaquete()">Cancelar</button>
+      <button class="btn btn-amber" onclick="confirmarPagoPaquete()">Confirmar pago</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL MORA -->
 <div class="modal-overlay" id="modal-mora">
   <div class="modal" style="max-width:340px">
@@ -971,6 +1018,7 @@
 
 <!-- OTROS: Funcionalidades específicas -->
 <script src="./js/gastos.js"></script>
+<script src="./js/paquete/modal-paquete.js"></script>
 <script src="./js/red/equipos-red.js"></script>
 <script src="./js/pwa.js"></script>
 

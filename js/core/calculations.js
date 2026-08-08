@@ -78,8 +78,18 @@ const totalGastosIncluyendoInversion = ()=>gastosDelMesSinPaquete().reduce((s,g)
 // Monto del gasto de paquete registrado este mes (lo que se pago al proveedor en
 // caja). Se usa en el "libro de caja" real, no en la proyeccion de ganancia.
 const pagoPaqueteMes  = ()=>gastosDelMes().filter(g=>g.categoria==='paquete').reduce((s,g)=>s+g.monto,0);
-// El paquete ya se marco como pagado este mes? (config.paquetePagadoMes === mes actual)
-const paquetePagadoEsteMes = ()=>config.paquetePagadoMes===mesActualHoy();
+// El paquete ya se marco como pagado este mes?
+// v5.7.4: soporta pagos parciales. Ahora se considera "pagado" cuando la suma
+// de todos los abonos de categoría 'paquete' del mes >= costo del mes.
+// Se mantiene config.paquetePagadoMes como marca rápida (se setea al completar),
+// pero la verificación principal es por acumulado, para que los abonos parciales
+// múltiples funcionen correctamente incluso si la marca no se seteó.
+const paquetePagadoEsteMes = ()=>{
+  // Marca rápida: si config.paquetePagadoMes === mes, ya está pagado.
+  if(config.paquetePagadoMes===mesActualHoy()) return true;
+  // Verificación por acumulado: ¿la suma de abonos >= costo?
+  return pagoPaqueteMes() >= costoMes();
+};
 
 const ganancia        = ()=>ingresosMes()-costoMes()-totalGastos();
 const gananciaMensual  = ()=>ingresosMes()-costoMes();

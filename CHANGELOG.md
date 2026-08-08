@@ -1,5 +1,87 @@
 # CHANGELOG — AdminRed
 
+## v5.7.4 — Pago desglosado del paquete (transferencia + USD + efectivo) con pagos parciales
+
+Reemplaza el botón "Marcar como pagado" (pago único de un clic) por un
+**modal de pago desglosado** que permite pagar el paquete contratado al
+proveedor combinando tres métodos — transferencia CUP, USD (al cambio del
+mercado informal con tasa ajustada −5) y efectivo CUP — exactamente igual
+que los clientes pueden pagar en USD. Además soporta **pagos parciales**:
+se pueden registrar múltiples abonos hasta completar el costo mensual del
+paquete, con seguimiento del saldo pendiente en tiempo real.
+
+### Novedades
+
+**Modal de pago desglosado (js/paquete/modal-paquete.js — nuevo, ~380 líneas)**
+- `abrirModalPaquete()`: abre el modal calculando costo del paquete
+  (`costoMes()`), total ya pagado este mes (`_paquetePagadoAcumuladoMes()`)
+  y saldo pendiente. Muestra la fila "Ya pagado (abonos previos)" solo si
+  existen abonos previos. Resetea los campos de entrada y calcula el
+  desglose inicial.
+- `calcularDesglosePaquete()`: cálculo en tiempo real al escribir. Lee los
+  tres campos (transferencia, USD, efectivo), convierte el USD con
+  `tasaAjustadaUsd()` (tasa del mercado informal −5, redondeada a múltiplo
+  de 5), suma el total y lo compara con el saldo pendiente. Muestra:
+  "✓ Cubre exactamente el saldo pendiente", "Sobran X CUP" (si se pasa) o
+  "⚠ Pago parcial — faltan X CUP para completar el paquete".
+- `confirmarPagoPaquete()`: valida que el total sea > 0, crea un gasto con
+  `categoria:'paquete'`, `monto` = total en CUP, y un objeto `desglose`
+  con `{transferencia, usd, usdTasa, usdCup, efectivo}` para auditoría.
+  La descripción del gasto incluye el desglose legible
+  ("transferencia 9,250 CUP + 50 USD × 315 = 15,750 CUP"). Si el abono
+  completa el paquete, marca `config.paquetePagadoMes = mes`.
+- `_paquetePagadoAcumuladoMes(mesKey)`: suma todos los gastos de categoría
+  'paquete' de un mes dado (YYYY-MM), para calcular el saldo pendiente y
+  el progreso de pagos parciales.
+- `clickActualizarTasaPaquete()`: permite actualizar la tasa USD desde
+  dentro del modal (reutiliza `actualizarTasaUsd()`).
+- `_actualizarAvisoStalePaquete()`: muestra aviso "⚠ Tasa sin actualizar
+  hace más de 5 h." si la tasa está desactualizada.
+
+**Soporte de pagos parciales (calculations.js — modificado)**
+- `paquetePagadoEsteMes()`: además de la marca rápida
+  (`config.paquetePagadoMes === mes`), ahora verifica si el acumulado de
+  abonos del mes (`pagoPaqueteMes()`) es ≥ `costoMes()`. Esto permite que
+  el sistema reconozca el paquete como pagado aunque se haya completado con
+  múltiples abonos parciales en lugar de un solo pago.
+- `costoPaqueteContadoMes()` sigue siendo la suma real de lo pagado al
+  proveedor este mes, por lo que `gananciaReal()` refleja correctamente
+  los abonos parciales en la caja.
+
+**Panel "Paquete Contratado" con tres estados (render.js — modificado)**
+- `renderPaqueteStatus()` ahora muestra tres estados:
+  1. **Pagado** (verde, ✓): el acumulado ≥ costo. Botón oculto.
+  2. **Pago parcial** (ámbar, ⚠): "10,000 CUP / 25,000 CUP (40%)" con
+     "Faltan 15,000 CUP para completar". Botón cambia a "Completar pago".
+  3. **Pendiente** (ámbar, ⚠): sin abonos. Botón "Pagar paquete".
+
+**Botón "Marcar como pagado" → "Pagar paquete" (gastos.js — modificado)**
+- `marcarPaquetePagado()` ya no hace un pago único de un clic. Ahora abre
+  el modal de pago desglosado (`abrirModalPaquete()`).
+
+### Integración
+- `index.html`: añadido HTML del modal (`#modal-paquete`) antes del modal
+  de mora, y tag `<script src="./js/paquete/modal-paquete.js">` después de
+  `gastos.js`.
+- `style.css`: ~40 líneas de estilos para el modal (`.paq-info`,
+  `.paq-info-row`, `.paq-desglose`, `.paq-line`, `.paq-estado`) con media
+  query móvil.
+- `sw.js`: añadido `./js/paquete/modal-paquete.js` al precache.
+
+### Validación
+- 62/62 tests en `test-paquete.js` (pagos parciales, sobrepago, marca
+  rápida, acumulado mensual, inicialización del modal, desglose en tiempo
+  real solo transferencia / combinado / parcial, confirmación completa y
+  parcial, validaciones de entrada, tasa ajustada −5, costo contado con
+  múltiples abonos, aislamiento entre meses).
+- Validación visual en navegador: flujo completo de pago parcial (10,000
+  CUP → 40% → reabrir modal muestra "Ya pagado 10,000" → completar con
+  15,000 → "✓ Pagado"), conversión USD con tasa ajustada (320→315,
+  50 USD = 15,750 CUP), pago combinado (transferencia + USD = exacto),
+  y verificación del gasto registrado con metadata de desglose.
+
+---
+
 ## v5.7.3 — Panel "Evolución Histórica" (estadísticas a lo largo del tiempo)
 
 Añade un panel de estadísticas temporales en la pestaña **Estadísticas**

@@ -5,29 +5,20 @@
 // ═══════════════════════════════════════════════════════════
 //  MÓDULO DE GASTOS ADICIONALES
 // ═══════════════════════════════════════════════════════════
-// Cambio E (v5.7): el pago del paquete al proveedor se registra con UN SOLO CLIC,
-// sin abrir el modal de gasto. Se crea un gasto de categoria 'paquete' con el
-// monto = costoMes() y se marca config.paquetePagadoMes = mes actual.
-// Ese gasto es el registro de CAJA (cuando se pago al proveedor); NO se suma a
-// totalGastos() (que excluye 'paquete') para evitar el doble descuento con
-// costoMes(). Se cuenta una sola vez, a traves de costoPaqueteContadoMes().
+// ═══════════════════════════════════════════════════════════════════════════
+//  PAGO DEL PAQUETE AL PROVEEDOR
+// ═══════════════════════════════════════════════════════════════════════════
+// v5.7.4: el pago del paquete ahora se hace a través de un modal desglosado
+// (modal-paquete.js) que permite pagar con transferencia CUP + USD + efectivo
+// CUP, y soporta pagos parciales (múltiples abonos hasta completar el costo).
+// Esta función abre el modal. La lógica de registro está en confirmarPagoPaquete().
 function marcarPaquetePagado() {
-  const mes = mesActualHoy();
-  if(config.paquetePagadoMes === mes){
-    notify('El paquete ya est\u00e1 marcado como pagado este mes', true);
-    return;
+  if(typeof abrirModalPaquete === 'function') {
+    abrirModalPaquete();
+  } else {
+    // Fallback si modal-paquete.js no se cargó (no debería ocurrir)
+    notify('No se pudo abrir el modal de pago del paquete', true);
   }
-  if(typeof registrarParaDeshacer==='function') registrarParaDeshacer(`Marcar paquete pagado (${config.megas} Mb)`);
-  const monto = costoMes();
-  gastos.push({
-    desc: `Pago paquete contratado (${config.megas} Mb)`,
-    monto,
-    fecha: fechaLocalISO(),
-    categoria: 'paquete'
-  });
-  config.paquetePagadoMes = mes;
-  save(); renderGastos(); renderProfit(); renderSummary(); renderPaqueteStatus();
-  notify(`Paquete marcado como pagado \u2014 ${fmt(monto)} registrado en caja`);
 }
 
 function openGastoModal(idx) {
