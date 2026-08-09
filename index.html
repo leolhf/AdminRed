@@ -647,11 +647,13 @@
       <div class="field">
         <label>Tipo de gasto</label>
         <select id="g-categoria" onchange="onGastoCategoriaChange()">
-          <option value="operativo">Operativo (luz, transporte, etc.) — solo gasto</option>
-          <option value="lote">📦 Por lote — impacta inventario</option>
-          <option value="crecimiento">Crecimiento de red (antenas, switches propios)</option>
-          <option value="paquete">📡 Paquete contratado — pago al proveedor</option>
+          <option value="operativo">🔧 Operativo (luz, transporte, mantenimiento)</option>
+          <option value="crecimiento">📡 Crecimiento de red (antenas, switches, expansión)</option>
+          <option value="lote">📦 Por lote — compra de material/inventario</option>
         </select>
+      </div>
+      <div id="g-paquete-aviso" style="display:none;font-size:0.72rem;color:var(--amber);background:rgba(245,166,35,.08);border-radius:6px;padding:6px 10px;margin:-4px 0 6px">
+        💡 El pago del paquete al proveedor se registra desde su botón dedicado (<strong>"Pagar paquete"</strong>), con desglose de transferencia/USD/efectivo y pagos parciales.
       </div>
 
       <!-- Campos normales (monto fijo) — visibles cuando NO es lote -->

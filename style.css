@@ -341,10 +341,18 @@
 
   /* GASTOS */
   .gastos-list{margin-bottom:0;}
-  .gasto-item{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.8rem;}
+  .gasto-item{display:flex;align-items:center;gap:8px;padding:8px 0 8px 10px;border-bottom:1px solid var(--border);font-size:0.8rem;}
   .gasto-item:last-child{border-bottom:none;}
-  .gasto-desc{flex:1;color:var(--text);}
+  .gasto-desc{flex:1;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .gasto-monto{font-family:var(--mono);color:var(--red);white-space:nowrap;}
+  /* v5.7.7: agrupación por categoría */
+  .gasto-grupo{margin-bottom:10px;border-radius:8px;overflow:hidden;background:var(--bg2);border:1px solid var(--border);}
+  .gasto-grupo-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;background:var(--bg);border-bottom:1px solid var(--border);flex-wrap:wrap;}
+  .gasto-badge{display:inline-flex;align-items:center;gap:4px;font-size:0.68rem;font-weight:600;padding:3px 8px;border-radius:12px;white-space:nowrap;}
+  .gasto-grupo-subtotal{font-size:0.68rem;color:var(--text-muted);font-family:var(--mono);white-space:nowrap;}
+  .gasto-grupo .gasto-item{padding-left:10px;}
+  .gasto-total-general{text-align:right;font-size:0.76rem;color:var(--text-muted);padding:8px 4px 2px;font-family:var(--mono);}
+  .gasto-total-general strong{color:var(--text);font-size:0.82rem;}
 
   /* SWIPE (móvil) */
   .swipe-row{position:relative;overflow:hidden;}

@@ -22,6 +22,17 @@ function marcarPaquetePagado() {
 }
 
 function openGastoModal(idx) {
+  // Gastos del sistema (inversion, rebaja, paquete) NO se editan desde aquí:
+  // - inversion/rebaja: se gestionan desde Inventario (comprar lote, reabastecer, rebaja)
+  // - paquete: se gestiona desde el modal de pago del paquete (con desglose USD/transferencia)
+  // Solo se pueden editar los gastos manuales: 'operativo' y 'crecimiento'.
+  const esSistema = idx!=null && gastos[idx] && ['inversion','rebaja','paquete'].includes(gastos[idx].categoria);
+  if(esSistema){
+    const cat = gastos[idx].categoria;
+    const donde = cat==='paquete' ? 'el botón "Pagar paquete"' : 'la pestaña Inventario';
+    notify(`Este gasto se gestiona desde ${donde}, no se puede editar aquí`, true);
+    return;
+  }
   document.getElementById('g-desc').value='';
   document.getElementById('g-monto').value='';
   document.getElementById('g-fecha').value=fechaLocalISO();
@@ -30,12 +41,17 @@ function openGastoModal(idx) {
   // Resetear campos de lote
   document.getElementById('g-lote-fields').style.display='none';
   document.getElementById('g-monto-field').style.display='';
+  // El aviso de paquete ya no es necesario en el select (se quitó la opción),
+  // pero lo dejamos oculto por si se reutiliza el elemento.
+  const avisoEl = document.getElementById('g-paquete-aviso');
+  if(avisoEl) avisoEl.style.display='none';
   if(idx!=null){
     const g=gastos[idx];
     document.getElementById('g-desc').value=g.desc;
     document.getElementById('g-monto').value=g.monto;
-    document.getElementById('g-fecha').value=g.fecha;
-    document.getElementById('g-categoria').value=g.categoria && g.categoria !== 'inversion' ? g.categoria : 'operativo';
+    document.getElementById('g-fecha').value=g.fecha || fechaLocalISO();
+    document.getElementById('g-categoria').value=(g.categoria==='operativo'||g.categoria==='crecimiento') ? g.categoria : 'operativo';
+    onGastoCategoriaChange();
   }
   document.getElementById('modal-gasto').classList.add('open');
 }
@@ -71,23 +87,20 @@ function saveGasto() {
     return;
   }
 
-  // ── Gasto operativo / crecimiento / paquete normal ──
-  const monto=parseInt(document.getElementById('g-monto').value);
-  if(!desc||!monto){notify('Completa los campos',true);return;}
+  // ── Gasto operativo / crecimiento normal ──
+  const monto=parseFloat(document.getElementById('g-monto').value);
+  if(!desc||!monto||monto<=0){notify('Completa descripción y monto',true);return;}
+  if(!fecha){notify('Selecciona una fecha',true);return;}
   const idx=document.getElementById('gasto-edit-idx').value;
   if(typeof registrarParaDeshacer==='function') registrarParaDeshacer(idx!==''?`Editar gasto: ${desc}`:`Añadir gasto: ${desc}`);
   if(idx!==''){
-    const esInversion=gastos[parseInt(idx)].categoria==='inversion';
-    gastos[parseInt(idx)]={desc,monto,fecha,categoria:esInversion?'inversion':categoria};
+    gastos[parseInt(idx)]={desc,monto,fecha,categoria};
     notify('Gasto actualizado');
   } else {
     gastos.push({desc,monto,fecha,categoria});
     notify(`Gasto registrado: −${fmt(monto)}`);
   }
-  if(categoria==='paquete'){
-    config.paquetePagadoMes=mesActualHoy();
-  }
-  save(); renderGastos(); renderProfit(); renderSummary(); renderPaqueteStatus(); closeGastoModal();
+  save(); renderGastos(); renderProfit(); renderSummary(); closeGastoModal();
 }
 
 function deleteGasto(idx) {
@@ -231,28 +244,79 @@ function renderGastos() {
     ${cobEq>0?`<div class="pb-row"><span>Cobrado en cuotas de equipo</span><span class="text-amber">+${fmt(cobEq)}</span></div>`:''}
     <div class="pb-row"><span>Total cobrado este mes</span><span class="text-green"><strong>+${fmt(cobTot)}</strong></span></div>
     <div class="pb-row"><span>Pago paquete al proveedor</span><span class="text-red">${paqPagado?`-${fmt(paqGasto)}`:`<span style="color:var(--amber)">Pendiente (${fmt(costoMes())})</span>`}</span></div>
-    ${opGastos>0?`<div class="pb-row"><span>Gastos operativos</span><span class="text-red">-${fmt(opGastos)}</span></div>`:''}
-    ${invGastos>0?`<div class="pb-row"><span>Inversion del mes (capital)</span><span class="text-amber">-${fmt(invGastos)}</span></div>`:''}
-    ${crecGastos>0?`<div class="pb-row"><span>Crecimiento de red</span><span class="text-red">-${fmt(crecGastos)}</span></div>`:''}
+    ${opGastos>0?`<div class="pb-row"><span>Gastos operativos (luz, transporte…)</span><span class="text-red">-${fmt(opGastos)}</span></div>`:''}
+    ${crecGastos>0?`<div class="pb-row"><span>Crecimiento de red (antenas, switches)</span><span class="text-red">-${fmt(crecGastos)}</span></div>`:''}
+    ${invGastos>0?`<div class="pb-row"><span>Inversión del mes (lotes, capital)</span><span style="color:var(--amber)">-${fmt(invGastos)}</span></div>`:''}
     <div class="pb-row"><span><strong>Ganancia neta real (caja)</strong></span><span class="${ganR>=0?'text-green':'text-red'}"><strong>${fmt(ganR)}</strong></span></div>
 
-    <div class="bw-title" style="margin:12px 0 6px;font-size:0.8rem;color:var(--text-muted)">Proyeccion (esperado)</div>
+    <div class="bw-title" style="margin:12px 0 6px;font-size:0.8rem;color:var(--text-muted)">Proyección (esperado)</div>
     <div class="pb-row"><span>Ingreso esperado del mes</span><span class="text-green">${fmt(ingEsp)}</span></div>
     <div class="pb-row"><span>Costo paquete contratado</span><span class="text-red">-${fmt(costoMes())}</span></div>
     <div class="pb-row"><span>Pendiente por cobrar</span><span style="color:var(--purple)">${fmt(pend)}</span></div>
     <div class="pb-row"><span>Ganancia proyectada (si todos pagan)</span><span class="${ganProj>=0?'text-green':'text-red'}">${fmt(ganProj)}</span></div>
   `;
   if(!gastos.length){el.innerHTML='<div class="empty-state">Sin gastos registrados este mes</div>';return;}
-  el.innerHTML=gastos.map((g,i)=>`
+
+  // ── v5.7.7: agrupar gastos por categoría con subtotales y badges de color ──
+  // Orden de categorías para mostrar (las del sistema primero, luego las manuales)
+  const ORDEN_CAT = [
+    {key:'paquete',      icon:'🌐', label:'Pago del paquete',      color:'var(--cyan)',   esSistema:true},
+    {key:'inversion',    icon:'📦', label:'Inversión / lotes',      color:'var(--amber)',  esSistema:true},
+    {key:'rebaja',       icon:'📉', label:'Rebajas de inventario',  color:'var(--red)',    esSistema:true},
+    {key:'operativo',    icon:'🔧', label:'Operativos',             color:'var(--blue)',   esSistema:false},
+    {key:'crecimiento',  icon:'📡', label:'Crecimiento de red',     color:'var(--green)',  esSistema:false},
+  ];
+
+  // Función helper para renderizar un gasto individual
+  function renderGastoItem(g, i) {
+    const esSistema = ['inversion','rebaja','paquete'].includes(g.categoria);
+    return `
     <div class="gasto-item">
-      <div style="flex:1">
-        <div class="gasto-desc">${g.categoria==='inversion'?'📦 ':g.categoria==='crecimiento'?'📡 ':g.categoria==='paquete'?'🌐 ':''}${g.desc}</div>
-        <div style="font-size:0.62rem;color:var(--text-muted);font-family:var(--mono)">${g.fecha}</div>
+      <div style="flex:1;min-width:0">
+        <div class="gasto-desc">${g.desc}</div>
+        <div style="font-size:0.62rem;color:var(--text-muted);font-family:var(--mono)">${g.fecha || '—'}</div>
       </div>
       <span class="gasto-monto">−${fmt(g.monto)}</span>
-      <button class="btn btn-ghost btn-sm" onclick="openGastoModal(${i})" title="Editar">✏</button>
+      ${esSistema
+        ? '<button class="btn btn-ghost btn-sm" disabled style="opacity:0.3;cursor:not-allowed" title="Los gastos del sistema se gestionan desde su sección (Inventario / Pagar paquete)">🔒</button>'
+        : `<button class="btn btn-ghost btn-sm" onclick="openGastoModal(${i})" title="Editar">✏</button>`}
       <button class="btn btn-red btn-sm" onclick="deleteGasto(${i})" title="Eliminar">🗑</button>
-    </div>`).join('');
+    </div>`;
+  }
+
+  // Construir HTML agrupado
+  let html = '';
+  let totalGeneral = 0;
+  for(const cat of ORDEN_CAT){
+    const items = gastos.map((g,i)=>({g,i})).filter(({g})=>g.categoria===cat.key);
+    if(items.length===0) continue;
+    const subtotal = items.reduce((s,{g})=>s+(g.monto||0),0);
+    totalGeneral += subtotal;
+    html += `
+    <div class="gasto-grupo">
+      <div class="gasto-grupo-header">
+        <span class="gasto-badge" style="background:${cat.color}22;color:${cat.color};border:1px solid ${cat.color}44">${cat.icon} ${cat.label}</span>
+        <span class="gasto-grupo-subtotal">${items.length} gasto${items.length>1?'s':''} · <strong style="color:var(--text)">${fmt(subtotal)}</strong></span>
+      </div>
+      ${items.map(({g,i})=>renderGastoItem(g,i)).join('')}
+    </div>`;
+  }
+  // Categoría desconocida (por compatibilidad con datos antiguos)
+  const sinCat = gastos.map((g,i)=>({g,i})).filter(({g})=>!ORDEN_CAT.some(c=>c.key===g.categoria));
+  if(sinCat.length>0){
+    const subtotal = sinCat.reduce((s,{g})=>s+(g.monto||0),0);
+    totalGeneral += subtotal;
+    html += `
+    <div class="gasto-grupo">
+      <div class="gasto-grupo-header">
+        <span class="gasto-badge" style="background:var(--text-muted)22;color:var(--text-muted);border:1px solid var(--text-muted)44">Otros</span>
+        <span class="gasto-grupo-subtotal">${sinCat.length} gasto${sinCat.length>1?'s':''} · <strong style="color:var(--text)">${fmt(subtotal)}</strong></span>
+      </div>
+      ${sinCat.map(({g,i})=>renderGastoItem(g,i)).join('')}
+    </div>`;
+  }
+  html += `<div class="gasto-total-general">Total general: <strong>${fmt(totalGeneral)}</strong></div>`;
+  el.innerHTML = html;
 }
 
 function switchGastosTab(name) {

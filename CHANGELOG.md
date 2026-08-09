@@ -1,5 +1,90 @@
 # CHANGELOG — AdminRed
 
+## v5.7.7 — Revisión de Gastos: categorías más claras, agrupación visual, correcciones
+
+Revisa a fondo la sección de gastos: tipos de gasto, lógica de cálculos e
+interfaz. Se eliminan categorías redundantes, se bloquea la edición de gastos
+del sistema, se agrupan visualmente por categoría con subtotales, y se corrigen
+bugs de truncado de decimales y validación de fecha.
+
+### Categorías de gasto: qué se cambió
+
+**Antes (4 categorías en el selector):**
+- Operativo
+- 📦 Por lote (impacta inventario)
+- Crecimiento de red
+- 📡 Paquete contratado ← **eliminada del selector**
+
+**Ahora (3 categorías en el selector):**
+- 🔧 Operativo (luz, transporte, mantenimiento)
+- 📡 Crecimiento de red (antenas, switches, expansión)
+- 📦 Por lote (compra de material/inventario)
+
+**¿Por qué se quitó "Paquete contratado"?**
+El pago del paquete al proveedor tiene su **modal dedicado** ("Pagar paquete")
+con desglose de transferencia CUP + USD + efectivo y soporte de pagos parciales.
+Permitir crear un gasto "paquete" manualmente desde el modal de gastos generaba
+un gasto plano sin desglose, inconsistente con el sistema de pagos parciales, y
+podía confundir al usuario duplicando el pago. Ahora el pago del paquete se
+registra **exclusivamente** desde su botón dedicado.
+
+### Gastos del sistema vs gastos manuales
+
+Los gastos ahora se distinguen visualmente:
+- **Gastos del sistema** (inversión, rebaja, paquete): aparecen con un icono 🔒
+  en lugar del botón de editar. No se pueden editar desde el modal de gastos —
+  se gestionan desde su sección correspondiente (Inventario / Pagar paquete).
+  Esto evita que el usuario cambie accidentalmente la categoría de una inversión
+  a "operativo", rompiendo los cálculos de recuperación de capital.
+- **Gastos manuales** (operativo, crecimiento): se pueden editar y eliminar
+  libremente.
+
+### Agrupación visual por categoría
+
+La lista de gastos ahora se agrupa por categoría, cada grupo con:
+- Un **badge de color** con icono y nombre de la categoría
+- Un **subtotal** con el número de gastos y el monto total del grupo
+- Los gastos individuales debajo
+
+Al final se muestra el **total general** de todos los gastos.
+
+Orden de grupos:
+1. 🌐 Pago del paquete (cian)
+2. 📦 Inversión / lotes (ámbar)
+3. 📉 Rebajas de inventario (rojo)
+4. 🔧 Operativos (azul)
+5. 📡 Crecimiento de red (verde)
+
+### Resumen financiero: etiquetas más claras
+
+- "Gastos operativos" → "Gastos operativos (luz, transporte…)"
+- "Inversión del mes" → "Inversión del mes (lotes, capital)"
+- "Crecimiento de red" → "Crecimiento de red (antenas, switches)"
+- "Proyeccion" → "Proyección" (tilde corregido)
+
+### Bugs corregidos
+
+1. **`parseInt()` truncaba decimales en el monto del gasto.** Si el usuario
+   ingresaba `1500.50`, se guardaba como `1500`. Cambiado a `parseFloat()`.
+2. **Sin validación de fecha.** Si el campo de fecha estaba vacío, el gasto se
+   guardaba sin fecha, rompiendo `gastosDelMes()` que filtra por
+   `(g.fecha||'').startsWith(config.mesActual)`. Ahora se valida que la fecha
+   no esté vacía.
+3. **Editar un gasto de inversión mostraba "Operativo" en el selector.** Aunque
+   al guardar se preservaba la categoría, el usuario veía "Operativo" en el
+   dropdown, lo cual era confuso. Ahora los gastos del sistema no se pueden
+   editar desde el modal de gastos.
+
+### Archivos modificados
+- `js/gastos.js`: `openGastoModal()` (bloqueo de gastos del sistema),
+  `saveGasto()` (parseFloat + validación de fecha, sin rama de paquete),
+  `renderGastos()` (agrupación por categoría con subtotales y badges).
+- `index.html`: selector de categorías (quitada "paquete", mejoradas etiquetas,
+  añadido aviso informativo).
+- `style.css`: estilos para `.gasto-grupo`, `.gasto-badge`,
+  `.gasto-grupo-subtotal`, `.gasto-total-general`.
+- `js/version.js`: `5.7.6` → `5.7.7`.
+
 ## v5.7.6 — Reabastecer lotes: comprar más del mismo lote con costo promediado
 
 Añade la posibilidad de **reabastecer un lote existente** en lugar de crear un
