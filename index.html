@@ -794,8 +794,9 @@
 
 <!-- MODAL INVENTARIO -->
 <div class="modal-overlay" id="modal-inventario">
-  <div class="modal" style="max-width:400px">
+  <div class="modal" style="max-width:420px">
     <h2 style="color:var(--amber)">📦 Comprar lote de inventario</h2>
+    <div style="font-size:0.74rem;color:var(--text-muted);margin:-4px 0 10px">Compra material (cable, conectores...) a costo. Se registra una sola vez y luego se vende por unidad con el precio que decidas.</div>
     <div class="form-grid">
       <div class="field"><label>Descripción</label><input type="text" id="inv-lote-desc" placeholder="Cable UTP, conectores RJ45..."></div>
       <div class="field">
@@ -817,15 +818,46 @@
   </div>
 </div>
 
+<!-- MODAL REABASTECER LOTE (comprar más de un lote existente) -->
+<div class="modal-overlay" id="modal-reabastecer">
+  <div class="modal" style="max-width:420px">
+    <h2 style="color:var(--amber)">📦 Reabastecer lote</h2>
+    <div style="font-size:0.74rem;color:var(--text-muted);margin:-4px 0 10px">Compra más unidades de un lote existente. El costo por unidad se <strong>promedia</strong> con el stock actual, así no tienes que repetir el producto.</div>
+    <div style="display:flex;align-items:center;gap:6px;background:var(--bg);border-radius:6px;padding:6px 10px;margin-bottom:10px;font-size:0.74rem;flex-wrap:wrap">
+      <span style="color:var(--text-muted)">Stock disponible:</span>
+      <strong id="reab-disp" class="text-amber">—</strong>
+      <span style="color:var(--text-muted);margin-left:8px">Costo actual:</span>
+      <strong id="reab-costo-actual" class="text-amber">—</strong>
+    </div>
+    <div class="form-grid">
+      <input type="hidden" id="reab-id">
+      <div class="field" style="grid-column:1/-1"><label>Lote</label><input type="text" id="reab-desc" readonly style="background:var(--bg)"></div>
+      <div class="field"><label>Cantidad a comprar (<span id="reab-unidad">unidades</span>)</label><input type="number" id="reab-cantidad" min="1" step="any" placeholder="Cantidad" oninput="actualizarTotalReabastecer()"></div>
+      <div class="field"><label>Costo por unidad (CUP)</label><input type="number" id="reab-costo" min="1" step="any" placeholder="Costo" oninput="actualizarTotalReabastecer()"></div>
+    </div>
+    <div id="reab-promedio" style="display:none;align-items:center;gap:6px;background:rgba(245,166,35,.08);border-radius:6px;padding:6px 10px;margin:6px 0 8px;font-size:0.74rem;flex-wrap:wrap"></div>
+    <div style="font-size:0.76rem;color:var(--text-muted);margin:4px 0 10px">Costo de esta compra: <strong id="reab-total" class="text-red">−0</strong></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeReabastecerModal()">Cancelar</button>
+      <button class="btn btn-amber" onclick="registrarReabastecimiento()">Reabastecer lote</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL REBAJA -->
 <div class="modal-overlay" id="modal-rebaja">
-  <div class="modal" style="max-width:400px">
-    <h2 style="color:var(--red)">📉 Registrar rebaja</h2>
+  <div class="modal" style="max-width:420px">
+    <h2 style="color:var(--red)">📉 Registrar rebaja de inventario</h2>
+    <div style="font-size:0.74rem;color:var(--text-muted);margin:-4px 0 10px">Da de baja material por deterioro, pérdida, robo o vencimiento. El stock disponible se reduce y se registra como gasto de capital.</div>
+    <div style="display:flex;align-items:center;gap:6px;background:var(--bg);border-radius:6px;padding:6px 10px;margin-bottom:10px;font-size:0.74rem">
+      <span style="color:var(--text-muted)">Stock disponible del lote:</span>
+      <strong id="rebaja-disponible" class="text-amber">—</strong>
+    </div>
     <div class="form-grid">
       <input type="hidden" id="rebaja-lote-id">
       <div class="field"><label>Lote</label><input type="text" id="rebaja-lote-desc" readonly style="background:var(--bg)"></div>
-      <div class="field"><label>Cantidad a rebajar</label><input type="number" id="rebaja-cantidad" min="1" placeholder="Cantidad"></div>
-      <div class="field"><label>Valor unitario (CUP)</label><input type="number" id="rebaja-valor" min="0" placeholder="Valor por unidad" oninput="actualizarTotalRebaja()"></div>
+      <div class="field"><label>Cantidad a rebajar</label><input type="number" id="rebaja-cantidad" min="1" step="any" placeholder="Cantidad" oninput="actualizarTotalRebaja()"></div>
+      <div class="field"><label>Valor unitario (CUP)</label><input type="number" id="rebaja-valor" min="1" step="any" placeholder="Valor por unidad" oninput="actualizarTotalRebaja()"></div>
       <div class="field">
         <label>Motivo</label>
         <select id="rebaja-motivo">
@@ -838,6 +870,7 @@
       </div>
       <div class="field"><label>Nota (opcional)</label><input type="text" id="rebaja-nota" placeholder="Detalles adicionales"></div>
     </div>
+    <div id="rebaja-aviso" style="display:none;font-size:0.74rem;color:var(--red);margin:4px 0 8px;padding:4px 8px;background:rgba(220,38,38,.1);border-radius:6px"></div>
     <div style="font-size:0.76rem;color:var(--text-muted);margin:4px 0 10px">Gasto a registrar: <strong id="rebaja-total" class="text-red">−0</strong></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeRebajaModal()">Cancelar</button>

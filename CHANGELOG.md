@@ -1,5 +1,157 @@
 # CHANGELOG — AdminRed
 
+## v5.7.6 — Reabastecer lotes: comprar más del mismo lote con costo promediado
+
+Añade la posibilidad de **reabastecer un lote existente** en lugar de crear un
+lote nuevo cada vez que se compra más del mismo producto. El costo por unidad se
+**promedia** (ponderado por el stock disponible + las unidades nuevas), de modo
+que el lote refleje la mezcla de la compra original y la reposición.
+
+### Nueva función: Reabastecer lote
+
+- **Botón "📦 Reabastecer"** en cada tarjeta de lote, junto al botón de Rebaja.
+- Abre un modal que muestra el stock disponible actual, el costo por unidad
+  actual, y calcula en **tiempo real** el costo promedio resultante y el total a
+  pagar por la nueva compra.
+- Al confirmar, la función `reabastecerLote()`:
+  1. Suma las unidades nuevas a `cantidadTotal`.
+  2. Suma el costo de la nueva compra a `montoTotal`.
+  3. **Promedia** `costoPorUnidad` = (costo del stock actual + costo de la nueva
+     compra) / (unidades disponibles + unidades nuevas).
+  4. Registra un gasto de inversión adicional vinculado al mismo lote
+     (`loteId`), marcado con `reabastecimiento: true` para distinguirlo de la
+     compra original.
+  5. Conserva `gananciaAcumulada` (no se toca lo ya ganado) y `margenObjetivo`
+     (es decisión del usuario, no del costo).
+
+### Promedio ponderado del costo
+
+Fórmula:
+```
+costoProm = (dispActual × costoViejo + cantidadNueva × costoNuevo) / (dispActual + cantidadNueva)
+```
+Solo se promedia sobre el **stock disponible** (no sobre lo ya vendido o
+rebajado), porque el costo de las unidades ya salidas del lote es agua pasada.
+
+### Borrar un reabastecimiento desde Gastos
+
+`deleteGasto()` ahora distingue entre:
+- **Gasto de compra original** (`reabastecimiento` no definido): borra el lote
+  entero (comportamiento anterior, con confirmación de ventas huérfanas).
+- **Gasto de reabastecimiento** (`reabastecimiento: true`): solo resta las
+  unidades añadidas, re-promedia el costo al valor anterior, y **NO borra el
+  lote**. Avisa si el stock podría quedar negativo por ventas ya hechas.
+
+### Bug corregido durante pruebas
+- El modal de reabastecer hacía referencia a `#reab-unidad` (span que muestra
+  "metros"/"unidades" en la etiqueta del campo de cantidad) que no existía en el
+  HTML, causando `TypeError: Cannot set properties of null`. Se añadió el elemento
+  al HTML y se hizo la referencia defensiva en JS.
+
+### Archivos modificados
+- `js/cobros/inventario.js`: `reabastecerLote()` (nueva), `openReabastecerModal()`,
+  `closeReabastecerModal()`, `actualizarTotalReabastecer()`,
+  `registrarReabastecimiento()`, botón en `renderInventario()`.
+- `js/gastos.js`: `deleteGasto()` — rama para reabastecimiento (no borra el lote).
+- `js/version.js`: `5.7.5` → `5.7.6`.
+- `index.html`: modal `#modal-reabastecer` + span `#reab-unidad`.
+- `style.css`: `.inv-reabastecer-btns`, `.inv-reab-btn`.
+
+## v5.7.5 — Inventario y Rebajas: corrección de bugs críticos + rediseño visual
+
+Revisa a fondo la sección de Inventario y, sobre todo, las **rebajas**, que
+daban error en ocasiones y corruptaban las métricas del lote. Se corrigen
+varios bugs funcionales y se mejora el diseño visual de las tarjetas de lote,
+la barra de progreso y los modales.
+
+### Bugs corregidos
+
+**BUG R1 (crítico) — las rebajas se registraban como ventas**
+`registrarRebaja()` sumaba la cantidad a `cantidadAsignada` y el monto a
+`montoAsignado`, tratando la rebaja como si fuera una venta. Esto inflaba la
+métrica de "vendido", corrompía el `precioSugerido()` (repartía la ganancia
+objetivo sobre unidades "vendidas" que en realidad se perdieron) y mezclaba
+conceptos. Ahora las rebajas usan campos propios `cantidadRebajada` /
+`montoRebajado` y NO tocan los contadores de ventas.
+
+**BUG R2 — sin trazabilidad de rebajas**
+Las rebajas no guardaban vínculo con el lote ni se podían ver ni deshacer
+desde la pestaña Inventario. Ahora el gasto de rebaja lleva `loteId`,
+`rebajaId`, `motivo`, `cantidad` y `valorUnidad`, y se muestran en una sección
+colapsable "Rebajas de este lote" dentro de cada tarjeta, con botón para
+revertirlas (`eliminarRebaja()`).
+
+**BUG R3 — rebajas con valor 0**
+El input de valor unitario tenía `min="0"`, permitiendo rebajas de 0 CUP
+que generaban un gasto fantasma. Ahora se valida `valor > 0` y el input usa
+`min="1"`.
+
+**BUG R4 — el total de la rebaja no se actualizaba al cambiar la cantidad**
+`actualizarTotalRebaja()` solo se disparaba desde el input de valor (oninput),
+no desde el de cantidad. Ahora ambos inputs disparan el cálculo en tiempo real
+y además muestran un aviso si la cantidad excede el stock disponible.
+
+**BUG R5 — borrar un gasto de rebaja desde Gastos no devolvía el material**
+`deleteGasto()` solo manejaba `categoria === 'inversion'`; al borrar un gasto de
+`categoria === 'rebaja'` desde la pestaña Gastos, el `cantidadRebajada` del
+lote quedaba inconsistente (material "perdido" para siempre). Ahora se
+detecta la rebaja vinculada, se confirma con el usuario y se devuelve el
+material al stock antes de borrar el gasto.
+
+**BUG V1 — `switchGastosTab()` rompía si faltaban paneles**
+La función accedía a `gpanel-historial`, `gpanel-inventario`,
+`gsub-btn-historial`, etc. sin null-checks, lanzando un TypeError cuando esos
+elementos no existían (el inventario tiene su propia pestaña top-level). Ahora
+todos los accesos están protegidos.
+
+**BUG V2 — `unidadesDisponibles()` no restaba rebajas**
+Calculaba `cantidadTotal - cantidadAsignada` sin descontar las rebajas. Ahora
+resta también `cantidadRebajada`, con compatibilidad para lotes viejos.
+
+**BUG V3 — `fmt()` abortaba con `undefined`/`null`**
+`fmt(n)` llamaba `n.toLocaleString()` directamente; si `n` era `undefined` o
+`null` (ej. un lote antiguo sin `gananciaAcumulada` o `margenObjetivo`), la
+función lanzaba `TypeError: Cannot read properties of undefined` y rompía todo
+el `renderInventario()`. Ahora `fmt` trata `undefined`/`null` como `0`.
+
+**BUG V4 — `renderInventario()` crash con lotes sin `margenObjetivo`/`gananciaAcumulada`**
+Usaba `inv.montoTotal * inv.margenObjetivo` y `inv.gananciaAcumulada`
+directamente; si faltaban (lotes viejos o recién creados), generaba `NaN` o
+crash. Ahora usa defaults seguros (`margenObj = 0.35`, `gananciaAcum = 0`,
+`montoTotal || costoTotal || 0`).
+
+### Mejoras funcionales
+- Nuevo modelo de lote con `cantidadRebajada` / `montoRebajado` (compatibilidad
+  con lotes antiguos: se asume 0 si faltan).
+- Nueva función `eliminarRebaja(rebajaId)` para revertir una rebaja desde la
+  tarjeta del lote (devuelve el material y borra el gasto).
+- `asignarDesdeModal()` ahora valida cliente y cantidad con mensajes claros.
+- Sección colapsable "Rebajas de este lote" con iconos por motivo
+  (deterioro, pérdida, robo, vencimiento, otro) y botón ↩ para revertir.
+- Mapa `REBAJA_MOTIVOS` con etiqueta e icono por motivo.
+
+### Mejoras visuales
+- Rediseño de las tarjetas de lote (clase `.inv-card`) con borde lateral
+  amber, hover suave y estado "agotado" atenuado.
+- **Barra de progreso** de tres segmentos (vendido en verde / rebajado en
+  rojo / disponible en gris) con leyenda debajo.
+- Badges de stock disponible con jerarquía tipográfica (número grande +
+  unidad).
+- Modal de rebaja con descripción explicativa, badge de "stock disponible del
+  lote", aviso inline si la cantidad excede el disponible y tope dinámico.
+- Modal de compra de lote con descripción explicativa.
+- Estilos CSS específicos para inventario (`.inv-*`) con responsive en móvil.
+- Empty state del inventario con instrucción de uso.
+
+### Archivos modificados
+- `js/cobros/inventario.js` — corrección de rebajas, nuevo modelo, render
+  rediseñado, `eliminarRebaja()`, `toggleRebajasLote()`, validaciones.
+- `js/gastos.js` — `deleteGasto()` maneja rebajas; `switchGastosTab()` con
+  null-checks.
+- `index.html` — modales de rebaja y compra mejorados (badge, aviso, oninput).
+- `style.css` — estilos `.inv-*` para tarjetas, barra de progreso y modales.
+- `js/version.js` — bump a 5.7.5 (invalida caché del Service Worker).
+
 ## v5.7.4 — Pago desglosado del paquete (transferencia + USD + efectivo) con pagos parciales
 
 Reemplaza el botón "Marcar como pagado" (pago único de un clic) por un

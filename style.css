@@ -875,3 +875,87 @@
   .paq-info-row{font-size:0.76rem;}
   .paq-desglose{font-size:0.74rem;padding:8px 10px;}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   INVENTARIO — tarjetas de lote, barra de progreso y secciones
+   ═══════════════════════════════════════════════════════════════════════ */
+.inv-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-left:3px solid var(--amber);border-radius:var(--r-md);
+  padding:12px;display:flex;flex-direction:column;gap:10px;
+  transition:border-color .15s var(--ease),box-shadow .15s var(--ease);
+}
+.inv-card:hover{box-shadow:0 2px 12px rgba(0,0,0,.18);}
+.inv-card-agotado{border-left-color:var(--text-muted);opacity:.92;}
+.inv-card-old{border-left-color:var(--text-muted);flex-direction:row;align-items:center;}
+
+.inv-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+.inv-card-title{flex:1;min-width:0;}
+.inv-card-meta{font-size:0.62rem;color:var(--text-muted);font-family:var(--mono);margin-top:2px;}
+
+.inv-card-avail{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:1px;flex-shrink:0;}
+.inv-avail-num{font-family:var(--mono);font-size:1.05rem;font-weight:700;line-height:1;}
+.inv-avail-unit{font-size:0.62rem;color:var(--text-muted);}
+.inv-avail-sub{font-size:0.58rem;color:var(--text-muted);}
+.inv-rebaja-btn{margin-top:6px;font-size:0.66rem;padding:3px 9px;}
+.inv-reabastecer-btns{display:flex;flex-direction:column;gap:4px;align-items:flex-end;margin-top:6px;}
+.inv-reab-btn{font-size:0.66rem;padding:3px 9px;white-space:nowrap;}
+
+.inv-badge{display:inline-block;font-size:0.6rem;padding:2px 7px;border-radius:10px;font-weight:600;margin-top:5px;}
+.inv-badge-rebaja{background:rgba(242,85,95,.14);color:var(--red);}
+
+/* Barra de progreso: vendido (verde) + rebajado (rojo) + disponible (resto) */
+.inv-progress-wrap{display:flex;flex-direction:column;gap:4px;}
+.inv-progress{
+  height:7px;background:var(--bg);border-radius:4px;overflow:hidden;
+  display:flex;
+}
+.inv-progress-sold{background:var(--green);transition:width .25s var(--ease);}
+.inv-progress-rebaja{background:var(--red);transition:width .25s var(--ease);}
+.inv-progress-legend{display:flex;gap:12px;font-size:0.6rem;flex-wrap:wrap;}
+.inv-legend-sold{color:var(--green);}
+.inv-legend-rebaja{color:var(--red);}
+.inv-legend-disp{color:var(--text-muted);}
+
+.inv-ganancia-row{
+  display:flex;justify-content:space-between;font-size:0.72rem;
+  background:var(--bg);border-radius:6px;padding:6px 10px;
+}
+
+.inv-sell-block{display:flex;flex-direction:column;gap:6px;padding-top:4px;border-top:1px dashed var(--border);}
+.inv-sugerido{font-size:0.68rem;color:var(--amber);}
+.inv-sell-row{display:flex;gap:5px;flex-wrap:wrap;}
+.inv-sell-cliente{flex:1;min-width:100px;font-size:0.74rem;}
+.inv-sell-cant{width:64px;font-size:0.74rem;}
+.inv-sell-precio{width:78px;font-size:0.74rem;}
+.inv-modo-pago{display:flex;gap:14px;font-size:0.68rem;margin-top:2px;}
+.inv-modo-pago label{display:flex;align-items:center;gap:4px;cursor:pointer;}
+.inv-modo-pago input{width:auto;margin:0;}
+
+.inv-agotado-tag{
+  font-size:0.68rem;color:var(--green);font-weight:600;
+  padding:4px 0;border-top:1px dashed var(--border);
+}
+
+.inv-subsection{margin-top:4px;}
+.inv-subheader{
+  cursor:pointer;user-select:none;font-size:0.6rem;text-transform:uppercase;
+  letter-spacing:.6px;color:var(--text-muted);margin-bottom:5px;
+  padding:3px 0;
+}
+.inv-subheader:hover{color:var(--text);}
+.inv-subheader-rebaja{color:var(--red);}
+.inv-subheader-rebaja:hover{color:var(--red);}
+.inv-venta-item,.inv-rebaja-item{font-size:0.72rem;padding:6px 8px;}
+.inv-rebaja-item{border-left:2px solid var(--red);}
+
+/* Modal de rebaja: aviso inline */
+#rebaja-aviso{font-weight:600;}
+
+@media(max-width:480px){
+  .inv-card{padding:10px;}
+  .inv-sell-row{flex-wrap:wrap;}
+  .inv-sell-cliente{min-width:100%;flex-basis:100%;}
+  .inv-sell-cant{flex:1;min-width:80px;width:auto;}
+  .inv-sell-precio{flex:1;min-width:90px;width:auto;}
+}

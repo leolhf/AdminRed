@@ -94,7 +94,38 @@ function deleteGasto(idx) {
   const g = gastos[idx];
   if(typeof registrarParaDeshacer==='function') registrarParaDeshacer(`Eliminar gasto: ${g?g.desc:''}`);
   let inv = null;
-  if(g && g.categoria === 'inversion'){
+  let esReabastecimiento = false;
+  if(g && g.categoria === 'inversion' && g.reabastecimiento && g.loteId){
+    // Gasto de REABASTECIMIENTO de un lote existente: NO se borra el lote,
+    // solo se restan las unidades añadidas y se re-promedia el costo al valor
+    // que tenía antes de este reabastecimiento.
+    esReabastecimiento = true;
+    inv = inventario.find(i => i.id === g.loteId);
+    if(inv){
+      const uTxt = inv.unidad==='m' ? 'm' : 'u';
+      const cantReab = g.cantidadReab || 0;
+      const costoReab = g.costoUnitReab || 0;
+      const msg = `Este gasto es un reabastecimiento del lote \"${inv.desc}\" (+${cantReab} ${uTxt} × ${fmt(costoReab)}).\n\n` +
+        `Al eliminarlo, se restan ${cantReab} ${uTxt} del lote y el costo promedio vuelve a su valor anterior.\n\n` +
+        `NOTA: si ya vendiste material del stock reabastecido, esas ventas quedan huérfanas de unidades (stock negativo). Asegúrate de que haya suficientes unidades disponibles.\n\n` +
+        `¿Eliminar este reabastecimiento?`;
+      if(!confirm(msg)) return;
+      // Restar las unidades y el monto del reabastecimiento
+      inv.cantidadTotal = Math.max(0, inv.cantidadTotal - cantReab);
+      inv.montoTotal    = Math.max(0, inv.montoTotal - (cantReab * costoReab));
+      // Re-promediar el costo al valor que tenía ANTES de este reabastecimiento.
+      // costoViejo = (montoTotal después de restar) / (unidades disponibles después de restar)
+      const dispDespues = unidadesDisponibles(inv.id);
+      if(dispDespues > 0){
+        inv.costoPorUnidad = Math.round((inv.montoTotal / (inv.cantidadTotal - (inv.cantidadAsignada||0) - (inv.cantidadRebajada||0))) * 100) / 100;
+      } else {
+        // Si no quedan unidades disponibles, usar el costo del stock que queda
+        inv.costoPorUnidad = inv.cantidadTotal > 0 ? Math.round((inv.montoTotal / inv.cantidadTotal) * 100) / 100 : costoReab;
+      }
+    }
+    // NO entrar al bloque if(inv) de abajo (ese borra el lote entero).
+    inv = null;
+  } else if(g && g.categoria === 'inversion'){
     if(g.loteId){
       inv = inventario.find(i => i.id === g.loteId);
     } else {
@@ -147,6 +178,21 @@ function deleteGasto(idx) {
       const msg2 = `Este gasto es una inversión en equipo de un cliente ("${g.desc}").\n\n` +
         `Borrarlo NO elimina la deuda del cliente ni sus cobros de cuota (eso se gestiona desde el cliente), pero el capital invertido dejará de contar en la sección "Recuperación de inversión", por lo que el % podría verse inconsistente.\n\n¿Eliminar el gasto de todos modos?`;
       if(!confirm(msg2)) return;
+    }
+  } else if (g && g.categoria === 'rebaja' && g.loteId) {
+    // Gasto de rebaja de inventario vinculado a un lote: al borrarlo hay que
+    // DEVOLVER el material al stock disponible del lote (restando de
+    // cantidadRebajada), igual que hace eliminarRebaja() desde la pestaña
+    // Inventario. Sin esto, borrar el gasto desde Gastos dejaría el lote con
+    // un cantidadRebajada inconsistente (material "perdido" para siempre).
+    const inv = inventario.find(i => i.id === g.loteId);
+    if(inv){
+      const uTxt = inv.unidad==='m' ? 'm' : 'u';
+      const msg3 = `Este gasto es una rebaja de inventario de "${inv.desc}" (${g.cantidad||0} ${uTxt}).\n\n` +
+        `Al eliminarlo, el material vuelve al stock disponible del lote y se borra el gasto de ${fmt(g.monto)}.\n\n¿Revertir la rebaja y eliminar el gasto?`;
+      if(!confirm(msg3)) return;
+      inv.cantidadRebajada = Math.max(0, (inv.cantidadRebajada||0) - (g.cantidad||0));
+      inv.montoRebajado    = Math.max(0, (inv.montoRebajado||0) - (g.monto||0));
     }
   }
   gastos.splice(idx,1);
@@ -210,14 +256,21 @@ function renderGastos() {
 }
 
 function switchGastosTab(name) {
+  // Sub-pestañas internas del panel de gastos (gastos / historial / inventario).
+  // Algunas pueden no existir según el layout (p.ej. el inventario tiene su
+  // propia pestaña top-level 'tab-inventario'); se protege con null-checks
+  // para que la función no lance si falta un panel o botón.
   ['gastos','historial','inventario'].forEach(n => {
-    document.getElementById('gpanel-' + n).style.display = n === name ? '' : 'none';
+    const panel = document.getElementById('gpanel-' + n);
+    if(panel) panel.style.display = n === name ? '' : 'none';
   });
   const titles = { gastos: 'Gastos del mes', historial: 'Historial de cobros', inventario: 'Inventario de material' };
-  document.getElementById('gsub-title').textContent = titles[name];
-  document.getElementById('gsub-btn-add').style.display = name === 'gastos' ? '' : 'none';
-  if (name === 'historial') renderHistory();
-  if (name === 'inventario') renderInventario();
+  const titleEl = document.getElementById('gsub-title');
+  if(titleEl && titles[name]) titleEl.textContent = titles[name];
+  const addBtn = document.getElementById('gsub-btn-add');
+  if(addBtn) addBtn.style.display = name === 'gastos' ? '' : 'none';
+  if (name === 'historial' && typeof renderHistory === 'function') renderHistory();
+  if (name === 'inventario' && typeof renderInventario === 'function') renderInventario();
   // Botones activos
   ['historial','inventario'].forEach(n => {
     const btn = document.getElementById('gsub-btn-' + n);

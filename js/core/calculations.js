@@ -463,7 +463,7 @@ function clientLabel(c) {
   return `<span class="status-badge ${statusClass(s)}">${statusLabel(s)}</span>`;
 }
 
-const fmt = n=>n.toLocaleString('es-CU')+' CUP';
+const fmt = n=>(typeof n==='number'?n:0).toLocaleString('es-CU')+' CUP';
 
 // BUG FIX: `new Date().toISOString().split('T')[0]` (usado antes en varios
 // módulos para guardar "la fecha de hoy") devuelve la fecha en UTC, no la
