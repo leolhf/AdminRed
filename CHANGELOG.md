@@ -1,5 +1,41 @@
 # CHANGELOG — AdminRed
 
+## v5.7.8 — Modal de pago del paquete: efectivo se auto-llena y recalcula
+
+Mejora la experiencia del modal "Pago del paquete contratado". Antes, el campo
+"EFECTIVO CUP" aparecía vacío al abrir el modal y el usuario tenía que calcular
+manualmente cuánto faltaba pagar. Ahora el efectivo se llena automáticamente con
+el saldo pendiente y se recalcula cuando se introducen pagos en USD o
+transferencia.
+
+### Cambios
+
+- **Efectivo auto-lleno al abrir el modal:** Cuando se abre el modal de pago del
+  paquete, el campo "EFECTIVO CUP" muestra automáticamente el saldo pendiente
+  (costo del paquete − abonos previos del mes). El usuario ve de inmediato cuánto
+  falta pagar sin tener que hacer cálculos.
+- **Recálculo automático:** Si el usuario introduce un pago en **USD** o
+  **Transferencia**, el campo "EFECTIVO CUP" se recalcula automáticamente:
+  `efectivo = max(0, pendiente − transferenciaCUP − usdEnCUP)`.
+- **Efectivo editable manualmente:** Si el usuario modifica el campo efectivo a
+  mano, su valor se mantiene — esto permite **pagos parciales deliberados** (por
+  ejemplo, pagar menos de lo pendiente si no se tiene todo el efectivo ahora).
+- **Recálculo al actualizar la tasa:** Si se pulsa "Actualizar tasa" dentro del
+  modal y el usuario ya había introducido USD, el efectivo se recalcula con la
+  nueva tasa.
+- **Indicador visual:** La etiqueta del campo efectivo ahora muestra "(auto:
+  pendiente)" para indicar que el valor se calcula automáticamente.
+
+### Archivos modificados
+- `js/paquete/modal-paquete.js` — `abrirModalPaquete()` pre-llena efectivo con
+  pendiente; nueva función `recalcularEfectivoPaquete()`; `clickActualizarTasaPaquete()`
+  ahora llama al recálculo.
+- `index.html` — `oninput` de `paq-transferencia` y `paq-usd` ahora llaman a
+  `recalcularEfectivoPaquete()`; etiqueta de efectivo con indicador "(auto)".
+- `js/version.js` — `5.7.7` → `5.7.8`.
+
+---
+
 ## v5.7.7 — Revisión de Gastos: categorías más claras, agrupación visual, correcciones
 
 Revisa a fondo la sección de gastos: tipos de gasto, lógica de cálculos e

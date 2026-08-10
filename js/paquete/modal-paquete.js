@@ -33,10 +33,13 @@ function abrirModalPaquete() {
   document.getElementById('paq-ya-pagado-row').style.display = yaPagado > 0 ? '' : 'none';
   document.getElementById('paq-pendiente').textContent = fmt(pendiente);
 
-  // Resetear campos de entrada
+  // Resetear campos de entrada.
+  // El efectivo se pre-llena con el saldo pendiente: el usuario ve de inmediato
+  // cuánto falta pagar. Si introduce USD o transferencia, el efectivo se
+  // recalcula automáticamente (ver recalcularEfectivoPaquete).
   document.getElementById('paq-transferencia').value = '';
   document.getElementById('paq-usd').value = '';
-  document.getElementById('paq-efectivo').value = '';
+  document.getElementById('paq-efectivo').value = pendiente > 0 ? pendiente : '';
   document.getElementById('paq-fecha').value = fechaLocalISO();
   document.getElementById('paq-nota').value = '';
 
@@ -67,6 +70,35 @@ function _actualizarAvisoStalePaquete() {
   } else {
     aviso.style.display = 'none';
   }
+}
+
+// Recalcula automáticamente el campo EFECTIVO CUP cuando el usuario cambia
+// los campos de Transferencia o USD. La fórmula es:
+//   efectivo = max(0, pendiente - transferencia - usdCup)
+// El campo de efectivo NO se recalcula cuando el usuario lo edita manualmente,
+// para permitir pagos parciales deliberados (el usuario puede bajar el monto
+// y se mantiene su valor).
+function recalcularEfectivoPaquete() {
+  const ajustada = typeof tasaAjustadaUsd === 'function' ? tasaAjustadaUsd() : null;
+  const transferencia = parseInt(document.getElementById('paq-transferencia').value) || 0;
+  const usd = parseFloat(document.getElementById('paq-usd').value) || 0;
+  const usdCup = ajustada !== null ? Math.round(usd * ajustada) : 0;
+
+  const mes = mesActualHoy();
+  const costo = costoMes();
+  const yaPagado = _paquetePagadoAcumuladoMes(mes);
+  const pendiente = Math.max(0, costo - yaPagado);
+
+  const nuevoEfectivo = Math.max(0, pendiente - transferencia - usdCup);
+  const campoEfectivo = document.getElementById('paq-efectivo');
+  if (campoEfectivo) {
+    // Si el cálculo da 0, dejar el campo vacío para no mostrar "0" confuso.
+    // Si el usuario no puso nada en transferencia ni USD, mostrar el pendiente.
+    campoEfectivo.value = nuevoEfectivo > 0 ? nuevoEfectivo : '';
+  }
+
+  // Actualizar el desglose con los nuevos valores
+  calcularDesglosePaquete();
 }
 
 // Calcula y muestra el desglose del pago en tiempo real mientras el admin
@@ -167,7 +199,9 @@ async function clickActualizarTasaPaquete() {
 
   if (btn) { btn.disabled = false; btn.textContent = '🔄 Actualizar tasa'; }
   _actualizarAvisoStalePaquete();
-  calcularDesglosePaquete();
+  // Tras actualizar la tasa, recalcular el efectivo (el USD puede haber
+  // cambiado su equivalente en CUP y el efectivo debe ajustarse).
+  recalcularEfectivoPaquete();
   if (ok) notify('Tasa USD actualizada');
   else notify('No se pudo actualizar automáticamente — usa el valor manual en Ajustes', 'warn');
 }
