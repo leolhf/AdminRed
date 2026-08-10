@@ -49,12 +49,18 @@ function iniciarNuevoMes() {
   // y al iniciar un mes nuevo el paquete vuelve a estar pendiente de pago, por
   // lo que el gasto 'paquete' del mes que cierra se borra igual que los operativos.
   gastos = gastos.filter(g => g.categoria === 'inversion');
+  // v5.8.0: anular descuentos puntuales del mes que cierra que no se consumieron.
+  const mesQueCierra = config.mesActual;
+  let descuentosAnulados = 0;
+  if (mesQueCierra && typeof anularDescuentosNoAplicadosMes === 'function') {
+    descuentosAnulados = anularDescuentosNoAplicadosMes(mesQueCierra);
+  }
   config.mesActual = mesActual;
   // v5.7: reiniciar el estado de 'paquete pagado' para el nuevo mes, asi el
   // boton 'Marcar como pagado' vuelve a estar disponible y el costo del paquete
   // se registra de nuevo solo cuando se pague en el nuevo ciclo.
   config.paquetePagadoMes = '';
   save(); render();
-  notify('✅ Nuevo mes iniciado — gastos y abonos reiniciados');
+  notify('✅ Nuevo mes iniciado — gastos y abonos reiniciados' + (descuentosAnulados > 0 ? ' · ' + descuentosAnulados + ' descuento(s) anulado(s)' : ''));
   if(window.FirebaseSync) clients.forEach(c=>window.FirebaseSync.syncCliente(c));
 }

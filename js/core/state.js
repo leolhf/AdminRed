@@ -15,9 +15,20 @@ let equiposRed = [];               // equipos de enlace (nanos, routers...): [{i
 let planes = [];                  // planes de internet definidos por el admin: [{id,nombre,megas,precio,descripcion}]
 let snapshots = [];               // snapshots inmutables de cierre de mes: [{mes, ingresos, costo, gastos, ganancia, nClientes, tasaCobro, nConMora, timestamp}]
 let reciboCounter = 0;            // contador auto-incremental de recibos de pago
+// v5.8.0: descuentos puntuales (afectacion / bonificacion / ajuste) por cliente y mes.
+// Cada item: {id, clienteId, tipo, motivo, modo ('monto'|'pct'|'dias'), valor, mes, fecha, aplicado, cobroHid}
+let descuentos = [];
 // config: configuracion general del servicio.
 //   toleranciaMoraDias: dias de tolerancia antes de considerar un pago "tardio" (feature #8).
-let config  = { megas:20, costoPorMega:1250, diaInicio:10, mesActual:'', margenMegas:4, sobreventaMegas:0, toleranciaMoraDias:5, paquetePagadoMes:'' };
+// v5.8.0:
+//   motivosDescuento: lista de motivos predefinidos (texto) para descuentos puntuales,
+//                     agrupados por tipo (afectacion / bonificacion). El admin puede
+//                     ampliarla; si no existe, se usan los valores por defecto.
+//   mencionarDescuentoRecurrente: si true, el mensaje de WhatsApp tambien narra el
+//                     descuento recurrente fijo del cliente (no solo los puntuales).
+//   diasBaseMes: dias de referencia para el modo 'dias' del descuento puntual
+//                     (proporcion = precioMes / diasBaseMes). Por defecto 30.
+let config  = { megas:20, costoPorMega:1250, diaInicio:10, mesActual:'', margenMegas:4, sobreventaMegas:0, toleranciaMoraDias:5, paquetePagadoMes:'', mencionarDescuentoRecurrente:false, diasBaseMes:30 };
 let fileHandle = null;
 let isDirty    = false;
 

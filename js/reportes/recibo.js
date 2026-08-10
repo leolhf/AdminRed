@@ -20,7 +20,14 @@ function generarRecibo(h) {
   const precioMega=c?getPrecioCliente(c):0;
   const megas=c?c.megas:0;
   const precioPorMes=megas*precioMega;
-  const descuento=h.descuentoAplicado||0;
+  // v5.8.0: descuentoAplicado puede ser número (viejo) o objeto {total, recurrente, puntuales:[...]}.
+  const descObj = (typeof h.descuentoAplicado === 'object' && h.descuentoAplicado !== null)
+    ? h.descuentoAplicado
+    : null;
+  const descuento = descObj ? (descObj.total || 0) : (h.descuentoAplicado || 0);
+  const descRecurrente = descObj ? (descObj.recurrente || 0) : 0;
+  const descPuntuales = descObj ? (descObj.puntuales || []) : [];
+  const descPuntualTotal = descPuntuales.reduce((s,p)=>s+(p.monto||0),0);
   const precioNeto=Math.max(0,precioPorMes-descuento);
   const mora=getMora(c);
 
@@ -46,8 +53,34 @@ function generarRecibo(h) {
       servicioRow.style.display='';
       setVal('recibo-servicio-base',fmt(precioPorMes));
       if(descuento>0){
-        setVal('recibo-descuento','−'+fmt(descuento));
+        // Etiqueta principal del descuento (total). Si hay recurrente + puntuales, desglosar.
+        let etiqueta = '−'+fmt(descuento);
+        if (descObj && (descRecurrente>0 || descPuntualTotal>0)) {
+          const partes = [];
+          if (descRecurrente>0) partes.push('recurrente '+fmt(descRecurrente));
+          if (descPuntualTotal>0) partes.push('puntuales '+fmt(descPuntualTotal));
+          etiqueta = '−'+fmt(descuento)+' ('+partes.join(', ')+')';
+        }
+        setVal('recibo-descuento', etiqueta);
         clone.querySelector('#recibo-descuento-row').style.display='';
+        // v5.8.0: líneas individuales de descuentos puntuales con motivo.
+        const puntualesDiv = clone.querySelector('#recibo-descuentos-puntuales');
+        if (puntualesDiv) {
+          if (descPuntuales.length>0) {
+            puntualesDiv.innerHTML = descPuntuales.map(p => {
+              const tipoLabel = p.tipo ? ({
+                afectacion: '⚠️ Afectación', bonificacion: '🎁 Bonificación', ajuste: '🔧 Ajuste'
+              }[p.tipo] || p.tipo) : '';
+              return `<div>• ${tipoLabel}: ${p.motivo||'—'} → −${fmt(p.monto||0)}</div>`;
+            }).join('');
+            puntualesDiv.style.display='';
+          } else {
+            puntualesDiv.style.display='none';
+          }
+        }
+      } else {
+        const puntualesDiv = clone.querySelector('#recibo-descuentos-puntuales');
+        if (puntualesDiv) puntualesDiv.style.display='none';
       }
       if(mora>0){
         setVal('recibo-mora',`${mora} mes(es) × ${fmt(precioNeto)}`);

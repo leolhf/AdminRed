@@ -1,5 +1,104 @@
 # CHANGELOG — AdminRed
 
+## v5.8.0 — Sistema de Descuentos Puntuales + Integración con WhatsApp
+
+Sistema completo de descuentos puntuales vinculados a cobros y mensajes de
+WhatsApp. Los descuentos pueden ser por **afectaciones del servicio** (caídas,
+degradación), **bonificaciones** (promociones, fidelización) o **ajustes
+administrativos**. Cada descuento puntual tiene un motivo, un modo (monto fijo,
+porcentaje o días sin servicio) y se asocia a un cliente y un mes específico.
+
+### Tipos de descuento
+
+- **⚠️ Afectación:** Descuento por interrupción o degradación del servicio. Se
+  puede aplicar a un cliente individual (desde el modal de cobro) o a varios a
+  la vez (descuento por lote).
+- **🎁 Bonificación:** Descuento por promociones, fidelización o compensaciones
+  voluntarias.
+- **🔧 Ajuste:** Ajuste administrativo genérico.
+
+### Modos de cálculo
+
+- **Monto fijo (CUP):** Descuento de una cantidad exacta.
+- **Porcentaje (%):** Porcentaje del precio mensual del cliente.
+- **Días sin servicio:** Proporcional al precio mensual según los días sin
+  servicio (`precioMes / diasBaseMes × días`). Configurable via
+  `config.diasBaseMes` (default 30).
+
+### Funcionalidades
+
+- **Descuentos recurrentes vs. puntuales:** El sistema de descuento recurrente
+  existente (permanente por cliente) se mantiene intacto. Los descuentos
+  puntuales son nuevos, de un solo uso por mes, y siempre llevan un motivo.
+- **Sub-panel en el modal de cobro:** Al registrar un cobro, el admin ve un
+  panel con los descuentos pendientes del mes y puede añadir nuevos al vuelo.
+  El precio neto se recalcula automáticamente. Al confirmar el cobro, los
+  descuentos se marcan como aplicados y se vinculan al cobro (`cobroHid`).
+- **Descuento por lote:** Aplica un mismo descuento (ej. afectación general) a
+  varios clientes a la vez, con vista previa del total descontado.
+- **Reversión al eliminar cobro:** Si se elimina un cobro, sus descuentos
+  puntuales se revierten y vuelven a estar disponibles.
+- **Anulación al cierre de mes:** Al iniciar un mes nuevo, los descuentos
+  puntuales no aplicados del mes que cierra se anulan automáticamente.
+- **Vista de gestión (sub-tab 🎁 Descuentos):** Lista todos los descuentos con
+  filtros por mes, tipo y estado. Muestra resumen con totales pendientes y
+  aplicados. Permite eliminar descuentos no aplicados y exportar a CSV.
+- **Integración con WhatsApp:**
+  - Los recordatorios de pago ahora incluyen una línea con el detalle de
+    descuentos aplicados (ej. "🎁 Descuento aplicado: −500 CUP (Afectación red:
+    −500 CUP).").
+  - Nueva plantilla `receipt` (comprobante de pago) enviada tras registrar un
+    cobro, con el monto recibido, número de recibo y descuentos aplicados.
+  - Nuevos marcadores en plantillas: `{descuentoLinea}`, `{descuentoTotal}`,
+    `{precioBase}`, `{precioNeto}`, `{motivoDescuento}`, `{montoRecibido}`,
+    `{reciboNum}`.
+  - El textarea del modal de confirmación de WhatsApp ya no es `readonly`
+    (editable para ajustes manuales).
+- **Recibo con desglose:** El recibo de pago impreso muestra el desglose de
+  descuentos (recurrente + puntuales con motivo) cuando `descuentoAplicado` es
+  un objeto. Compatible con cobros antiguos donde `descuentoAplicado` era un
+  número.
+- **Badges en tarjetas de clientes:** Las tablas de clientes muestran un badge
+  "🎁 N desc. puntual(es)" cuando hay descuentos pendientes ese mes.
+- **Migración automática:** `migrarDescuentosPuntuales()` inicializa la
+  colección `descuentos[]`, normaliza `config.mencionarDescuentoRecurrente` y
+  `config.diasBaseMes`, y sanitiza items existentes.
+
+### Archivos modificados/creados
+
+- **Nuevos:**
+  - `js/cobros/descuentos.js` — Núcleo del sistema de descuentos puntuales.
+  - `js/reportes/descuentos-view.js` — Vista de gestión de descuentos.
+- **Modificados:**
+  - `js/core/state.js` — Colección `descuentos[]` + config defaults.
+  - `js/storage/storage-local.js` — Persistencia de `descuentos`.
+  - `js/core/migration.js` — `migrarDescuentosPuntuales()`.
+  - `js/core/calculations.js` — `descuentosPendientesCliente()`,
+    `calcularDescuentoTotal()`, integración en `precioNetoCliente()` y
+    `montoTotalACobrar()`.
+  - `js/cobros/modal-cobro.js` — `openCobroModal`, `registrarCobro`,
+    `eliminarCobro` actualizados; oferta de comprobante WhatsApp post-cobro.
+  - `js/reportes/recibo.js` — Desglose de descuentos en el recibo impreso.
+  - `js/notificaciones/whatsapp.js` — `buildDescuentoLinea()`,
+    `generateReceiptMessage()`, `sendWhatsAppReceipt()`, inyección en
+    recordatorios.
+  - `js/notificaciones/wa-templates.js` — Nuevos marcadores + plantilla
+    `receipt` + editor de plantillas actualizado.
+  - `js/cobros/month-reset.js` — Anulación de descuentos no aplicados al cerrar
+    mes.
+  - `js/ui/tabs.js` — Sub-tab "Descuentos" + render call.
+  - `js/ui/render.js` — Badge de descuentos puntuales en tablas + render de
+    vista.
+  - `index.html` — Panel de descuentos en modal-cobro, modal de lote, sub-tab,
+    tab-content, script tags, botón FAB, textarea editable.
+  - `js/version.js` — `5.7.8` → `5.8.0`.
+  - `js/DEPENDENCIAS.md` — Documentación de nuevos módulos.
+  - `CHANGELOG.md` — Esta entrada.
+
+---
+
+Red
+
 ## v5.7.8 — Modal de pago del paquete: efectivo se auto-llena y recalcula
 
 Mejora la experiencia del modal "Pago del paquete contratado". Antes, el campo

@@ -94,6 +94,7 @@
           <div class="sub-tab" onclick="switchTab('clientes')">Clientes</div>
           <div class="sub-tab" onclick="switchTab('cobros')">Cobros</div>
           <div class="sub-tab" onclick="switchTab('gastos')">Gastos</div>
+          <div class="sub-tab" onclick="switchTab('descuentos')">🎁 Descuentos</div>
         </div>
       </div>
 
@@ -423,6 +424,31 @@
     <div class="history-panel"><div id="history-list"></div></div>
   </div>
 
+  <!-- v5.8.0: DESCUENTOS PUNTUALES -->
+  <div id="tab-descuentos" class="tab-content">
+    <div class="section-header">
+      <span class="section-title">🎁 Descuentos puntuales</span>
+      <div style="display:flex;gap:7px;flex-wrap:wrap">
+        <select id="desc-filtro-mes" class="inline-input" onchange="renderDescuentosView()" style="width:140px"></select>
+        <select id="desc-filtro-tipo" class="inline-input" onchange="renderDescuentosView()" style="width:140px">
+          <option value="">Todos los tipos</option>
+          <option value="afectacion">⚠️ Afectación</option>
+          <option value="bonificacion">🎁 Bonificación</option>
+          <option value="ajuste">🔧 Ajuste</option>
+        </select>
+        <select id="desc-filtro-estado" class="inline-input" onchange="renderDescuentosView()" style="width:140px">
+          <option value="">Todos</option>
+          <option value="pendiente">⏳ Pendientes</option>
+          <option value="aplicado">✅ Aplicados</option>
+        </select>
+        <button class="btn btn-blue btn-sm" onclick="abrirModalLoteDescuento()">+ Descuento por lote</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportDescuentosCSV()">⬇ CSV</button>
+      </div>
+    </div>
+    <div id="descuentos-resumen" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px"></div>
+    <div class="history-panel"><div id="descuentos-list" class="gastos-list"></div></div>
+  </div>
+
   <!-- EQUIPOS DE RED -->
   <div id="tab-equipos" class="tab-content">
     <div class="section-header">
@@ -565,6 +591,9 @@
       <div class="field"><label>Nota (opcional)</label><input type="text" id="cobro-nota" placeholder="Pago parcial, adelantado..."></div>
     </div>
 
+    <!-- v5.8.0: Sub-panel de descuentos puntuales del cobro (afectacion/bonificacion/ajuste) -->
+    <div id="cobro-descuentos-panel" style="margin-top:10px"></div>
+
     <!-- PAGO EN USD: selector de moneda + conversión + vuelto -->
     <div id="cobro-usd-section" style="margin-top:6px;border-top:1px solid var(--border);padding-top:12px">
       <div style="display:flex;gap:14px;align-items:center;margin-bottom:10px">
@@ -596,6 +625,52 @@
   </div>
 </div>
 
+<!-- v5.8.0: MODAL DESCUENTO POR LOTE (afectacion/bonificacion a varios clientes) -->
+<div class="modal-overlay" id="modal-lote-descuento">
+  <div class="modal" style="max-width:560px">
+    <h2>🎁 Descuento por lote</h2>
+    <p style="font-size:0.78rem;color:var(--text-muted);margin:4px 0 10px">Aplica un descuento puntual a varios clientes a la vez (ej. afectación de servicio general).</p>
+    <div class="form-grid">
+      <div class="field"><label>Tipo de descuento</label>
+        <select id="lote-dsc-tipo" onchange="onLoteDscTipoChange()">
+          <option value="afectacion">⚠️ Afectación</option>
+          <option value="bonificacion">🎁 Bonificación</option>
+          <option value="ajuste">🔧 Ajuste</option>
+        </select>
+      </div>
+      <div class="field"><label>Modo</label>
+        <select id="lote-dsc-modo" onchange="previsualizarLoteDesc()">
+          <option value="monto">Monto fijo (CUP)</option>
+          <option value="pct">Porcentaje (%)</option>
+          <option value="dias">Días sin servicio</option>
+        </select>
+      </div>
+      <div class="field" style="grid-column:1/-1"><label>Motivo</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <select id="lote-dsc-motivo-pre" onchange="onLoteDscMotivoPreChange()" style="flex:1;min-width:140px">
+            <option value="">— Elegir motivo predefinido —</option>
+          </select>
+          <input type="text" id="lote-dsc-motivo" placeholder="o escribe un motivo libre" style="flex:2;min-width:160px">
+        </div>
+      </div>
+      <div class="field"><label id="lote-dsc-valor-label">Valor (CUP)</label>
+        <input type="number" id="lote-dsc-valor" min="0" step="0.01" oninput="previsualizarLoteDesc()">
+      </div>
+      <div class="field" style="display:flex;align-items:flex-end">
+        <span id="lote-dsc-vista" style="font-size:0.72rem;color:var(--text-muted);font-family:var(--mono)">—</span>
+      </div>
+    </div>
+    <div style="margin-top:10px">
+      <div style="font-size:0.74rem;font-weight:600;margin-bottom:6px">Selecciona los clientes:</div>
+      <div id="lote-desc-lista" style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:4px 10px"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="cerrarModalLoteDescuento()">Cancelar</button>
+      <button class="btn btn-blue" onclick="aplicarLoteDescuento()">Aplicar descuento a seleccionados</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL CONFIRMAR ENVÍO WHATSAPP -->
 <div class="modal-overlay" id="modal-confirmar-whatsapp">
   <div class="modal" style="max-width:480px">
@@ -603,7 +678,7 @@
     <div class="form-grid">
       <div class="field">
         <label>Mensaje a enviar</label>
-        <textarea id="wa-confirm-mensaje" rows="6" readonly style="font-family:var(--mono);font-size:0.82rem;resize:vertical;"></textarea>
+        <textarea id="wa-confirm-mensaje" rows="6" style="font-family:var(--mono);font-size:0.82rem;resize:vertical;"></textarea>
       </div>
     </div>
     <div class="modal-actions">
@@ -959,6 +1034,7 @@
         <td class="recibo-detalle">
           <div>Base: <span id="recibo-servicio-base">—</span></div>
           <div id="recibo-descuento-row" style="display:none">Descuento: <span id="recibo-descuento">—</span></div>
+          <div id="recibo-descuentos-puntuales" style="display:none;margin-left:0.6rem;font-size:0.78em;color:#b45309"></div>
           <div id="recibo-mora-row" style="display:none">Mora: <span id="recibo-mora">—</span></div>
         </td>
         <td class="recibo-monto" id="recibo-servicio-total">—</td>
@@ -988,6 +1064,7 @@
   <button onclick="openAddModal()">+ Cliente</button>
   <button onclick="openGastoModal()">+ Gasto</button>
   <button onclick="openCobroModal()">+ Cobro</button>
+  <button onclick="abrirModalLoteDescuento()">🎁 Descuento lote</button>
   <button onclick="openEquipoModal()">+ Equipo</button>
 </div>
 
@@ -1029,6 +1106,7 @@
 
 <!-- COBROS: Gestión de pagos -->
 <script src="./js/cobros/modal-cobro.js"></script>
+<script src="./js/cobros/descuentos.js"></script>
 <script src="./js/cobros/mora.js"></script>
 <script src="./js/cobros/inversion.js"></script>
 <script src="./js/cobros/inventario.js"></script>
@@ -1043,6 +1121,7 @@
 <script src="./js/reportes/estadisticas.js"></script>
 <script src="./js/reportes/reporte-mensual.js"></script>
 <script src="./js/reportes/recibo.js"></script>
+<script src="./js/reportes/descuentos-view.js"></script>
 <script src="./js/reportes/calendario.js"></script>
 <script src="./js/reportes/salud.js"></script>
 

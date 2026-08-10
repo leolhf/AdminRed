@@ -175,6 +175,8 @@ ENCRYPTION.VERSION            // 'v1'
 | `reportes/recibo.js` | Generación de recibos de pago imprimibles/exportables a PDF con número auto-incremental (Feature #4). |
 | `reportes/calendario.js` | Calendario visual mensual de cobros con código de colores por estado de pago (Feature #7). |
 | `reportes/salud.js` | Dashboard de salud del negocio con KPIs tipo semáforo (verde/amarillo/rojo) (Feature #13). |
+| `reportes/descuentos-view.js` | **v5.8.0** Vista de gestión de descuentos puntuales: lista con filtros por mes/tipo/estado, resumen con totales, exportación a CSV. Funciones: `renderDescuentosView()`, `eliminarDescuentoVista()`, `exportDescuentosCSV()`. |
+| `cobros/descuentos.js` | **v5.8.0** Núcleo del sistema de descuentos puntuales (afectación/bonificación/ajuste). Crea, elimina, marca-aplicado y revierte descuentos vinculados a cobros. Sub-panel dentro del modal de cobro, aplicación por lote, y anulación al cierre de mes. |
 
 ## Funciones Nuevas en calculations.js (v5.4.0)
 
@@ -198,3 +200,43 @@ ENCRYPTION.VERSION            // 'v1'
 | Módulo | Función |
 |---------|----------|
 | `core/moneda.js` | Soporte de doble moneda (Variante B híbrida). CUP es la moneda principal; el USD se muestra como equivalencia informativa. Funciones: `tasaUsd()`, `cupToUsd()`, `usdToCup()`, `fmtUsd()`, `fmtCup()`, `equivUsd()`, `actualizarTasaUsd()` (consulta mdiv.pro vía proxy.cors.sh), `guardarTasaUsdManual()`, `renderMonedaEditor()`. La tasa se persiste en `config.tasaUsd` / `config.tasaUsdFecha` / `config.tasaUsdFuente`. El dashboard (`render.js`) y los recibos (`recibo.js`) muestran la equivalencia en USD solo cuando hay tasa configurada. |
+
+
+## Módulo Nuevo v5.8.0 — Descuentos Puntuales + WhatsApp
+
+| Módulo | Función |
+|---------|----------|
+| `cobros/descuentos.js` | Sistema de descuentos puntuales por cliente y mes (afectación/bonificación/ajuste). Funciones: `crearDescuentoPuntual()`, `eliminarDescuentoPuntual()`, `marcarDescuentosAplicados()`, `revertirDescuentosDeCobro()`, `anularDescuentosNoAplicadosMes()`, sub-panel `_initCobroDescuentos()`/`renderCobroDescuentosPanel()`, lote `abrirModalLoteDescuento()`/`aplicarLoteDescuento()`. |
+| `reportes/descuentos-view.js` | Vista de gestión: `renderDescuentosView()`, `eliminarDescuentoVista()`, `exportDescuentosCSV()`. |
+
+### Funciones nuevas en calculations.js (v5.8.0)
+
+| Función | Descripción |
+|----------|-------------|
+| `descuentosPendientesCliente(c, mes)` | Devuelve array de descuentos puntuales pendientes (no aplicados) del mes, con monto calculado |
+| `calcularDescuentoTotal(c, precioMes)` | Devuelve `{total, recurrente, puntuales}` combinando descuento recurrente + puntuales, capado al precio del mes |
+
+### Cambios en state.js (v5.8.0)
+
+| Campo | Descripción |
+|-------|-------------|
+| `descuentos[]` | Colección de descuentos puntuales: `{id, clienteId, tipo, motivo, modo, valor, mes, fecha, aplicado, cobroHid}` |
+| `config.mencionarDescuentoRecurrente` | Boolean: si true, menciona el descuento recurrente en mensajes de WhatsApp |
+| `config.diasBaseMes` | Días base para cálculo proporcional de descuentos por días sin servicio (default 30) |
+
+### Marcadores nuevos en wa-templates.js (v5.8.0)
+
+| Marcador | Descripción |
+|----------|-------------|
+| `{descuentoLinea}` | Texto con detalle de descuentos aplicados (recurrente + puntuales con motivo) |
+| `{descuentoTotal}` | Monto total descontado con " CUP" |
+| `{precioBase}` | Precio base del servicio antes de descuentos |
+| `{precioNeto}` | Precio neto tras descuentos |
+| `{motivoDescuento}` | Motivo del primer descuento puntual |
+| `{montoRecibido}` | Monto recibido en el cobro (plantilla receipt) |
+| `{reciboNum}` | Número de recibo (plantilla receipt) |
+
+### Orden de carga de scripts (v5.8.0)
+
+`descuentos.js` se carga después de `modal-cobro.js` y antes de `mora.js` (dentro de la sección COBROS).
+`descuentos-view.js` se carga después de `recibo.js` y antes de `calendario.js` (dentro de la sección REPORTES).

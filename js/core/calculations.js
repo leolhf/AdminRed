@@ -36,13 +36,49 @@ function calcularDescuento(c, precioMes) {
   if(c.descuentoTipo==='pct') return Math.round(precioMes * c.descuento / 100);
   return Math.min(c.descuento, precioMes); // monto fijo, nunca mas que el precio
 }
+
+// v5.8.0: descuentos puntuales pendientes de un cliente para un mes dado.
+// `mes` por defecto es el mes en curso (config.mesActual o el actual).
+// Devuelve el array de items {id, tipo, motivo, modo, valor, monto} con el
+// monto ya calculado en CUP (segun modo monto/pct/dias). Solo los NO aplicados.
+function descuentosPendientesCliente(c, mes) {
+  if(!c) return [];
+  const m = mes || (config.mesActual || fechaLocalISO().slice(0,7));
+  const precioMes = (c.megas||0) * getPrecioCliente(c);
+  const diasBase = config.diasBaseMes || 30;
+  return (descuentos||[])
+    .filter(d => d.clienteId === c.id && d.mes === m && !d.aplicado)
+    .map(d => {
+      let monto = 0;
+      if(d.modo === 'pct')      monto = Math.round(precioMes * (d.valor||0) / 100);
+      else if(d.modo === 'dias') monto = Math.round((precioMes / diasBase) * (d.valor||0));
+      else                       monto = (d.valor||0); // monto fijo CUP
+      return { id:d.id, tipo:d.tipo, motivo:d.motivo||'', modo:d.modo, valor:d.valor||0, monto };
+    });
+}
+
+// v5.8.0: descuento TOTAL aplicable a un cobro del mes = recurrente + puntuales.
+// Devuelve { total, recurrente, puntuales: [...] } donde `puntuales` ya tiene
+// los montos calculados. El total nunca supera el precio del mes (no se "paga"
+// al cliente). Reemplaza a calcularDescuento() en todos los puntos de cobro,
+// pero sin romperla (esta sigue existiendo para el recurrente aislado).
+function calcularDescuentoTotal(c, precioMes) {
+  const recurrente = calcularDescuento(c, precioMes);
+  const puntuales = descuentosPendientesCliente(c);
+  const puntualMonto = puntuales.reduce((s,d)=>s+(d.monto||0), 0);
+  const total = Math.min(precioMes, recurrente + puntualMonto);
+  return { total, recurrente, puntuales };
+}
+
 // Precio neto mensual de un cliente (precio base menos descuento).
 // Centraliza el calculo para que todas las funciones usen el mismo valor.
+// v5.8.0: ahora resta el descuento TOTAL (recurrente + puntuales del mes).
 function precioNetoCliente(c) {
   const precioMes = (c.megas||0) * getPrecioCliente(c);
-  return Math.max(0, precioMes - calcularDescuento(c, precioMes));
+  return Math.max(0, precioMes - calcularDescuentoTotal(c, precioMes).total);
 }
 // Ingresos del mes usando getPrecioCliente (respeta planes) y aplicando descuentos
+// v5.8.0: usa precioNetoCliente, que ya incluye descuentos puntuales del mes.
 const ingresosMes     = ()=>clients.filter(c=>c.megas&&getPrecioCliente(c)).reduce((s,c)=>s+precioNetoCliente(c),0);
 const costoMes        = ()=>config.megas*config.costoPorMega;
 // BUG FIX: antes sumaba TODOS los gastos guardados en `gastos`, incluyendo los
@@ -318,12 +354,13 @@ function getCuotaEquipo(c) {
 
 // BUG FIX #6: montoTotalACobrar ahora calcula correctamente:
 // servicio acumulado (mora meses + mes actual) + cuota equipo (solo 1 mes) - abono previo.
-// Antes restaba c.abono (solo servicio) de un total que incluía equipo → número incorrecto.
+// Antes restaba c.abono (solo servicio) de un total que incluia equipo -> numero incorrecto.
+// v5.8.0: usa calcularDescuentoTotal (recurrente + puntuales del mes).
 function montoTotalACobrar(c) {
   const mora         = getMora(c);
   const cuotaEq      = getCuotaEquipo(c);
   const precioPorMes = c.megas * getPrecioCliente(c);
-  const descuento    = calcularDescuento(c, precioPorMes);
+  const descuento    = calcularDescuentoTotal(c, precioPorMes).total;
   const precioNeto   = Math.max(0, precioPorMes - descuento);
   const servicioTotal = precioNeto * (mora + 1);
   const total         = servicioTotal + cuotaEq;

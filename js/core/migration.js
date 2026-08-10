@@ -168,6 +168,32 @@ function necesitaMigracion() {
 // ═══════════════════════════════════════════════════════════
 //  EJECUTAR MIGRACIÓN SI ES NECESARIA (al iniciar la app)
 // ═══════════════════════════════════════════════════════════
+// v5.8.0 - DESCUENTOS PUNTUALES (afectacion / bonificacion / ajuste)
+// Garantiza que la coleccion `descuentos` exista (los archivos guardados antes
+// de v5.8.0 no la incluyen) y normaliza los campos de config relacionados.
+// No toca el descuento recurrente del cliente (descuento/descuentoTipo), que
+// sigue funcionando igual. Es idempotente: se puede ejecutar varias veces.
+function migrarDescuentosPuntuales() {
+  let cambios = 0;
+  if (!Array.isArray(descuentos)) { descuentos = []; cambios++; }
+  if (typeof config.mencionarDescuentoRecurrente === 'undefined') { config.mencionarDescuentoRecurrente = false; cambios++; }
+  if (typeof config.diasBaseMes === 'undefined' || !config.diasBaseMes) { config.diasBaseMes = 30; cambios++; }
+  const antes = descuentos.length;
+  descuentos = descuentos.filter(d => d && typeof d === 'object' && d.clienteId != null);
+  descuentos.forEach(d => {
+    if (typeof d.aplicado !== 'boolean') d.aplicado = false;
+    if (!d.modo) d.modo = 'monto';
+    if (!d.tipo) d.tipo = 'bonificacion';
+    if (!d.mes) d.mes = (d.fecha || fechaLocalISO()).slice(0, 7);
+  });
+  if (descuentos.length !== antes) cambios++;
+  if (cambios) {
+    console.log(`Migracion descuentos: ${cambios} cambio(s). ${descuentos.length} descuento(s) puntual(es).`);
+    save();
+  }
+  return { cambios, total: descuentos.length };
+}
+
 function verificarYMigrar() {
   let huboMigracion = false;
 
@@ -185,6 +211,9 @@ function verificarYMigrar() {
     notify(`Se corrigieron ${reparacion.reparadas} inversión(es) generadas por ventas de inventario`);
     huboMigracion = true;
   }
+
+  // v5.8.0: migrar descuentos puntuales (siempre se ejecuta; es idempotente)
+  migrarDescuentosPuntuales();
 
   return huboMigracion;
 }

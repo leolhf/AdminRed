@@ -9,28 +9,40 @@
 //   {fechaLimite}  → día límite de pago del ciclo (número de día)
 //   {mora}         → meses de mora (texto "N mes/es de mora. " o vacío si no hay)
 //   {deudaLinea}   → línea de deuda de equipo (texto o vacío si no hay)
+// v5.8.0 — descuentos puntuales:
+//   {descuentoLinea}   → texto con el detalle de descuentos (recurrente + puntuales) o vacío
+//   {descuentoTotal}   → monto total descontado (número con " CUP") o "0 CUP"
+//   {precioBase}       → precio base del servicio antes de descuentos (con " CUP")
+//   {precioNeto}       → precio neto tras descuentos (con " CUP")
+//   {motivoDescuento}  → motivo del primer descuento puntual (texto) o vacío si no hay
+//   {montoRecibido}    → monto recibido en el cobro (solo plantilla receipt)
+//   {reciboNum}        → número de recibo (solo plantilla receipt)
 // Depende de: state.js (config), storage-local.js (save), notify-ui.js (notify),
 // render.js (render). Carga después de whatsapp.js.
 
 // Plantillas por defecto (idénticas al texto que ya existía en whatsapp.js).
 const WA_TEMPLATES_DEFAULT = {
-  due: 'Hola {nombre}, te recordamos que tu pago de internet está VENCIDO. Monto: {monto} ({megas}). Servicio Suspendido.{deudaLinea} {mora}Por favor realiza el pago lo antes posible. Gracias - Admin Local',
-  warn: 'Hola {nombre}, te recordamos que tu pago de internet vence el día {fechaLimite}. Monto: {monto} ({megas}).{deudaLinea} Gracias por tu preferencia - Admin Local',
-  ok: 'Hola {nombre}, te recordamos tu pago de internet de {monto} ({megas}).{deudaLinea} Día de pago: {diaPago}. Gracias - Admin Local'
+  due: 'Hola {nombre}, te recordamos que tu pago de internet está VENCIDO. Monto: {monto} ({megas}). Servicio Suspendido.{deudaLinea} {mora}{descuentoLinea} Por favor realiza el pago lo antes posible. Gracias - Admin Local',
+  warn: 'Hola {nombre}, te recordamos que tu pago de internet vence el día {fechaLimite}. Monto: {monto} ({megas}).{deudaLinea}{descuentoLinea} Gracias por tu preferencia - Admin Local',
+  ok: 'Hola {nombre}, te recordamos tu pago de internet de {monto} ({megas}).{deudaLinea}{descuentoLinea} Día de pago: {diaPago}. Gracias - Admin Local',
+  // v5.8.0: comprobante de pago enviado tras registrar un cobro.
+  receipt: '✅ Hola {nombre}, confirmamos la recepción de tu pago de {montoRecibido} correspondiente al servicio de internet ({megas}).{descuentoLinea} Recibo: {reciboNum}. Gracias por tu pago - Admin Local'
 };
 
 // Devuelve las plantillas activas (las del config si existen, si no las por defecto).
 function getWaTemplates() {
   if(!config.waTemplates || typeof config.waTemplates !== 'object') return {...WA_TEMPLATES_DEFAULT};
   return {
-    due:  config.waTemplates.due  || WA_TEMPLATES_DEFAULT.due,
-    warn: config.waTemplates.warn || WA_TEMPLATES_DEFAULT.warn,
-    ok:   config.waTemplates.ok   || WA_TEMPLATES_DEFAULT.ok
+    due:     config.waTemplates.due     || WA_TEMPLATES_DEFAULT.due,
+    warn:    config.waTemplates.warn    || WA_TEMPLATES_DEFAULT.warn,
+    ok:      config.waTemplates.ok      || WA_TEMPLATES_DEFAULT.ok,
+    receipt: config.waTemplates.receipt || WA_TEMPLATES_DEFAULT.receipt
   };
 }
 
 // Rellena una plantilla con los datos del cliente.
-// `extra` = { mora, deudaLinea, fechaLimite } ya pre-formateados.
+// `extra` = { mora, deudaLinea, fechaLimite, descuentoLinea, descuentoTotal,
+//             precioBase, precioNeto, motivoDescuento, montoRecibido, reciboNum } ya pre-formateados.
 function fillWaTemplate(tpl, client, monto, extra) {
   const moraTxt = extra.mora > 0
     ? `Incluye ${extra.mora} mes${extra.mora > 1 ? 'es' : ''} de mora. `
@@ -42,23 +54,32 @@ function fillWaTemplate(tpl, client, monto, extra) {
     .replace(/\{diaPago\}/g, client.diaPago || config.diaInicio)
     .replace(/\{fechaLimite\}/g, extra.fechaLimite)
     .replace(/\{mora\}/g, moraTxt)
-    .replace(/\{deudaLinea\}/g, extra.deudaLinea || '');
+    .replace(/\{deudaLinea\}/g, extra.deudaLinea || '')
+    // v5.8.0: descuentos puntuales
+    .replace(/\{descuentoLinea\}/g, extra.descuentoLinea || '')
+    .replace(/\{descuentoTotal\}/g, extra.descuentoTotal || '0 CUP')
+    .replace(/\{precioBase\}/g, extra.precioBase || fmt(0))
+    .replace(/\{precioNeto\}/g, extra.precioNeto || fmt(monto))
+    .replace(/\{motivoDescuento\}/g, extra.motivoDescuento || '')
+    .replace(/\{montoRecibido\}/g, extra.montoRecibido || fmt(monto))
+    .replace(/\{reciboNum\}/g, extra.reciboNum || 'S/N');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  UI: editor de plantillas en la pestaña Ajustes
 // ─────────────────────────────────────────────────────────────────────────────
 const _waTplMeta = [
-  { key:'due',  label:'🔴 Vencido',   hint:'Se envía cuando el pago ya venció' },
-  { key:'warn', label:'🟡 Por vencer', hint:'Se envía durante el plazo de pago' },
-  { key:'ok',   label:'🟢 Recordatorio', hint:'Recordatorio general / al día' }
+  { key:'due',     label:'🔴 Vencido',    hint:'Se envía cuando el pago ya venció' },
+  { key:'warn',    label:'🟡 Por vencer', hint:'Se envía durante el plazo de pago' },
+  { key:'ok',      label:'🟢 Recordatorio', hint:'Recordatorio general / al día' },
+  { key:'receipt', label:'💳 Comprobante',  hint:'Mensaje enviado tras registrar un cobro' }
 ];
 
 function renderWaTemplatesEditor() {
   const wrap = document.getElementById('wa-templates-editor');
   if(!wrap) return;
   const tpls = getWaTemplates();
-  const placeholders = '{nombre} · {monto} · {megas} · {diaPago} · {fechaLimite} · {mora} · {deudaLinea}';
+  const placeholders = '{nombre} · {monto} · {megas} · {diaPago} · {fechaLimite} · {mora} · {deudaLinea} · {descuentoLinea} · {descuentoTotal} · {precioBase} · {precioNeto}';
   wrap.innerHTML = `
     <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:10px;line-height:1.45">
       Personaliza los mensajes de WhatsApp que se envían a tus clientes. Usa estos marcadores:

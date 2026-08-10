@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════
 //  PERSISTENCIA — localStorage
 // ═══════════════════════════════════════════════════════════
-function dataToJson() { return JSON.stringify({clients,history,gastos,inventario,asignacionesInventario,investments,equiposRed,planes,snapshots,reciboCounter,config},null,2); }
+function dataToJson() { return JSON.stringify({clients,history,gastos,inventario,asignacionesInventario,investments,equiposRed,planes,snapshots,reciboCounter,descuentos,config},null,2); }
 
 function applyJson(text) {
   const d=JSON.parse(text);
@@ -19,6 +19,9 @@ function applyJson(text) {
   planes=d.planes||[];
   snapshots=d.snapshots||[];
   reciboCounter=d.reciboCounter||0;
+  // v5.8.0: descuentos puntuales (afectacion/bonificacion/ajuste). Los archivos
+  // guardados antes de esta version no tienen esta clave; se inicializa vacia.
+  descuentos=d.descuentos||[];
   config={...config,...(d.config||{})};
 }
 

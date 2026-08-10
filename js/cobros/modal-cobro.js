@@ -17,9 +17,10 @@ function openCobroModal(id) {
   // meses de mora + el mes actual; el equipo tiene su propia deuda total, de la
   // que la "cuota" es solo el minimo sugerido de este mes (se puede pagar mas
   // o menos, incluso liquidarla completa de una vez).
-  // Feature #10: aplicar descuento al precio del mes.
+  // v5.8.0: usar calcularDescuentoTotal (recurrente + puntuales del mes).
   const precioPorMes = c.megas * precioMega;
-  const descuento = calcularDescuento(c, precioPorMes);
+  const descTot = calcularDescuentoTotal(c, precioPorMes);
+  const descuento = descTot.total;
   const precioNeto = Math.max(0, precioPorMes - descuento);
   const servicioTotal = precioNeto * (mora + 1);
   const abono = c.abono || 0;
@@ -27,19 +28,29 @@ function openCobroModal(id) {
 
   // Feature #5: mostrar el plan si lo tiene
   const plan = getPlanCliente(c);
-  const planTxt = plan ? `<br><span style="color:var(--blue)">📋 Plan: ${plan.nombre}</span>` : '';
+  const planTxt = plan ? `<br><span style="color:var(--blue)">\u{1F4CB} Plan: ${plan.nombre}</span>` : '';
 
-  // Feature #10: mostrar descuento si lo tiene
-  const descTxt = descuento>0 ? `<br><span style="color:var(--green)">🎁 Descuento: −${fmt(descuento)} (${c.descuentoTipo==='pct'?c.descuento+'%':'monto fijo'}) · Precio neto: ${fmt(precioNeto)}/mes</span>` : '';
+  // v5.8.0: mostrar descuento recurrente + puntuales
+  let descTxt = '';
+  if (descTot.recurrente > 0) {
+    descTxt += `<br><span style="color:var(--green)">\u{1F4B3} Descuento recurrente: \u2212${fmt(descTot.recurrente)} (${c.descuentoTipo==='pct'?c.descuento+'%':'monto fijo'})</span>`;
+  }
+  if (descTot.puntuales.length > 0) {
+    const sumaP = descTot.puntuales.reduce((s,d)=>s+d.monto,0);
+    descTxt += `<br><span style="color:var(--green)">\u{1F381} ${descTot.puntuales.length} descuento(s) puntual(es) este mes: \u2212${fmt(sumaP)}</span>`;
+  }
+  if (descuento > 0) {
+    descTxt += `<br><span style="color:var(--green)">Precio neto: ${fmt(precioNeto)}/mes</span>`;
+  }
 
   document.getElementById('cobro-id').value=id;
   document.getElementById('cobro-title').textContent=`Cobrar a ${c.nombre}`;
   document.getElementById('cobro-info').innerHTML=`
-    ${c.megas} Mb × ${precioMega.toLocaleString()} = ${fmt(precioPorMes)}/mes${planTxt}${descTxt}
-    ${mora>0?`<br><span style="color:var(--purple)">⚠ ${mora} mes${mora>1?'es':''} mora = ${fmt(servicioTotal)} (servicio acumulado)</span>`:''}
-    ${abono>0?`<br><span style="color:var(--blue)">💰 Abono previo: ${fmt(abono)} · Falta servicio: ${fmt(faltaServicio)}</span>`:''}
-    ${deudaEq>0?`<br><span style="color:var(--amber)">🔧 Deuda equipo: ${fmt(deudaEq)} · cuota sugerida este mes: ${fmt(cuotaEq)}</span>`:''}
-    <br><span style="color:var(--text-muted);font-size:0.72rem">Servicio y equipo se cobran por separado · monto menor = abono parcial</span>
+    ${c.megas} Mb \u00d7 ${precioMega.toLocaleString()} = ${fmt(precioPorMes)}/mes${planTxt}${descTxt}
+    ${mora>0?`<br><span style="color:var(--purple)">\u26a0 ${mora} mes${mora>1?'es':''} mora = ${fmt(servicioTotal)} (servicio acumulado)</span>`:''}
+    ${abono>0?`<br><span style="color:var(--blue)">\u{1F4B0} Abono previo: ${fmt(abono)} \u00b7 Falta servicio: ${fmt(faltaServicio)}</span>`:''}
+    ${deudaEq>0?`<br><span style="color:var(--amber)">\u{1F527} Deuda equipo: ${fmt(deudaEq)} \u00b7 cuota sugerida este mes: ${fmt(cuotaEq)}</span>`:''}
+    <br><span style="color:var(--text-muted);font-size:0.72rem">Servicio y equipo se cobran por separado \u00b7 monto menor = abono parcial</span>
   `;
   document.getElementById('cobro-monto-servicio').value = faltaServicio;
 
@@ -56,7 +67,7 @@ function openCobroModal(id) {
 
   document.getElementById('cobro-fecha').value=fechaLocalISO();
   document.getElementById('cobro-nota').value='';
-  // Resetear la sección de pago en USD: siempre arranca en CUP.
+  // Resetear la seccion de pago en USD: siempre arranca en CUP.
   const radioCup = document.querySelector('input[name="cobro-moneda"][value="CUP"]');
   if (radioCup) radioCup.checked = true;
   const usdPanel = document.getElementById('cobro-usd-panel');
@@ -67,6 +78,8 @@ function openCobroModal(id) {
   if (usdInput) usdInput.value = '';
   const usdDesglose = document.getElementById('cobro-usd-desglose');
   if (usdDesglose) usdDesglose.innerHTML = 'Ingresa los USD recibidos para ver el desglose.';
+  // v5.8.0: inicializar el sub-panel de descuentos puntuales
+  if (typeof _initCobroDescuentos === 'function') _initCobroDescuentos(id);
   document.getElementById('modal-cobro').classList.add('open');
 }
 
@@ -193,7 +206,9 @@ function registrarCobro() {
   const mora          = getMora(c);
   const precioMega    = getPrecioCliente(c);
   const precioPorMes  = c.megas * precioMega;
-  const descuento     = calcularDescuento(c, precioPorMes);
+  // v5.8.0: descuento total = recurrente + puntuales pendientes del mes.
+  const descTot       = calcularDescuentoTotal(c, precioPorMes);
+  const descuento     = descTot.total;
   const precioNeto    = Math.max(0, precioPorMes - descuento);
   const servicioTotal = precioNeto * (mora + 1);
   const deudaEqActual = getDeudaEquipoCliente(c);
@@ -268,15 +283,39 @@ function registrarCobro() {
   const monto = montoServicio + montoEquipo;
   // Feature #4: numero de recibo auto-incremental
   const numRecibo = siguienteRecibo();
+  const hid = Date.now()+'-'+Math.floor(Math.random()*1000);
+
+  // v5.8.0: persistir los descuentos NUEVOS creados en el modal y marcar
+  // TODOS los descuentos puntuales pendientes de este cliente como aplicados
+  // a este cobro. Solo si el cobro toco el servicio (montoServicio>0).
+  let idsDescAplicados = [];
+  if (montoServicio > 0 && typeof _persistirDescuentosNuevosCobro === 'function') {
+    idsDescAplicados = _persistirDescuentosNuevosCobro(fecha.slice(0,7));
+  }
+  // Construir el objeto descuentoAplicado (recurrente + puntuales con motivo).
+  const puntualesObj = descTot.puntuales.map(d => ({
+    id: d.id, tipo: d.tipo, motivo: d.motivo, modo: d.modo, valor: d.valor, monto: d.monto
+  }));
+  const descuentoAplicado = (descuento>0 || puntualesObj.length>0) ? {
+    total: descuento,
+    recurrente: descTot.recurrente,
+    puntuales: puntualesObj
+  } : 0;
+
   history.push({
-    hid: Date.now()+'-'+Math.floor(Math.random()*1000),
+    hid,
     id, nombre:c.nombre, monto, montoEquipo, fecha, nota,
     parcial: !c.pagado,
     tipo: 'servicio',
     numRecibo: formatoRecibo(numRecibo),
-    descuentoAplicado: descuento>0 ? descuento : 0,
+    descuentoAplicado,
     prevState
   });
+
+  // Marcar los descuentos puntuales como aplicados (vinculados a este cobro).
+  if (montoServicio > 0 && typeof marcarDescuentosAplicados === 'function') {
+    marcarDescuentosAplicados(idsDescAplicados, hid);
+  }
 
   c.ultimaEdicion = new Date().toISOString();
   save(); render(); closeCobroModal();
@@ -292,12 +331,27 @@ function registrarCobro() {
   msg += ` · Recibo ${formatoRecibo(numRecibo)}`;
   notify(msg);
 
-  // Feature #4: ofrecer generar recibo
+  // Feature #4: ofrecer generar recibo + v5.8.0: ofrecer enviar comprobante por WhatsApp
   if(!c.pagado || montoServicio>0 || montoEquipo>0){
-    // Solo si el cobro fue exitoso, ofrecer el recibo despues de un breve retardo
+    const hNuevo = history[history.length-1];
     setTimeout(()=>{
-      if(confirm(`¿Generar recibo ${formatoRecibo(numRecibo)} para ${c.nombre}?\n\nSe abrirá una vista lista para imprimir o guardar como PDF.`)){
-        generarRecibo(history[history.length-1]);
+      const tieneTelefono = c.telefono && normalizePhone(c.telefono).length >= 8;
+      let pregunta = `¿Generar recibo ${formatoRecibo(numRecibo)} para ${c.nombre}?\n\nSe abrirá una vista lista para imprimir o guardar como PDF.`;
+      if (tieneTelefono) {
+        pregunta += `\n\n¿También enviar comprobante por WhatsApp?`;
+        if(confirm(pregunta)){
+          generarRecibo(hNuevo);
+          // Pequeño retardo para que el recibo se muestre, luego ofrecer WhatsApp
+          setTimeout(()=>{
+            if(confirm(`¿Enviar comprobante de pago por WhatsApp a ${c.nombre}?\n\nSe abrirá WhatsApp con el mensaje listo para revisar y enviar.`)){
+              sendWhatsAppReceipt(c.id, hNuevo);
+            }
+          }, 400);
+        }
+      } else {
+        if(confirm(pregunta)){
+          generarRecibo(hNuevo);
+        }
       }
     },200);
   }
@@ -317,6 +371,8 @@ function eliminarCobro(hid) {
     c.abono       = h.prevState.abono;
     c.deudaEquipo = h.prevState.deudaEquipo;
   }
+  // v5.8.0: revertir descuentos puntuales aplicados por este cobro para que vuelvan a estar disponibles.
+  if (typeof revertirDescuentosDeCobro === 'function') revertirDescuentosDeCobro(hid);
   history.splice(idx,1);
   save(); render();
   notify(`Cobro de ${h.nombre} eliminado`);

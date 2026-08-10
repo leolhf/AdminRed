@@ -20,6 +20,7 @@ const TAB_ALIAS = {
 const TAB_CATEGORY_MAP = {
   'dashboard':'operaciones', 'clientes':'operaciones',
   'cobros':'operaciones',    'gastos':'operaciones',
+  'descuentos':'operaciones',
   'estadisticas':'analisis', 'reportes':'analisis',
   'equipos':'config',        'inventario':'config', 'ajustes':'config'
 };
@@ -63,6 +64,7 @@ function switchTab(name) {
   if(resolved === 'equipos') renderEquiposRed();
   if(resolved === 'cobros') renderHistory();
   if(resolved === 'inventario') renderInventario();
+  if(resolved === 'descuentos' && typeof renderDescuentosView === 'function') renderDescuentosView();
   if(resolved === 'ajustes' && typeof renderWaTemplatesEditor === 'function') renderWaTemplatesEditor();
   if(resolved === 'ajustes' && typeof renderMonedaEditor === 'function') renderMonedaEditor();
   if(resolved === 'reportes') {

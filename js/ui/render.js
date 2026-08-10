@@ -12,6 +12,7 @@ function render() {
   if(typeof renderSalud==='function') renderSalud();
   if(typeof renderCalendario==='function') renderCalendario();
   if(typeof renderReporteMensual==='function') renderReporteMensual();
+  if(typeof renderDescuentosView==='function') renderDescuentosView();
 }
 
 function mesActualHoy() {
@@ -297,6 +298,7 @@ function renderTable1() {
         <strong>${c.nombre}</strong>${hoyDot}
         ${c.ip?`<div style="font-size:0.66rem;color:var(--text-muted)">IP: ${c.ip}</div>`:''}
         ${getMora(c)>0?`<div class="mora-tag">⚠ ${getMora(c)} mes${getMora(c)>1?'es':''} mora</div>`:''}
+        ${c.megas && typeof descuentosPendientesCliente==='function' && descuentosPendientesCliente(c).length>0 ? `<div style="font-size:0.66rem;color:var(--amber)">🎁 ${descuentosPendientesCliente(c).length} desc. puntual(es)</div>`:''}
       </td>
       <td class="mono">${c.megas?c.megas+' Mb':'<span style="color:var(--text-muted)">—</span>'}</td>
       <td class="mono">${c.megas?getPrecioCliente(c).toLocaleString():'<span style="color:var(--text-muted)">—</span>'}</td>
@@ -327,6 +329,7 @@ function renderTable2() {
         ${c.ip?`<div style="font-size:0.66rem;color:var(--text-muted)">IP: ${c.ip}</div>`:''}
         ${getPlanCliente(c)?`<div style="font-size:0.66rem;color:var(--blue)">📋 Plan: ${getPlanCliente(c).nombre}</div>`:''}
         ${c.descuento?`<div style="font-size:0.66rem;color:var(--green)">🎁 Descuento: −${c.descuentoTipo==='pct'?c.descuento+'%':fmt(c.descuento)}</div>`:''}
+        ${c.megas && typeof descuentosPendientesCliente==='function' && descuentosPendientesCliente(c).length>0 ? `<div style="font-size:0.66rem;color:var(--amber)">🎁 ${descuentosPendientesCliente(c).length} descuento(s) puntual(es) pendiente(s) este mes</div>`:''}
         ${getMora(c)>0?`<div class="mora-detail">⚠ ${getMora(c)} mes${getMora(c)>1?'es':''} de mora · ${fmt(precioNetoCliente(c)*getMora(c))}</div>`:''}
         ${c.deudaEquipo?`<div class="mora-detail" style="color:var(--amber)">🔧 Debe equipo: ${fmt(getDeudaEquipoCliente(c))} (cuota ${fmt(getCuotaEquipoCliente(c))})
   ${mesesRestantesDeuda(c)===Infinity
