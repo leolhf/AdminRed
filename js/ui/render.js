@@ -1,18 +1,29 @@
 // render.js
 // Renderizado principal de la interfaz (resumen, ancho de banda, alarmas, tablas).
-// Depende de: state.js, calculations.js
+// Depende de: state.js, calculations-clientes.js, calculations-mes.js, calculations-finanzas.js
 
 // ═══════════════════════════════════════════════════════════
 //  RENDER
 // ═══════════════════════════════════════════════════════════
 function render() {
-  renderSummary(); renderRevSpark(); renderBandwidth(); renderAlarms();
-  renderProfit(); renderInvestments(); renderTable1(); renderTable2();
-  renderHistory(); renderPaqueteStatus(); syncConfig();
-  if(typeof renderSalud==='function') renderSalud();
-  if(typeof renderCalendario==='function') renderCalendario();
-  if(typeof renderReporteMensual==='function') renderReporteMensual();
-  if(typeof renderDescuentosView==='function') renderDescuentosView();
+  try {
+    renderSummary(); renderRevSpark(); renderBandwidth(); renderAlarms();
+    renderProfit(); renderInvestments(); renderTable1(); renderTable2();
+    renderHistory(); renderPaqueteStatus(); syncConfig();
+    if(typeof renderSalud==='function') renderSalud();
+    if(typeof renderCalendario==='function') renderCalendario();
+    if(typeof renderReporteMensual==='function') renderReporteMensual();
+    if(typeof renderDescuentosView==='function') renderDescuentosView();
+  } catch (error) {
+    if(typeof Logger !== 'undefined') {
+      Logger.error('Error en render()', { error: error.message, stack: error.stack });
+    } else {
+      console.error('Error en render():', error);
+    }
+    if(typeof notify === 'function') {
+      notify('Error al renderizar la interfaz. Consulta la consola para detalles.', true);
+    }
+  }
 }
 
 function mesActualHoy() {

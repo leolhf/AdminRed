@@ -22,15 +22,15 @@
   <aside class="sidebar">
     <div class="logo">Red<span>/</span>Net</div>
     <nav class="sidebar-nav">
-      <a href="#" class="nav-item active" data-tab="dashboard" onclick="switchSidebarTab('dashboard')">📊 Dashboard</a>
-      <a href="#" class="nav-item" data-tab="clientes" onclick="switchSidebarTab('clientes')">👥 Clientes</a>
-      <a href="#" class="nav-item" data-tab="gastos" onclick="switchSidebarTab('gastos')">💸 Gastos</a>
-      <a href="#" class="nav-item" data-tab="estadisticas" onclick="switchSidebarTab('estadisticas')">📈 Estadísticas</a>
-      <a href="#" class="nav-item" data-tab="equipos" onclick="switchSidebarTab('equipos')">📡 Equipos de Red</a>
+      <a href="#" class="nav-item active" data-sidebar-tab="dashboard">📊 Dashboard</a>
+      <a href="#" class="nav-item" data-sidebar-tab="clientes">👥 Clientes</a>
+      <a href="#" class="nav-item" data-sidebar-tab="gastos">💸 Gastos</a>
+      <a href="#" class="nav-item" data-sidebar-tab="estadisticas">📈 Estadísticas</a>
+      <a href="#" class="nav-item" data-sidebar-tab="equipos">📡 Equipos de Red</a>
     </nav>
     <div class="sidebar-footer">
-      <button onclick="toggleTheme()">☀️ Cambiar tema</button>
-      <button onclick="toggleSettingsMenu()">⚙️ Ajustes</button>
+      <button data-action="toggle-theme">☀️ Cambiar tema</button>
+      <button data-action="toggle-settings">⚙️ Ajustes</button>
     </div>
   </aside>
 
@@ -44,33 +44,33 @@
       </div>
       <div class="header-right">
         <span id="clock"></span>
-        <button class="icon-btn" onclick="toggleTheme()" title="Cambiar tema" id="theme-btn">☀️</button>
-        <button class="icon-btn" id="btn-settings" onclick="toggleSettingsMenu()" title="Ajustes">⚙️</button>
+        <button class="icon-btn" data-action="toggle-theme" title="Cambiar tema" id="theme-btn">☀️</button>
+        <button class="icon-btn" id="btn-settings" data-action="toggle-settings" title="Ajustes">⚙️</button>
         <!-- SETTINGS MENU -->
         <div class="settings-menu" id="settings-menu">
-          <button id="btn-install" onclick="installPWA()" style="display:none">📲 Instalar app</button>
-          <button onclick="syncManual()">🔄 Sincronizar ahora</button>
-          <button onclick="requestNotifPermission()">🔔 Notificaciones</button>
-          <button onclick="exportBackup()">⬇️ Exportar respaldo</button>
-          <button onclick="importBackup()">📥 Importar respaldo</button>
-          <button onclick="exportClientesCSV()">📋 Exportar clientes (CSV)</button>
-          <button onclick="openCheckpointsModal()">🕐 Copias automáticas</button>
-          <button id="btn-deshacer-menu" onclick="deshacerUltimoCambio()" style="display:none">↩️ Deshacer</button>
-          <button onclick="openResetAppModal()">🗑️ Reiniciar app</button>
+          <button id="btn-install" data-action="install-pwa" style="display:none">📲 Instalar app</button>
+          <button data-action="sync-manual">🔄 Sincronizar ahora</button>
+          <button data-action="request-notif">🔔 Notificaciones</button>
+          <button data-action="export-backup">⬇️ Exportar respaldo</button>
+          <button data-action="import-backup">📥 Importar respaldo</button>
+          <button data-action="export-csv-clientes">📋 Exportar clientes (CSV)</button>
+          <button data-action="open-checkpoints">🕐 Copias automáticas</button>
+          <button id="btn-deshacer-menu" data-action="undo-change" style="display:none">↩️ Deshacer</button>
+          <button data-action="reset-app">🗑️ Reiniciar app</button>
         </div>
       </div>
     </header>
 
     <div id="file-bar">
       <span id="file-status">Sin archivo vinculado · datos en el navegador</span>
-      <button class="file-btn primary" id="btn-file-menu" onclick="toggleFileMenu()">📁 Archivo ▼</button>
+      <button class="file-btn primary" id="btn-file-menu" data-action="toggle-file-menu">📁 Archivo ▼</button>
       <!-- FILE MENU -->
       <div class="file-menu" id="file-menu">
-        <button onclick="linkNewFile()">📄 Nuevo archivo</button>
-        <button onclick="openExistingFile()">📂 Abrir existente</button>
-        <button onclick="saveToFile()">💾 Guardar ahora</button>
-        <button onclick="unlinkFile()">✕ Desvincular</button>
-        <button onclick="linkMacrodroidFile()">🤖 Vincular MacroDroid</button>
+        <button data-action="link-new-file">📄 Nuevo archivo</button>
+        <button data-action="open-existing-file">📂 Abrir existente</button>
+        <button data-action="save-file">💾 Guardar ahora</button>
+        <button data-action="unlink-file">✕ Desvincular</button>
+        <button data-action="link-macrodroid">🤖 Vincular MacroDroid</button>
       </div>
     </div>
 
@@ -82,9 +82,9 @@
 
       <!-- TABS MAIN (organización por categoría) -->
       <div class="tabs-main">
-        <div class="tab active" data-category="operaciones" onclick="switchMainTab('operaciones')">📊 Operaciones</div>
-        <div class="tab" data-category="analisis" onclick="switchMainTab('analisis')">📈 Análisis</div>
-        <div class="tab" data-category="config" onclick="switchMainTab('config')">⚙️ Configuración</div>
+        <div class="tab active" data-main-tab="operaciones">📊 Operaciones</div>
+        <div class="tab" data-main-tab="analisis">📈 Análisis</div>
+        <div class="tab" data-main-tab="config">⚙️ Configuración</div>
       </div>
 
       <!-- SUB-TABS: OPERACIONES -->
@@ -173,7 +173,7 @@
         <div class="bw-section" id="paquete-status-section">
           <div class="bw-header">
             <span class="bw-title">📡 Paquete contratado</span>
-            <button class="btn btn-amber btn-sm" id="btn-marcar-paquete-pagado" onclick="marcarPaquetePagado()" style="font-size:0.73rem;padding:4px 9px">Marcar como pagado</button>
+            <button class="btn btn-amber btn-sm" id="btn-marcar-paquete-pagado" data-action="mark-paquete-paid" style="font-size:0.73rem;padding:4px 9px">Marcar como pagado</button>
           </div>
           <div id="paquete-status-text" style="font-size:0.82rem;margin-top:4px"></div>
         </div>
@@ -217,7 +217,7 @@
         <div class="bw-section" id="investments-section">
           <div class="bw-header">
             <span class="bw-title">📦 Inversiones personales</span>
-            <button class="btn btn-amber btn-sm" onclick="abrirModalNuevaInversion()" style="font-size:0.73rem;padding:4px 9px">+ Nueva</button>
+            <button class="btn btn-amber btn-sm" data-action="add-inversion" style="font-size:0.73rem;padding:4px 9px">+ Nueva</button>
           </div>
           <div id="investments-list"></div>
         </div>
@@ -233,7 +233,7 @@
       <div class="section-content">
         <div class="section-header">
           <span class="section-title">Listado de clientes</span>
-          <button class="btn btn-green" onclick="openAddModal()">+ Añadir cliente</button>
+          <button class="btn btn-green" data-action="add-client">+ Añadir cliente</button>
         </div>
         <div class="table-wrap">
           <table>
@@ -250,7 +250,7 @@
     <div class="search-bar">
       <div class="search-input-wrap">
         <input class="search-input" id="search-input" type="text" placeholder="Buscar cliente..." oninput="renderTable2();toggleSearchClear()">
-        <button class="search-clear" id="search-clear" style="display:none" onclick="document.getElementById('search-input').value='';renderTable2();toggleSearchClear()" title="Limpiar búsqueda">✕</button>
+        <button class="search-clear" id="search-clear" style="display:none" data-action="clear-search" title="Limpiar búsqueda">✕</button>
       </div>
       <select class="filter-select" id="filter-status" onchange="renderTable2()">
         <option value="">Todos</option>
@@ -293,7 +293,7 @@
     <div id="moneda-editor" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:13px 14px;margin-bottom:14px;box-shadow:var(--shadow-sm)"></div>
     <div class="section-header" style="margin-top:18px">
       <span class="section-title">📦 Planes de Internet</span>
-      <button class="btn btn-blue btn-sm" onclick="openPlanesModal()">Gestionar planes</button>
+      <button class="btn btn-blue btn-sm" data-action="manage-planes">Gestionar planes</button>
     </div>
     <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:10px">Define planes con megas y precio fijos. Asígnalos a clientes para automatizar el precio sin setearlo manualmente cada vez.</p>
 
@@ -384,7 +384,7 @@
     <!-- Sub-navegación interna -->
     <div class="section-header">
       <span class="section-title" id="gsub-title">Gastos del mes</span>
-      <button class="btn btn-red" id="gsub-btn-add" onclick="openGastoModal()" style="font-size:0.76rem;padding:5px 10px">+ Añadir gasto</button>
+      <button class="btn btn-red" id="gsub-btn-add" data-action="add-gasto" style="font-size:0.76rem;padding:5px 10px">+ Añadir gasto</button>
     </div>
     <!-- Panel: lista de gastos -->
     <div id="gpanel-gastos">
@@ -401,7 +401,7 @@
           <input id="inventario-search" class="inline-input" type="search" placeholder="Buscar lote (descripción o fecha)…" oninput="renderInventario()" style="width:200px;padding-left:26px">
           <span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:0.8rem;pointer-events:none">🔍</span>
         </div>
-        <button class="btn btn-amber" onclick="openInventarioModal()">+ Comprar lote</button>
+        <button class="btn btn-amber" data-action="add-inventario">+ Comprar lote</button>
       </div>
     </div>
     <div class="history-panel"><div id="inventario-list" class="gastos-list"><div class="empty-state">Sin lotes registrados</div></div></div>
@@ -1075,7 +1075,14 @@
 <script src="./js/core/state.js"></script>
 <script src="./js/core/keys.js"></script>
 <script src="./js/core/config.js"></script>
-<script src="./js/core/calculations.js"></script>
+<script src="./js/core/crypto.js"></script>
+<script src="./js/core/calculations-clientes.js"></script>
+<script src="./js/core/calculations-mes.js"></script>
+<script src="./js/core/calculations-finanzas.js"></script>
+<script src="./js/core/calculations-utils.js"></script>
+<script src="./js/core/logger.js"></script>
+<script src="./js/core/event-delegation.js"></script>
+<script src="./js/core/form-validation.js"></script>
 <script src="./js/core/moneda.js"></script>
 <script src="./js/core/reset-app.js"></script>
 <script src="./js/core/models/investment.js"></script>
@@ -1100,7 +1107,9 @@
 <script src="./js/ui/ui-components.js"></script>
 
 <!-- CLIENTES: Gestión de clientes -->
-<script src="./js/clientes/modal-cliente.js"></script>
+<script src="./js/clientes/cliente-modal-calendar.js"></script>
+<script src="./js/clientes/cliente-modal-render.js"></script>
+<script src="./js/clientes/cliente-modal-forms.js"></script>
 <script src="./js/clientes/confirm-delete.js"></script>
 <script src="./js/clientes/client-history.js"></script>
 
@@ -1109,7 +1118,9 @@
 <script src="./js/cobros/descuentos.js"></script>
 <script src="./js/cobros/mora.js"></script>
 <script src="./js/cobros/inversion.js"></script>
-<script src="./js/cobros/inventario.js"></script>
+<script src="./js/cobros/inventario-core.js"></script>
+<script src="./js/cobros/inventario-ui.js"></script>
+<script src="./js/cobros/inventario-forms.js"></script>
 <script src="./js/cobros/month-reset.js"></script>
 
 <!-- REPORTES: Estadísticas e historial -->

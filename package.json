@@ -1,0 +1,19 @@
+{
+  "name": "adminred",
+  "version": "5.8.0",
+  "description": "Sistema de control de servicio de internet AdminRed",
+  "scripts": {
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "lint": "eslint js/**/*.js",
+    "lint:fix": "eslint js/**/*.js --fix",
+    "format": "prettier --write js/**/*.js",
+    "format:check": "prettier --check js/**/*.js"
+  },
+  "devDependencies": {
+    "vitest": "^1.0.0",
+    "eslint": "^8.50.0",
+    "prettier": "^3.0.0"
+  }
+}

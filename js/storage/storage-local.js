@@ -26,8 +26,9 @@ function applyJson(text) {
 }
 
 function saveLocalStorage() {
-  // BUG FIX: localStorage.setItem lanza QuotaExceededError cuando el
-  // almacenamiento está lleno. Sin capturarlo, todos los callers de save()
+  try {
+    // BUG FIX: localStorage.setItem lanza QuotaExceededError cuando el
+    // almacenamiento está lleno. Sin capturarlo, todos los callers de save()
   // (config, cobros, gastos, etc.) habrían recibido una excepción no manejada
   // que dejaba la UI en un estado incorrecto sin feedback para el usuario.
   try {
@@ -40,6 +41,9 @@ function saveLocalStorage() {
   } catch(e) {
     if(e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
       console.error('Almacenamiento local lleno — no se pudieron guardar los datos:', e);
+      if(typeof Logger !== 'undefined') {
+        Logger.error('Almacenamiento local lleno', { error: e.message, name: e.name });
+      }
       // Notificar si notify está disponible (se carga antes que storage-local)
       if(typeof notify === 'function') {
         notify('⚠ Sin espacio: no se pudo guardar. Exporta un backup y libera espacio.', true);
