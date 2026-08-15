@@ -1,5 +1,22 @@
 # CHANGELOG — AdminRed
 
+## v6.0.1 — Corrección post-refactorización (event delegation + storage)
+
+Corrige regresiones introducidas por la refactorización de v6.0.0.
+
+- **BUG FIX (crítico):** `saveLocalStorage()` en `storage-local.js` tenía un
+  `try` duplicado sin su `catch`/`finally`, lo que provocaba un `SyntaxError`
+  y dejaba todo el archivo (guardado, sincronización con Firebase) sin
+  cargar.
+- **BUG FIX (crítico):** `EventDelegation.init()` nunca se llamaba, así que
+  los botones convertidos de `onclick` a `data-action` (☀️ tema, 📁 Archivo,
+  ⚙️ Ajustes, exportar/importar, tabs, etc.) no respondían a los clics.
+  Se agrega la llamada en `init()`.
+- Se elimina una definición duplicada de `mesActualHoy()` en `render.js`
+  (la versión vigente vive en `calculations-utils.js`).
+- Se sube `APP_VERSION` para forzar la invalidación de la caché del Service
+  Worker y que los usuarios reciban los archivos corregidos.
+
 ## v5.8.0 — Sistema de Descuentos Puntuales + Integración con WhatsApp
 
 Sistema completo de descuentos puntuales vinculados a cobros y mensajes de
