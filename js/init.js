@@ -56,6 +56,12 @@ function sincronizarConFirebaseAlArrancar(intentos = 20) {
 async function init() {
   document.getElementById('app-version').textContent = 'v'+APP_VERSION;
   applyTheme();
+  // BUG FIX: EventDelegation nunca se inicializaba, así que los botones
+  // convertidos de onclick="..." a data-action="..." no respondían a clics
+  // (tema, settings, exportar/importar, tabs, etc.).
+  if (typeof EventDelegation !== 'undefined') {
+    EventDelegation.init();
+  }
   // Solo se siembran clientes de ejemplo la primerísima vez que se abre la app
   // (nunca se ha guardado nada en localStorage). Así, si el usuario borra todo
   // con "Reiniciar app", al recargar la página no vuelven a aparecer los datos demo.

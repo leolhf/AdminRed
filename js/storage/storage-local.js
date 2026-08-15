@@ -26,9 +26,8 @@ function applyJson(text) {
 }
 
 function saveLocalStorage() {
-  try {
-    // BUG FIX: localStorage.setItem lanza QuotaExceededError cuando el
-    // almacenamiento está lleno. Sin capturarlo, todos los callers de save()
+  // BUG FIX: localStorage.setItem lanza QuotaExceededError cuando el
+  // almacenamiento está lleno. Sin capturarlo, todos los callers de save()
   // (config, cobros, gastos, etc.) habrían recibido una excepción no manejada
   // que dejaba la UI en un estado incorrecto sin feedback para el usuario.
   try {

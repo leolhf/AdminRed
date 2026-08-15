@@ -26,11 +26,6 @@ function render() {
   }
 }
 
-function mesActualHoy() {
-  const ahora=new Date();
-  return `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}`;
-}
-
 function renderPaqueteStatus() {
   const el=document.getElementById('paquete-status-text');
   const btn=document.getElementById('btn-marcar-paquete-pagado');
