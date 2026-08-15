@@ -1,5 +1,29 @@
 # CHANGELOG — AdminRed
 
+## v6.0.2 — Corrección real de tema/menús (doble init + escapeHtml duplicado)
+
+La v6.0.1 no resolvió el problema porque el diagnóstico anterior era
+incorrecto. Causas reales, encontradas simulando la carga completa de la app:
+
+- **BUG FIX (crítico):** `EventDelegation.init()` se estaba llamando DOS
+  VECES — una vez automáticamente al final de `event-delegation.js` (que ya
+  se auto-inicializa comprobando `document.readyState`), y otra vez desde
+  `init.js` (agregada por error en el parche de v6.0.1). Esto registraba el
+  listener de clics duplicado, así que cada clic ejecutaba `toggleTheme()` o
+  el toggle de menú DOS veces seguidas — como usan `classList.toggle(...)`,
+  el efecto se anulaba a sí mismo y visualmente no pasaba nada. Se quita la
+  llamada duplicada en `init.js`; `event-delegation.js` ya se encarga solo.
+- **BUG FIX (crítico):** `escapeHtml` estaba declarada dos veces en el scope
+  global — como `function escapeHtml()` en `js/red/equipos-red.js` y como
+  `const escapeHtml` en `js/cobros/inventario-core.js`. Al cargar
+  `equipos-red.js` (después de `inventario-core.js`), esto lanzaba
+  `SyntaxError: Identifier 'escapeHtml' has already been declared`, lo que
+  impedía que se ejecutara ABSOLUTAMENTE NADA de `equipos-red.js` — rompiendo
+  toda la sección de Equipos de Red además de dejar el resto de la app en un
+  estado inconsistente. Se elimina la declaración duplicada en
+  `equipos-red.js`; reutiliza la global ya definida por `inventario-core.js`.
+- Se sube `APP_VERSION` para invalidar la caché del Service Worker.
+
 ## v6.0.1 — Corrección post-refactorización (event delegation + storage)
 
 Corrige regresiones introducidas por la refactorización de v6.0.0.

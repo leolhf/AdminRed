@@ -56,9 +56,11 @@ function renderEquiposRed() {
 }
 
 // Pequeño helper para no inyectar HTML crudo desde nombre/usuario/ip.
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
+// BUG FIX: esta función ya se declara (de forma protegida) en inventario-core.js,
+// que carga antes que este archivo. Declararla aquí también con `function`
+// producía "Identifier 'escapeHtml' has already been declared" — un SyntaxError
+// que impedía que TODO este archivo (equipos-red.js) se ejecutara, dejando sin
+// funcionar la sección de Equipos de Red completa. Se reutiliza la global.
 
 function openEquipoModal(id) {
   const editando = id != null;
