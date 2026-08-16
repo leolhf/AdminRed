@@ -1,8 +1,8 @@
 // modal-cobro.js
 // Modal de registro de cobro/abono a un cliente.
-// Depende de: state.js, calculations-clientes.js (getMora, getCuotaEquipo, getDeudaEquipoCliente,
-//             getPrecioCliente, calcularDescuento, montoTotalACobrar),
-//             calculations-utils.js (fmt, fechaLocalISO, siguienteRecibo, formatoRecibo)
+// Depende de: state.js, calculations.js (getMora, getCuotaEquipo, getDeudaEquipoCliente,
+//             getPrecioCliente, calcularDescuento, montoTotalACobrar, fmt, fechaLocalISO,
+//             siguienteRecibo, formatoRecibo)
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  MODAL COBRO

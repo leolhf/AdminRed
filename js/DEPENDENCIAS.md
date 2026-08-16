@@ -13,14 +13,8 @@ El orden de carga de los scripts en `index.html` es CRÍTICO. Los scripts deben 
    ├── keys.js                (Sin dependencias)
    ├── config.js              (Depende de: state.js)
    ├── crypto.js              (Depende de: keys.js)
-   ├── calculations-clientes.js (Depende de: state.js) [v5.4.0 — +getPrecioCliente, +calcularDescuento]
-   ├── calculations-mes.js    (Depende de: state.js, calculations-clientes.js) [v5.4.0 — +snapshots, +recibos]
-   ├── calculations-finanzas.js (Depende de: state.js, calculations-clientes.js)
-   ├── calculations-utils.js   (Depende de: state.js) [v5.4.0 — +snapshots, +recibos]
-   ├── logger.js              (Depende de: state.js) [Sistema de logging de errores para debugging offline]
-   ├── event-delegation.js    (Sin dependencias) [Sistema de event delegation para eliminar onclick inline]
-   ├── form-validation.js     (Sin dependencias) [Sistema de validación de formularios inline con mensajes de error]
-   ├── moneda.js              (Depende de: state.js, calculations-clientes.js; carga tras calculations.js) [v5.6.0 — doble moneda USD/CUP, tasa auto vía proxy CORS]
+   ├── calculations.js        (Depende de: state.js) [v5.4.0 — +getPrecioCliente, +calcularDescuento, +snapshots, +recibos]
+   ├── moneda.js              (Depende de: state.js, calculations.js; carga tras calculations.js) [v5.6.0 — doble moneda USD/CUP, tasa auto vía proxy CORS]
    ├── reset-app.js           (Depende de: state.js)
    ├── models/investment.js   (Depende de: state.js, calculations.js)
    ├── migration.js           (Depende de: state.js, calculations.js)
@@ -44,20 +38,16 @@ El orden de carga de los scripts en `index.html` es CRÍTICO. Los scripts deben 
    └── ui-components.js       (Depende de: notify-ui.js, tabs.js)
 
 4. CLIENTES (Gestión de clientes)
-   ├── cliente-modal-calendar.js (Depende de: state.js, calculations-utils.js) [v5.4.0 — mini-calendario de fecha de pago]
-   ├── cliente-modal-render.js   (Depende de: state.js, cliente-modal-calendar.js, calculations-clientes.js) [v5.4.0 — +planes CRUD, +planId]
-   ├── cliente-modal-forms.js    (Depende de: state.js, calculations-clientes.js, calculations-utils.js) [v5.4.0 — +descuento, validación]
+   ├── modal-cliente.js       (Depende de: state.js, calculations.js) [v5.4.0 — +planes CRUD, +descuento, +planId]
    ├── confirm-delete.js      (Depende de: state.js)
    └── client-history.js      (Depende de: state.js, calculations.js)
 
 5. COBROS (Gestión de pagos)
-   ├── modal-cobro.js         (Depende de: state.js, calculations-clientes.js) [v5.4.0 — +getPrecioCliente, +calcularDescuento, +siguienteRecibo]
+   ├── modal-cobro.js         (Depende de: state.js, calculations.js) [v5.4.0 — +getPrecioCliente, +calcularDescuento, +siguienteRecibo]
    ├── mora.js                (Depende de: state.js)
-   ├── inversion.js           (Depende de: state.js, calculations-clientes.js)
-   ├── inventario-core.js     (Depende de: state.js, calculations-utils.js) [lógica de cálculo de inventario]
-   ├── inventario-ui.js       (Depende de: state.js, inventario-core.js) [renderizado de tarjetas de inventario]
-   ├── inventario-forms.js    (Depende de: state.js, inventario-core.js) [formularios de inventario]
-   └── month-reset.js         (Depende de: state.js, calculations-clientes.js)
+   ├── inversion.js           (Depende de: state.js, calculations.js)
+   ├── inventario.js          (Depende de: state.js, calculations.js)
+   └── month-reset.js         (Depende de: state.js, calculations.js)
 
 6. REPORTES (Estadísticas e historial)
    ├── historial.js           (Depende de: state.js)

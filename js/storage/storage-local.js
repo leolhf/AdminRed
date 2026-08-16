@@ -40,9 +40,6 @@ function saveLocalStorage() {
   } catch(e) {
     if(e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
       console.error('Almacenamiento local lleno — no se pudieron guardar los datos:', e);
-      if(typeof Logger !== 'undefined') {
-        Logger.error('Almacenamiento local lleno', { error: e.message, name: e.name });
-      }
       // Notificar si notify está disponible (se carga antes que storage-local)
       if(typeof notify === 'function') {
         notify('⚠ Sin espacio: no se pudo guardar. Exporta un backup y libera espacio.', true);
