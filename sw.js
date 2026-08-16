@@ -34,24 +34,39 @@ messaging.onBackgroundMessage((payload) => {
 });
 
 // Solo el "esqueleto" mínimo que necesitas garantizar de entrada
+// BUG FIX (v6.0.2): esta lista había quedado desactualizada tras la
+// refactorización que dividió calculations.js, modal-cliente.js e
+// inventario.js en archivos más pequeños. cache.addAll() falla POR COMPLETO
+// si UNA SOLA url no existe (404) — así que el evento "install" del Service
+// Worker llevaba fallando silenciosamente desde ese cambio, la instalación
+// nunca se completaba, y por eso la app se quedaba pegada en la versión
+// vieja sin importar cuántas veces se subiera un APP_VERSION nuevo.
+// Se regenera la lista a partir de los <script src> reales de index.html.
 const PRECACHE = [
-  './', 
-  './index.html', 
-  './style.css', 
+  './',
+  './index.html',
+  './style.css',
   './manifest.json',
   // Core
   './js/version.js',
   './js/core/state.js',
   './js/core/keys.js',
   './js/core/config.js',
-  './js/core/checkpoint.js',
-  './js/core/validacion.js',
-  './js/core/undo.js',
-  './js/core/calculations.js',
+  './js/core/crypto.js',
+  './js/core/calculations-clientes.js',
+  './js/core/calculations-mes.js',
+  './js/core/calculations-finanzas.js',
+  './js/core/calculations-utils.js',
+  './js/core/logger.js',
+  './js/core/event-delegation.js',
+  './js/core/form-validation.js',
   './js/core/moneda.js',
   './js/core/reset-app.js',
   './js/core/models/investment.js',
   './js/core/migration.js',
+  './js/core/validacion.js',
+  './js/core/checkpoint.js',
+  './js/core/undo.js',
   // Íconos (necesarios para que el manifest funcione offline)
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -68,18 +83,21 @@ const PRECACHE = [
   './js/ui/tabs.js',
   './js/ui/render.js',
   './js/ui/inline-edit.js',
-  // BUG FIX: ui-components.js está cargado en index.html pero faltaba en el
-  // precache — la app no podía arrancar offline porque el SW no la tenía.
   './js/ui/ui-components.js',
   // Clientes
-  './js/clientes/modal-cliente.js',
+  './js/clientes/cliente-modal-calendar.js',
+  './js/clientes/cliente-modal-render.js',
+  './js/clientes/cliente-modal-forms.js',
   './js/clientes/confirm-delete.js',
   './js/clientes/client-history.js',
   // Cobros
   './js/cobros/modal-cobro.js',
+  './js/cobros/descuentos.js',
   './js/cobros/mora.js',
   './js/cobros/inversion.js',
-  './js/cobros/inventario.js',
+  './js/cobros/inventario-core.js',
+  './js/cobros/inventario-ui.js',
+  './js/cobros/inventario-forms.js',
   './js/cobros/month-reset.js',
   // Reportes
   './js/reportes/historial.js',
@@ -88,12 +106,10 @@ const PRECACHE = [
   './js/reportes/evolucion-historica.js',
   './js/reportes/prediccion.js',
   './js/reportes/estadisticas.js',
-  // BUG FIX: macrodroid-export.js está cargado en index.html pero faltaba en el
-  // precache — la función de exportar a MacroDroid no funcionaba sin conexión.
   './js/reportes/macrodroid-export.js',
-  // v5.4.0: Nuevos reportes (reporte mensual, recibo, calendario, salud)
   './js/reportes/reporte-mensual.js',
   './js/reportes/recibo.js',
+  './js/reportes/descuentos-view.js',
   './js/reportes/calendario.js',
   './js/reportes/salud.js',
   // Notificaciones
@@ -106,7 +122,6 @@ const PRECACHE = [
   './js/red/equipos-red.js',
   './js/pwa.js',
   './js/init.js',
-  // FIX #1: firebase-init.js debe estar en caché para funcionar offline
   './js/firebase/firebase-init.js'
 ];
 

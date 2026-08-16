@@ -1,5 +1,26 @@
 # CHANGELOG — AdminRed
 
+## v6.0.3 — La causa raíz real de "no actualiza": PRECACHE del Service Worker desactualizado
+
+Esta es la explicación de por qué subir `APP_VERSION` en v6.0.1 y v6.0.2 no
+tuvo ningún efecto visible: el Service Worker nunca llegaba a instalarse.
+
+- **BUG FIX (raíz):** `sw.js` seguía listando en `PRECACHE` archivos que la
+  refactorización de v6.0.0 eliminó (`js/core/calculations.js`,
+  `js/clientes/modal-cliente.js`, `js/cobros/inventario.js`) y le faltaban
+  los nuevos (`calculations-clientes.js`, `calculations-mes.js`,
+  `calculations-finanzas.js`, `calculations-utils.js`, `logger.js`,
+  `event-delegation.js`, `form-validation.js`, `cliente-modal-calendar.js`,
+  `cliente-modal-render.js`, `cliente-modal-forms.js`, `inventario-core.js`,
+  `inventario-ui.js`, `inventario-forms.js`, `descuentos.js`,
+  `descuentos-view.js`, `crypto.js`). `cache.addAll()` falla POR COMPLETO si
+  una sola URL da 404, así que el evento `install` del Service Worker llevaba
+  fallando en silencio desde v6.0.0 — la nueva versión nunca se activaba, sin
+  importar cuántas veces se subiera `APP_VERSION`, y el navegador seguía
+  sirviendo el Service Worker (y el código) más viejo que sí había logrado
+  instalarse alguna vez. Se regeneró `PRECACHE` a partir de los `<script src>`
+  reales de `index.html`.
+
 ## v6.0.2 — Corrección real de tema/menús (doble init + escapeHtml duplicado)
 
 La v6.0.1 no resolvió el problema porque el diagnóstico anterior era
