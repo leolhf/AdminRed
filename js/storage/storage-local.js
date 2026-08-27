@@ -80,7 +80,32 @@ RN.storageLocal._aplicarData = function (data) {
   RN.state.equiposRed = data.equiposRed || [];
   RN.state.descuentos = data.descuentos || [];
   RN.state.snapshots = data.snapshots || [];
+  // v5.13.0: Al aplicar datos desde archivo/backup, preservar la config de
+  // tasa USD si la actual es más reciente (fechaTasaUsd mayor).
+  // Esto evita que abrir un archivo viejo sobreescriba la tasa actual.
+  var tasaActual = RN.state.config.tasaUsd || 0;
+  var fechaTasaActual = RN.state.config.fechaTasaUsd || null;
   if (data.config) Object.assign(RN.state.config, data.config);
+  // Re-aplicar config autoritativa desde STORAGE_KEYS.CONFIG si existe.
+  // STORAGE_KEYS.CONFIG es la fuente de verdad para la configuración.
+  try {
+    var rawConfig = localStorage.getItem(STORAGE_KEYS.CONFIG);
+    if (rawConfig) {
+      var savedConfig = JSON.parse(rawConfig);
+      // Si la config guardada tiene una fecha de tasa más reciente, usarla.
+      var fechaSaved = savedConfig.fechaTasaUsd || null;
+      if (fechaSaved && (!fechaTasaActual || fechaSaved > fechaTasaActual)) {
+        RN.state.config.tasaUsd = savedConfig.tasaUsd || tasaActual;
+        RN.state.config.fechaTasaUsd = fechaSaved;
+      } else if (tasaActual && !data.config?.tasaUsd) {
+        // Si el archivo no tenía tasa pero nosotros sí, preservar la nuestra.
+        RN.state.config.tasaUsd = tasaActual;
+        RN.state.config.fechaTasaUsd = fechaTasaActual;
+      }
+      // Re-aplicar toda la config guardada (fuente autoritativa).
+      Object.assign(RN.state.config, savedConfig);
+    }
+  } catch (e) { /* ignorar config corrupta */ }
   RN.state.reciboCounter = data.reciboCounter || 0;
   RN.state.mesActual = data.mesActual || RN.calc.mesActualStr();
 };

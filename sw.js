@@ -2,7 +2,16 @@
  * sw.js — Service Worker para AdminRed.
  * Cachea los recursos de la app por versión (APP_VERSION) para funcionar offline.
  * Cuando APP_VERSION cambia, se crea una nueva caché y se borra la anterior.
+ *
+ * v5.12.9 FIX CRÍTICO: importScripts('js/version.js') al inicio.
+ * Antes, CACHE_NAME usaba APP_VERSION pero nunca se importaba, por lo que
+ * CACHE_NAME siempre era "adminred-undefined" y las actualizaciones nunca
+ * invalidaban la caché. La app no se actualizaba aunque se subieran cambios.
+ * Ahora version.js y sw.js se sirven SIEMPRE desde la red (network-first),
+ * garantizando que el navegador detecte la nueva versión de inmediato.
  */
+importScripts('js/version.js');
+
 const CACHE_NAME = `adminred-${APP_VERSION}`;
 const CORE_ASSETS = [
   './',
@@ -85,8 +94,8 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// v5.12.7: Permitir que la p\u00e1gina active el SW inmediatamente (skipWaiting)
-// cuando se detecta una nueva versi\u00f3n, sin esperar al pr\u00f3ximo navigation.
+// Permitir que la página active el SW inmediatamente (skipWaiting)
+// cuando se detecta una nueva versión, sin esperar al próximo navigation.
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
@@ -96,7 +105,23 @@ self.addEventListener('message', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
-  // Estrategia: cache-first con fallback a red (offline-first).
+  const url = new URL(req.url);
+
+  // version.js y sw.js: SIEMPRE desde la red (network-first).
+  // Garantiza que el navegador detecte una nueva versión de inmediato
+  // y no sirva una versión cacheada obsoleta.
+  if (url.pathname.endsWith('js/version.js') || url.pathname.endsWith('sw.js')) {
+    event.respondWith(
+      fetch(req).then((res) => {
+        const copy = res.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(req, copy)).catch(() => {});
+        return res;
+      }).catch(() => caches.match(req))
+    );
+    return;
+  }
+
+  // Resto de recursos: cache-first con fallback a red (offline-first).
   event.respondWith(
     caches.match(req).then((cached) =>
       cached || fetch(req).then((res) => {

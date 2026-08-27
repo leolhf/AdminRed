@@ -341,11 +341,21 @@ RN.caja.guardarDevolucion = function (inversionId) {
     mes: mes
   });
 
+  // v5.13.0: verificar si la deuda quedó totalmente liquidada
+  var concluida = RN.investment.verificarConclusion(inv);
+  if (concluida) {
+    RN.storageLocal.guardar();
+  }
+
   RN.storageLocal.guardar();
   RN.uiComponents.cerrarModal();
   RN.render.dashboard();
   RN.render.inversion();
   RN.render.gastos();
+  if (RN.deudas) RN.deudas.render();
+  if (concluida) {
+    RN.notifyUI.toast('¡Deuda liquidada! Trasladada al historial de deudas concluidas.', 'success');
+  }
   RN.notifyUI.toast('Devolución registrada: ' + RN.calc.formatCUP(monto), 'success');
 };
 

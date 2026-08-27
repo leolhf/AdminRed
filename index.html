@@ -59,6 +59,7 @@
       <div class="tab" data-view="inversion">💰 Finanzas</div>
       <div class="subtabs">
         <div class="subtab" data-view="inversion">Inversión</div>
+        <div class="subtab" data-view="deudas">Deudas</div>
         <div class="subtab" data-view="inventario">Inventario</div>
         <div class="subtab" data-view="gastos">Gastos</div>
         <div class="subtab" data-view="descuentos">Descuentos</div>
@@ -143,6 +144,22 @@
         <div id="inversion-recuperacion"></div>
       </div>
       <div class="accordion-list" id="lista-inversion"></div>
+    </section>
+
+    <!-- DEUDAS PERSONALES -->
+    <section class="view" id="view-deudas">
+      <div class="view-header"><h2>Deudas personales</h2><div class="spacer"></div>
+        <button class="btn primary" onclick="RN.inversion.abrirNueva()">+ Nueva deuda</button>
+      </div>
+      <div class="kpi-grid" id="kpi-deudas"></div>
+      <div class="card mt-16">
+        <h3>Deudas activas <span class="muted" style="font-size:13px;font-weight:400">(pr\u00e9stamos por devolver)</span></h3>
+        <div class="accordion-list" id="lista-deudas-activas"></div>
+      </div>
+      <div class="card mt-16" id="card-deudas-concluidas" style="display:none">
+        <h3>Historial de deudas concluidas <span class="muted" style="font-size:13px;font-weight:400">(totalmente liquidadas)</span></h3>
+        <div class="accordion-list" id="lista-deudas-concluidas"></div>
+      </div>
     </section>
 
     <!-- INVENTARIO -->
@@ -353,6 +370,7 @@
   <script src="js/cobros/cobranza.js"></script>
   <script src="js/cobros/mora.js"></script>
   <script src="js/cobros/inversion.js"></script>
+  <script src="js/cobros/deudas.js"></script>
   <script src="js/cobros/inventario.js"></script>
   <script src="js/cobros/descuentos.js"></script>
   <script src="js/cobros/month-reset.js"></script>

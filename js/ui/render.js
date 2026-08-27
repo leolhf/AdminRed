@@ -92,6 +92,7 @@ RN.render.vista = function (view) {
     case 'cobros': RN.render.cobros(); break;
     case 'realizados': RN.render.realizados(); break;
     case 'inversion': RN.render.inversion(); break;
+    case 'deudas': RN.deudas && RN.deudas.render(); break;
     case 'inventario': RN.render.inventario(); break;
     case 'gastos': RN.render.gastos(); break;
     case 'reportes': RN.render.reportes(); break;

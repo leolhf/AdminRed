@@ -11,15 +11,24 @@ RN.moneda.actualizarTasaAuto = async function () {
   try {
     const resp = await fetch('https://corsproxy.io/?https://mdiv.pro/api/rate', { signal: AbortSignal.timeout(8000) });
     const data = await resp.json();
-    if (data && data.rate) {
+    // v5.13.0: Validar que la tasa sea un número realista (entre 1 y 10000).
+    // Antes, si la API devolvía 0, null o un valor irreal, se sobreescribía
+    // la tasa manual del usuario y se "perdía".
+    if (data && data.rate && +data.rate > 0 && +data.rate < 100000) {
       RN.state.config.tasaUsd = +data.rate;
       // v5.12.7: Registrar la fecha de actualización de la tasa (aviso de vencimiento 24h/72h)
       RN.state.config.fechaTasaUsd = new Date().toISOString();
       RN.config.persistir();
       RN.notifyUI.toast('Tasa USD actualizada: ' + data.rate + ' CUP', 'success');
+    } else {
+      console.warn('Tasa automática: respuesta inválida de mdiv.pro', data);
     }
   } catch (e) {
-    RN.notifyUI.toast('No se pudo consultar la tasa automática', 'warn');
+    // v5.13.0: No mostrar error si ya hay una tasa manual configurada.
+    // Solo avisar si no hay tasa alguna.
+    if (!RN.state.config.tasaUsd) {
+      RN.notifyUI.toast('No se pudo consultar la tasa automática', 'warn');
+    }
   }
 };
 

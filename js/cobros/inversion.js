@@ -197,8 +197,22 @@ RN.inversion.guardar = function () {
 };
 
 RN.inversion.eliminar = function (id) {
-  RN.uiComponents.confirm('Eliminar inversión', '¿Eliminar esta inversión del registro? Las devoluciones asociadas se conservarán en el historial de gastos.', () => {
+  var inv = (RN.state.investments || []).find(function (i) { return i.id === id; });
+  if (!inv) return;
+  var esPrestamo = RN.investment.origenCapital(inv) === 'prestado_externo';
+  var devs = RN.investment.devolucionesInv(inv);
+  var msg = '¿Eliminar esta inversión del registro?';
+  if (esPrestamo && devs.length) {
+    msg = '¿Eliminar esta inversión (préstamo externo)? Se eliminarán también ' + devs.length + ' devoluciones asociadas (' + RN.calc.formatCUP(RN.investment.totalDevuelto(inv)) + '). Esta acción no se puede deshacer.';
+  } else {
+    msg += ' Las devoluciones asociadas se conservarán en el historial de gastos.';
+  }
+  RN.uiComponents.confirm('Eliminar inversión', msg, () => {
     RN.state.investments = RN.state.investments.filter(x => x.id !== id);
+    // v5.13.0: si es préstamo, eliminar también sus devoluciones
+    if (esPrestamo) {
+      RN.state.gastos = (RN.state.gastos || []).filter(g => !(g.esDevolucionInversion && g.inversionId === id));
+    }
     RN.storageLocal.guardar();
     RN.render.todo();
     RN.notifyUI.toast('Inversión eliminada', 'warn');

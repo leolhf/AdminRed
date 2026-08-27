@@ -321,8 +321,8 @@ RN.investment.acumuladoRetenido = function (inv) {
 };
 
 /**
- * v5.12.1 \u2014 Retiro mensual estimado como ganancia personal.
- * = aporte mensual neto BRUTO (sin retención) \u00d7 pctPersonal/100.
+ * v5.12.1 — Retiro mensual estimado como ganancia personal.
+ * = aporte mensual neto BRUTO (sin retención) × pctPersonal/100.
  * Es lo que el inversor puede "retirar" cada mes del margen que generan los
  * clientes vinculados, mientras el resto recupera el capital.
  */
@@ -344,7 +344,7 @@ RN.investment.retiroMensualEstimado = function (inv) {
 };
 
 /**
- * v5.12.1 \u2014 Margen neto mensual BRUTO (sin aplicar retención personal).
+ * v5.12.1 — Margen neto mensual BRUTO (sin aplicar retención personal).
  * = suma de (precioNeto - costoMega) de cada cliente activo vinculado.
  * Útil para mostrar cuánto genera la inversión por mes antes de separar
  * la ganancia personal del capital.
@@ -569,4 +569,53 @@ RN.investment.totalFaltaDevolver = function () {
   return (RN.state.investments || [])
     .filter(function (i) { return RN.investment.origenCapital(i) === 'prestado_externo'; })
     .reduce(function (s, i) { return s + RN.investment.saldoADevolver(i); }, 0);
+};
+
+/**
+ * v5.13.0 — Lista de deudas personales activas (préstamo externo con saldo > 0
+ * y no marcada como concluida).
+ */
+RN.investment.deudasActivas = function () {
+  return (RN.state.investments || []).filter(function (i) {
+    return RN.investment.origenCapital(i) === 'prestado_externo'
+      && !i.deudaConcluida
+      && RN.investment.saldoADevolver(i) > 0;
+  });
+};
+
+/**
+ * v5.13.0 — Lista de deudas personales concluidas (préstamo externo marcado
+ * como deudaConcluida o con saldoADevolver === 0).
+ */
+RN.investment.deudasConcluidas = function () {
+  return (RN.state.investments || []).filter(function (i) {
+    return RN.investment.origenCapital(i) === 'prestado_externo'
+      && (i.deudaConcluida || RN.investment.saldoADevolver(i) <= 0);
+  });
+};
+
+/**
+ * v5.13.0 — Verifica si una inversión préstamo debe marcarse como concluida.
+ * Si saldoADevolver === 0 y no estaba marcada, la marca y guarda la fecha.
+ * Devuelve true si se marcó como concluida en esta llamada.
+ */
+RN.investment.verificarConclusion = function (inv) {
+  if (!inv) return false;
+  if (RN.investment.origenCapital(inv) !== 'prestado_externo') return false;
+  if (inv.deudaConcluida) return false;
+  if (RN.investment.saldoADevolver(inv) <= 0) {
+    inv.deudaConcluida = true;
+    inv.fechaConclusion = new Date().toISOString();
+    return true;
+  }
+  return false;
+};
+
+/**
+ * v5.13.0 — Total de devuelto por todas las deudas concluidas.
+ */
+RN.investment.totalDevueltoConcluidas = function () {
+  return RN.investment.deudasConcluidas().reduce(function (s, i) {
+    return s + RN.investment.totalDevuelto(i);
+  }, 0);
 };
