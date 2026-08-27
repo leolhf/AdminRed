@@ -1,0 +1,603 @@
+/**
+ * cobros/modal-cobro.js — Registro de cobro mensual, cálculo de precio neto,
+ * cobro de cuota de equipo en el mismo flujo, sub-panel de descuentos puntuales
+ * con recálculo en vivo, pago COMBINADO USD + CUP (ambos coexisten),
+ * desglose detallado del pago (monto a pagar, conversión USD→CUP, faltante,
+ * excedente/vuelto que se descuenta del fondo de caja), pagos parciales,
+ * y envío de comprobante por WhatsApp.
+ *
+ * LÓGICA DE PAGO COMBINADO:
+ * - El campo CUP siempre muestra "lo que falta" considerando lo cubierto por USD.
+ * - Al ingresar USD, el campo CUP se recalcula automáticamente (total - USD convertido).
+ * - Al volver a CUP, el USD se mantiene y CUP muestra lo que falta (editable).
+ * - Si (USD×tasa + CUP) < total → pago parcial.
+ * - Si (USD×tasa + CUP) > total → excedente/vuelto (se descuenta del fondo).
+ * - Si (USD×tasa + CUP) = total → pago completo.
+ */
+RN.modalCobro = RN.modalCobro || {};
+
+RN.modalCobro._clienteId = null;
+/** Moneda "activa" (enfocada) para el toggle visual: 'CUP' o 'USD'. */
+RN.modalCobro._moneda = 'CUP';
+/** Estado interno: monto USD ingresado (se mantiene al cambiar de moneda). */
+RN.modalCobro._usdIngresado = 0;
+/** Estado interno: monto CUP ingresado (se mantiene al cambiar de moneda). */
+RN.modalCobro._cupIngresado = 0;
+
+/** Calcula el total a pagar del cliente en este mes (servicio neto + equipo). */
+RN.modalCobro._totalAPagar = function () {
+  var c = RN.state.clients.find(x => x.id === RN.modalCobro._clienteId);
+  if (!c) return 0;
+  var mes = RN.calc.mesActualStr();
+  var neto = RN.calc.getPrecioNeto(c, mes);
+  var inpEq = document.getElementById('cobro-monto-equipo');
+  var eq = inpEq ? (parseFloat(inpEq.value) || 0) : 0;
+  return neto + eq;
+};
+
+/** Abre el modal de cobro para un cliente (desde cualquier vista). */
+RN.modalCobro.abrir = function (clienteId) {
+  const c = RN.state.clients.find(x => x.id === clienteId);
+  if (!c) { RN.notifyUI.toast('Cliente no encontrado', 'error'); return; }
+  RN.modalCobro._clienteId = clienteId;
+  RN.modalCobro._moneda = 'CUP';
+  RN.modalCobro._usdIngresado = 0;
+  RN.modalCobro._cupIngresado = 0;
+  const mes = RN.calc.mesActualStr();
+  const base = RN.calc.getPrecioBase(c);
+  const rec = RN.calc.getDescuentoRecurrente(c);
+  const cuotaEq = RN.investment.getCuotaEquipoCliente(c);
+  const deudaEq = RN.investment.getDeudaEquipoCliente(c);
+  const descPunt = RN.state.descuentos.filter(d => d.clienteId === clienteId && d.estado !== 'anulado' && (d.mes === mes || (d.soloPago && d.estado === 'pendiente')));
+  const tasa = RN.moneda.tasa();
+  const fondo = RN.calc.fondoCaja();
+
+  const descRows = descPunt.length ? descPunt.map(d => `<tr>
+    <td>${d.tipo}${d.soloPago ? ' <span class="badge warn" style="font-size:10px">1 solo pago</span>' : ''}</td><td>${RN.render.esc(d.motivo)}</td><td>${d.modo}</td>
+    <td>${RN.calc.formatCUP(RN.calc.valorDescuento(d, clienteId))}</td>
+    <td><button class="btn sm danger" onclick="RN.descuentos.eliminar('${d.id}', true)">🗑</button></td>
+  </tr>`).join('') : '<tr><td colspan="5" class="muted center">Sin descuentos puntuales este mes</td></tr>';
+
+  const totalAPagar = RN.calc.getPrecioNeto(c, mes) + cuotaEq;
+
+  const html = `
+    <div class="modal-header"><h3>Cobro — ${RN.render.esc(c.nombre)}</h3><button class="close" onclick="RN.uiComponents.cerrarModal()">×</button></div>
+    <div class="modal-body">
+      <div class="card" style="margin:0 0 16px;padding:12px">
+        <div class="flex" style="justify-content:space-between"><span class="muted">Plan / Precio base</span><strong>${RN.render.nombrePlan(c)} · ${RN.calc.formatCUP(base)}</strong></div>
+        <div class="flex" style="justify-content:space-between"><span class="muted">Descuento recurrente</span><span>− ${RN.calc.formatCUP(rec)}</span></div>
+        <div class="flex" style="justify-content:space-between"><span class="muted">Descuentos puntuales</span><span id="cobro-desc-punt">− ${RN.calc.formatCUP(RN.calc.getDescuentosPuntualesMes(clienteId, mes))}</span></div>
+        <div class="divider"></div>
+        <div class="flex" style="justify-content:space-between"><strong>Neto servicio</strong><strong id="cobro-neto" style="font-size:18px">${RN.calc.formatCUP(RN.calc.getPrecioNeto(c, mes))}</strong></div>
+      </div>
+
+      ${deudaEq > 0 ? `<div class="card" style="margin:0 0 16px;padding:12px">
+        <div class="flex" style="justify-content:space-between"><span class="muted">Deuda equipo pendiente</span><span class="badge due">${RN.calc.formatCUP(deudaEq)}</span></div>
+        <div class="flex" style="justify-content:space-between"><span class="muted">Cuota mensual sugerida</span><span>${RN.calc.formatCUP(cuotaEq)}</span></div>
+        <label style="margin-top:8px">Monto a cobrar de equipo en este pago (CUP)</label>
+        <input id="cobro-monto-equipo" type="number" step="0.01" value="${cuotaEq}" max="${deudaEq}">
+      </div>` : ''}
+
+      <h3 style="font-size:13px;text-transform:uppercase;color:var(--text-muted)">Descuentos puntuales del mes</h3>
+      <div class="table-wrap mb-16"><table><thead><tr><th>Tipo</th><th>Motivo</th><th>Modo</th><th>Valor</th><th></th></tr></thead><tbody>${descRows}</tbody></table></div>
+      <button class="btn sm" onclick="RN.descuentos.abrirNuevo('${clienteId}', '${mes}')">+ Agregar descuento puntual</button>
+
+      <div class="divider"></div>
+
+      <!-- ====== Sección de pago combinado USD + CUP ====== -->
+      <div class="card" style="margin:0 0 16px;padding:14px;background:var(--bg)">
+        <div class="flex" style="justify-content:space-between;align-items:center;margin-bottom:10px">
+          <strong style="font-size:14px">💵 Pago del cliente</strong>
+          <div class="moneda-toggle" id="cobro-moneda-toggle">
+            <button type="button" class="btn sm primary" data-moneda="CUP" onclick="RN.modalCobro.setMoneda('CUP')">CUP</button>
+            <button type="button" class="btn sm" data-moneda="USD" onclick="RN.modalCobro.setMoneda('USD')" ${tasa ? '' : 'disabled title="Configura la tasa USD en Ajustes"'}>USD</button>
+          </div>
+        </div>
+        ${tasa ? `<div class="muted" style="font-size:12px;margin-bottom:10px">Tasa vigente: <strong>1 USD = ${tasa} CUP</strong> · Fondo de caja: <strong>${RN.calc.formatCUP(fondo)}</strong></div>` : `<div class="muted" style="font-size:12px;margin-bottom:10px;color:var(--danger)">⚠ No hay tasa USD configurada. Configúrala en Ajustes para aceptar pagos en USD.</div>`}
+
+        <!-- Monto a pagar (siempre visible, referencia) -->
+        <div class="cobro-desglose-row" style="border-bottom:1px dashed var(--border);padding-bottom:8px;margin-bottom:10px">
+          <span class="muted">Monto a pagar</span>
+          <strong id="cobro-a-pagar" style="font-size:16px">${RN.calc.formatCUP(totalAPagar)}</strong>
+        </div>
+
+        <!-- ====== Campo USD (siempre visible si hay tasa) ====== -->
+        <div id="cobro-row-usd" style="${tasa ? '' : 'display:none'};margin-bottom:10px">
+          <label>💵 Cantidad en USD <span class="muted" style="font-size:11px">(opcional)</span></label>
+          <input id="cobro-monto-usd" type="number" step="0.01" placeholder="0.00" oninput="RN.modalCobro.onUSDChange()">
+          <div class="muted" style="font-size:11px;margin-top:2px" id="cobro-usd-conv">↳ Equivale a 0.00 CUP</div>
+        </div>
+
+        <!-- ====== Campo CUP (siempre visible) ====== -->
+        <div id="cobro-row-cup">
+          <label>🪙 Cantidad en CUP <span class="muted" style="font-size:11px" id="cobro-cup-hint">(monto a pagar)</span></label>
+          <input id="cobro-monto-cup" type="number" step="0.01" placeholder="0.00" oninput="RN.modalCobro.onCUPChange()">
+        </div>
+
+        <!-- ====== Desglose detallado del pago ====== -->
+        <div id="cobro-desglose" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+          <!-- Fila: Total pagado en CUP (USD convertido + CUP) -->
+          <div class="cobro-desglose-row">
+            <span class="muted">🧮 Total pagado en CUP</span>
+            <span id="cobro-desglose-pagado"><strong>—</strong></span>
+          </div>
+          <!-- Fila: Faltante (pago parcial) -->
+          <div class="cobro-desglose-row" id="cobro-fila-falta" style="display:none">
+            <span class="muted">⏳ Falta para completar</span>
+            <span id="cobro-desglose-falta"><strong style="color:var(--amber)">—</strong></span>
+          </div>
+          <!-- Fila: Excedente / vuelto (en rojo) -->
+          <div class="cobro-desglose-row" id="cobro-fila-excede" style="display:none">
+            <span class="muted">⚠ Excedente a devolver</span>
+            <span id="cobro-desglose-excede"><strong style="color:var(--danger)">—</strong></span>
+          </div>
+          <!-- Fila: Estado del pago -->
+          <div class="cobro-desglose-row" id="cobro-fila-estado" style="display:none">
+            <span class="muted">Estado</span>
+            <span id="cobro-desglose-estado"><strong>—</strong></span>
+          </div>
+          <!-- Aviso de fondo insuficiente para vuelto -->
+          <div id="cobro-aviso-fondo" style="display:none;margin-top:8px;padding:8px 10px;background:#fff3cd;border-radius:6px;font-size:12px;color:#856404">
+            ⚠ El fondo de caja no tiene suficiente efectivo para el vuelto. Fondo actual: ${RN.calc.formatCUP(fondo)}
+          </div>
+        </div>
+      </div>
+
+      <div class="flex" style="justify-content:space-between;align-items:center">
+        <strong style="font-size:18px">Total a cobrar</strong>
+        <strong id="cobro-total" style="font-size:22px;color:var(--primary)">${RN.calc.formatCUP(totalAPagar)}</strong>
+      </div>
+      <div id="cobro-total-usd" style="text-align:right;margin-top:2px"></div>
+
+      <div class="mt-16"><label>Notas (opcional)</label><input id="cobro-notas" placeholder="Ej: pagó en efectivo"></div>
+      <label style="margin-top:12px"><input type="checkbox" id="cobro-enviar-wa" ${c.telefono ? '' : 'disabled'}> Enviar comprobante por WhatsApp ${c.telefono ? '' : '(sin teléfono)'}</label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn ghost" onclick="RN.uiComponents.cerrarModal()">Cancelar</button>
+      <button class="btn success" onclick="RN.modalCobro.confirmar()">✓ Registrar cobro</button>
+    </div>`;
+  RN.uiComponents.modal(html, { lg: true });
+
+  // Recalcular en vivo al cambiar monto de equipo
+  const inpEq = document.getElementById('cobro-monto-equipo');
+  if (inpEq) {
+    inpEq.addEventListener('input', () => RN.modalCobro.recalcular());
+  }
+
+  // Inicializar: el campo CUP arranca con el monto total sugerido
+  var inpCup = document.getElementById('cobro-monto-cup');
+  if (inpCup) {
+    inpCup.value = totalAPagar.toFixed(2);
+    RN.modalCobro._cupIngresado = totalAPagar;
+  }
+
+  // Mostrar equivalencia USD inicial
+  RN.modalCobro._actualizarEquivalenciaUSD(totalAPagar);
+  // Recalcular desglose inicial
+  RN.modalCobro.recalcularDesdePago();
+};
+
+/**
+ * Cambia la moneda "activa" (para el toggle visual).
+ * Ambos campos (USD y CUP) siguen visibles y editables.
+ * El USD se mantiene; el CUP se recalcula mostrando "lo que falta".
+ */
+RN.modalCobro.setMoneda = function (moneda) {
+  RN.modalCobro._moneda = moneda;
+
+  // Actualizar botones toggle
+  document.querySelectorAll('#cobro-moneda-toggle button').forEach(function (b) {
+    b.classList.toggle('primary', b.dataset.moneda === moneda);
+  });
+
+  // Al cambiar a USD: si el CUP tenía el monto total (pago completo sugerido),
+  // limpiarlo para que el usuario empiece ingresando USD y el CUP se auto-recalcule.
+  // Al volver a CUP: mantener el USD ingresado y recalcular el CUP (lo que falta).
+  var inpCup = document.getElementById('cobro-monto-cup');
+  var inpUsd = document.getElementById('cobro-monto-usd');
+  var aPagar = RN.modalCobro._totalAPagar();
+
+  if (moneda === 'USD') {
+    // Si el CUP tiene exactamente el monto a pagar (valor por defecto/sugerido),
+    // lo limpiamos para que el usuario ingrese USD y el CUP se auto-recalcule.
+    if (inpCup) {
+      var cupVal = parseFloat(inpCup.value) || 0;
+      if (Math.abs(cupVal - aPagar) < 0.01) {
+        inpCup.value = '';
+        RN.modalCobro._cupIngresado = 0;
+      }
+    }
+    if (inpUsd) inpUsd.focus();
+  } else {
+    // Al volver a CUP: recalcular el CUP con "lo que falta" considerando el USD
+    RN.modalCobro._recalcularCUPFaltante();
+    if (inpCup) inpCup.focus();
+  }
+
+  RN.modalCobro.recalcularDesdePago();
+};
+
+/**
+ * Recalcula el campo CUP para mostrar "lo que falta para completar el pago"
+ * considerando lo ya cubierto por el USD ingresado.
+ * Si el USD cubre todo o más, el CUP se pone en 0.
+ */
+RN.modalCobro._recalcularCUPFaltante = function () {
+  var inpUsd = document.getElementById('cobro-monto-usd');
+  var inpCup = document.getElementById('cobro-monto-cup');
+  if (!inpCup) return;
+
+  var usd = inpUsd ? (parseFloat(inpUsd.value) || 0) : 0;
+  var tasa = RN.moneda.tasa();
+  var aPagar = RN.modalCobro._totalAPagar();
+  var cupDesdeUSD = RN.moneda.aCUP(usd); // lo que el USD cubre en CUP
+  var falta = aPagar - cupDesdeUSD;
+
+  if (falta <= 0) {
+    // El USD cubre todo o más → CUP en 0
+    inpCup.value = '0.00';
+    RN.modalCobro._cupIngresado = 0;
+  } else {
+    // Mostrar lo que falta en CUP
+    inpCup.value = falta.toFixed(2);
+    RN.modalCobro._cupIngresado = falta;
+  }
+};
+
+/**
+ * Handler cuando el usuario escribe en el campo USD.
+ * Recalcula automáticamente el campo CUP (lo que falta) y el desglose.
+ */
+RN.modalCobro.onUSDChange = function () {
+  var inpUsd = document.getElementById('cobro-monto-usd');
+  var usd = inpUsd ? (parseFloat(inpUsd.value) || 0) : 0;
+  RN.modalCobro._usdIngresado = usd;
+
+  // Actualizar texto de conversión USD → CUP
+  var elConv = document.getElementById('cobro-usd-conv');
+  if (elConv) {
+    var cupEquiv = RN.moneda.aCUP(usd);
+    elConv.textContent = '↳ Equivale a ' + RN.calc.formatCUP(cupEquiv);
+  }
+
+  // Auto-recalcular el CUP (lo que falta) — solo si la moneda activa es USD
+  // o si el CUP está en 0/vacío (el usuario no lo ha editado manualmente)
+  if (RN.modalCobro._moneda === 'USD') {
+    RN.modalCobro._recalcularCUPFaltante();
+  }
+
+  RN.modalCobro.recalcularDesdePago();
+};
+
+/**
+ * Handler cuando el usuario escribe en el campo CUP.
+ * Actualiza el estado interno y recalcula el desglose.
+ */
+RN.modalCobro.onCUPChange = function () {
+  var inpCup = document.getElementById('cobro-monto-cup');
+  var cup = inpCup ? (parseFloat(inpCup.value) || 0) : 0;
+  RN.modalCobro._cupIngresado = cup;
+  RN.modalCobro.recalcularDesdePago();
+};
+
+/**
+ * Recalcula el desglose completo basado en los campos USD y CUP.
+ * Total pagado = (USD × tasa) + CUP.
+ * Compara contra el monto a pagar para determinar: completo, parcial o excedente.
+ */
+RN.modalCobro.recalcularDesdePago = function () {
+  var inpUsd = document.getElementById('cobro-monto-usd');
+  var inpCup = document.getElementById('cobro-monto-cup');
+  var elTot = document.getElementById('cobro-total');
+  var elTotUsd = document.getElementById('cobro-total-usd');
+  var elAPagar = document.getElementById('cobro-a-pagar');
+  var desg = document.getElementById('cobro-desglose');
+  var elCupHint = document.getElementById('cobro-cup-hint');
+
+  if (!inpCup) return;
+
+  var usd = inpUsd ? (parseFloat(inpUsd.value) || 0) : 0;
+  var cup = parseFloat(inpCup.value) || 0;
+  var tasa = RN.moneda.tasa();
+  var aPagar = RN.modalCobro._totalAPagar();
+
+  // Actualizar "monto a pagar" por si cambió el equipo
+  if (elAPagar) elAPagar.textContent = RN.calc.formatCUP(aPagar);
+
+  // Total pagado en CUP = (USD convertido) + CUP directo
+  var cupDesdeUSD = RN.moneda.aCUP(usd);
+  var pagadoCUP = cupDesdeUSD + cup;
+  var pagadoUSD = usd + (tasa ? parseFloat(RN.moneda.aUSD(cup)) : 0);
+
+  // Actualizar hint del campo CUP
+  if (elCupHint) {
+    if (usd > 0) {
+      var faltaCalc = aPagar - cupDesdeUSD;
+      if (faltaCalc > 0) {
+        elCupHint.textContent = '(falta ' + RN.calc.formatCUP(faltaCalc) + ' después de USD)';
+      } else {
+        elCupHint.textContent = '(USD cubre el total)';
+      }
+    } else {
+      elCupHint.textContent = '(monto a pagar)';
+    }
+  }
+
+  // Si no hay ningún monto ingresado, mostrar total como referencia
+  if (pagadoCUP <= 0 && usd <= 0 && cup <= 0) {
+    if (elTot) elTot.textContent = RN.calc.formatCUP(aPagar);
+    if (elTotUsd) elTotUsd.innerHTML = (tasa && aPagar > 0) ? '<span class="muted" style="font-size:13px">≈ ' + RN.moneda.formatUSD(RN.moneda.aUSD(aPagar)) + '</span>' : '';
+    if (desg) desg.style.display = 'none';
+    return;
+  }
+
+  // Mostrar desglose
+  if (desg) desg.style.display = 'block';
+
+  // ====== Actualizar filas del desglose ======
+
+  // Fila total pagado en CUP (siempre visible)
+  var dPagado = document.getElementById('cobro-desglose-pagado');
+  if (dPagado) {
+    var detalle = '';
+    if (usd > 0 && cup > 0) {
+      detalle = ' <span class="muted" style="font-size:11px">(' + RN.moneda.formatUSD(usd) + ' + ' + RN.calc.formatCUP(cup) + ')</span>';
+    } else if (usd > 0) {
+      detalle = ' <span class="muted" style="font-size:11px">(desde USD)</span>';
+    }
+    dPagado.innerHTML = '<strong>' + RN.calc.formatCUP(pagadoCUP) + '</strong>' + detalle;
+  }
+
+  // ====== Calcular faltante o excedente ======
+  var diferencia = pagadoCUP - aPagar;
+  var filaFalta = document.getElementById('cobro-fila-falta');
+  var filaExcede = document.getElementById('cobro-fila-excede');
+  var filaEstado = document.getElementById('cobro-fila-estado');
+  var dFalta = document.getElementById('cobro-desglose-falta');
+  var dExcede = document.getElementById('cobro-desglose-excede');
+  var dEstado = document.getElementById('cobro-desglose-estado');
+  var avisoFondo = document.getElementById('cobro-aviso-fondo');
+  var fondo = RN.calc.fondoCaja();
+
+  if (filaFalta) filaFalta.style.display = 'none';
+  if (filaExcede) filaExcede.style.display = 'none';
+  if (filaEstado) filaEstado.style.display = 'flex';
+  if (avisoFondo) avisoFondo.style.display = 'none';
+
+  if (Math.abs(diferencia) < 0.01) {
+    // Pago exacto
+    if (dEstado) dEstado.innerHTML = '<strong style="color:var(--green)">✓ Pago completo</strong>';
+    if (elTot) elTot.textContent = RN.calc.formatCUP(pagadoCUP);
+  } else if (diferencia < 0) {
+    // Pago parcial — falta dinero
+    var falta = Math.abs(diferencia);
+    if (filaFalta) filaFalta.style.display = 'flex';
+    if (dFalta) dFalta.innerHTML = '<strong style="color:var(--amber)">' + RN.calc.formatCUP(falta) + '</strong>';
+    if (dEstado) dEstado.innerHTML = '<strong style="color:var(--amber)">⏳ Pago parcial</strong>';
+    if (elTot) elTot.textContent = RN.calc.formatCUP(pagadoCUP);
+  } else {
+    // Excedente — hay vuelto que devolver
+    var excede = diferencia;
+    if (filaExcede) filaExcede.style.display = 'flex';
+    if (dExcede) dExcede.innerHTML = '<strong style="color:var(--danger)">' + RN.calc.formatCUP(excede) + ' (se descuenta del fondo)</strong>';
+    if (dEstado) dEstado.innerHTML = '<strong style="color:var(--danger)">⚠ Excedente — devolver ' + RN.calc.formatCUP(excede) + '</strong>';
+    if (elTot) elTot.textContent = RN.calc.formatCUP(aPagar);
+
+    // Avisar si el fondo no tiene suficiente para el vuelto
+    if (avisoFondo && excede > fondo) {
+      avisoFondo.style.display = 'block';
+      avisoFondo.innerHTML = '⚠ El fondo de caja no tiene suficiente efectivo para el vuelto. Fondo actual: ' + RN.calc.formatCUP(fondo) + ' · Vuelto: ' + RN.calc.formatCUP(excede);
+    }
+  }
+
+  // Equivalencia USD del total
+  if (elTotUsd) {
+    var totalDisplay = (diferencia > 0) ? aPagar : pagadoCUP;
+    if (tasa && totalDisplay > 0) {
+      elTotUsd.innerHTML = '<span class="muted" style="font-size:13px">≈ ' + RN.moneda.formatUSD(RN.moneda.aUSD(totalDisplay)) + '</span>';
+    } else {
+      elTotUsd.innerHTML = '';
+    }
+  }
+};
+
+/** Muestra la equivalencia en USD del total calculado (modo automático, sin input manual). */
+RN.modalCobro._actualizarEquivalenciaUSD = function (totalCUP) {
+  var el = document.getElementById('cobro-total-usd');
+  if (!el) return;
+  var tasa = RN.moneda.tasa();
+  if (tasa && totalCUP > 0) {
+    el.innerHTML = '<span class="muted" style="font-size:13px">≈ ' + RN.moneda.formatUSD(RN.moneda.aUSD(totalCUP)) + '</span>';
+  }
+};
+
+/** Recalcula el total mostrado en el modal (tras editar descuentos o equipo). */
+RN.modalCobro.recalcular = function () {
+  const c = RN.state.clients.find(x => x.id === RN.modalCobro._clienteId);
+  if (!c) return;
+  const mes = RN.calc.mesActualStr();
+  const neto = RN.calc.getPrecioNeto(c, mes);
+  const inpEq = document.getElementById('cobro-monto-equipo');
+  const eq = inpEq ? (parseFloat(inpEq.value) || 0) : 0;
+  const elNeto = document.getElementById('cobro-neto');
+  const elDesc = document.getElementById('cobro-desc-punt');
+  const elTot = document.getElementById('cobro-total');
+  const elAPagar = document.getElementById('cobro-a-pagar');
+  if (elNeto) elNeto.textContent = RN.calc.formatCUP(neto);
+  if (elDesc) elDesc.textContent = '− ' + RN.calc.formatCUP(RN.calc.getDescuentosPuntualesMes(c.id, mes));
+  if (elAPagar) elAPagar.textContent = RN.calc.formatCUP(neto + eq);
+  if (elTot) elTot.textContent = RN.calc.formatCUP(neto + eq);
+
+  // Recalcular desglose con los valores actuales
+  RN.modalCobro.recalcularDesdePago();
+};
+
+/** Abre el modal de cobro eligiendo cliente (desde la vista de cobros / dashboard). */
+RN.modalCobro.abrirDesdeCobros = function () {
+  if (!RN.state.clients.length) { RN.notifyUI.toast('No hay clientes', 'warn'); return; }
+  const opts = RN.calc.clientesActivos().map(c => `<option value="${c.id}">${RN.render.esc(c.nombre)}</option>`).join('');
+  RN.uiComponents.prompt('Registrar cobro', 'Selecciona cliente', '', () => {}, {});
+  // reemplazar por select
+  const inp = document.getElementById('prompt-input');
+  if (inp) {
+    const sel = document.createElement('select');
+    sel.id = 'prompt-input';
+    sel.innerHTML = opts;
+    inp.replaceWith(sel);
+    document.getElementById('prompt-ok').onclick = () => { const v = sel.value; RN.uiComponents.cerrarModal(); if (v) RN.modalCobro.abrir(v); };
+  }
+};
+
+/**
+ * Confirma el cobro: registra en historial, marca descuentos aplicados, descuenta equipo,
+ * descuenta excedente/vuelto del fondo de caja.
+ * Pago combinado: total = (USD × tasa) + CUP.
+ * Detecta pago parcial (total < a pagar) o excedente (total > a pagar).
+ */
+RN.modalCobro.confirmar = function () {
+  const c = RN.state.clients.find(x => x.id === RN.modalCobro._clienteId);
+  if (!c) return;
+  const mes = RN.calc.mesActualStr();
+  const neto = RN.calc.getPrecioNeto(c, mes);
+  const inpEq = document.getElementById('cobro-monto-equipo');
+  const montoEq = inpEq ? Math.max(0, parseFloat(inpEq.value) || 0) : 0;
+  const notas = (document.getElementById('cobro-notas') || {}).value || '';
+  const enviarWA = document.getElementById('cobro-enviar-wa') && document.getElementById('cobro-enviar-wa').checked;
+
+  // ====== Leer montos de ambos campos (pago combinado) ======
+  var inpUsd = document.getElementById('cobro-monto-usd');
+  var inpCup = document.getElementById('cobro-monto-cup');
+  var usd = inpUsd ? (parseFloat(inpUsd.value) || 0) : 0;
+  var cup = inpCup ? (parseFloat(inpCup.value) || 0) : 0;
+  var tasa = RN.moneda.tasa();
+
+  // Total a pagar (neto servicio + equipo)
+  var aPagar = neto + montoEq;
+
+  // Total pagado en CUP = (USD convertido) + CUP directo
+  var cupDesdeUSD = RN.moneda.aCUP(usd);
+  var pagadoCUP = cupDesdeUSD + cup;
+  var pagadoUSD = usd + (tasa ? parseFloat(RN.moneda.aUSD(cup)) : 0);
+
+  // Determinar moneda principal (para compatibilidad con recibo/historial)
+  var moneda = 'CUP';
+  if (usd > 0 && cup <= 0) moneda = 'USD';
+  else if (usd > 0 && cup > 0) moneda = 'MIXTO';
+
+  // Si no se ingresó nada, usar el total (pago completo por defecto)
+  if (pagadoCUP <= 0 && usd <= 0 && cup <= 0) {
+    pagadoCUP = aPagar;
+    cup = aPagar;
+    pagadoUSD = tasa ? parseFloat(RN.moneda.aUSD(aPagar)) : 0;
+    moneda = 'CUP';
+  }
+
+  // ====== Determinar tipo de pago: completo, parcial o excedente ======
+  var diferencia = pagadoCUP - aPagar;
+  var tipoPago = 'completo';
+  var falta = 0;
+  var excedente = 0;
+
+  if (Math.abs(diferencia) < 0.01) {
+    tipoPago = 'completo';
+  } else if (diferencia < 0) {
+    tipoPago = 'parcial';
+    falta = Math.abs(diferencia);
+  } else {
+    tipoPago = 'excedente';
+    excedente = diferencia;
+  }
+
+  // ====== Si hay excedente (vuelto), registrar para referencia ======
+  var fondoAntes = RN.calc.fondoCaja();
+  // v5.10.1: El excedente NO se descuenta del fondo porque los ingresos (h.monto)
+  // ya registran solo el neto. El vuelto entra y sale, no afecta la ganancia.
+  var fondoDespues = +(fondoAntes + neto).toFixed(2);
+
+  // El monto que se registra como ingreso
+  var montoRegistrado = aPagar;
+  if (tipoPago === 'parcial') {
+    montoRegistrado = pagadoCUP;
+  }
+
+  // Recibo
+  RN.state.reciboCounter = (RN.state.reciboCounter || 0) + 1;
+  const reciboNum = RN.calc.proxReciboNum();
+
+  const h = {
+    id: RN.calc.uid('cob'),
+    clienteId: c.id,
+    tipo: 'servicio',
+    mes,
+    monto: tipoPago === 'parcial' ? pagadoCUP : neto,
+    montoEquipo: montoEq,
+    fecha: new Date().toISOString(),
+    reciboNum,
+    notas,
+    descuentoRecurrente: RN.calc.getDescuentoRecurrente(c),
+    descuentosPuntualesIds: RN.state.descuentos.filter(d => d.clienteId === c.id && d.estado !== 'anulado' && (d.mes === mes || (d.soloPago && d.estado === 'pendiente'))).map(d => d.id),
+    // ====== Campos de moneda del pago (combinado) ======
+    moneda: moneda,
+    montoPagadoUSD: usd,
+    montoPagadoCUP: cup,
+    montoPagadoCUPDesdeUSD: cupDesdeUSD,
+    totalPagadoCUP: pagadoCUP,
+    totalPagadoUSD: pagadoUSD,
+    totalCUP: montoRegistrado,
+    totalAPagar: aPagar,
+    tasaUsd: tasa,
+    // ====== Campos de tipo de pago ======
+    tipoPago: tipoPago,
+    falta: falta,
+    excedente: excedente,
+    fondoAntes: fondoAntes,
+    fondoDespues: fondoDespues
+  };
+  RN.state.history.push(h);
+
+  // Marcar descuentos puntuales como aplicados (incluye soloPago pendientes - v5.12.5)
+  RN.state.descuentos.forEach(d => {
+    if (d.clienteId === c.id && d.estado !== 'anulado' && (d.mes === mes || (d.soloPago && d.estado === 'pendiente'))) {
+      d.estado = 'aplicado';
+      d.cobroHid = h.id;
+    }
+  });
+
+  // Descontar equipo (solo si el pago no es parcial, o si el pago parcial cubre al menos el equipo)
+  if (montoEq > 0 && c.deudaEquipo > 0 && tipoPago !== 'parcial') {
+    c.deudaEquipo = Math.max(0, +(c.deudaEquipo - montoEq).toFixed(2));
+  }
+
+  RN.storageLocal.guardar();
+  RN.uiComponents.cerrarModal();
+  RN.render.todo();
+
+  // Mensaje según tipo de pago
+  var msg = '';
+  if (tipoPago === 'completo') {
+    msg = `Cobro registrado: ${RN.calc.formatCUP(aPagar)}`;
+  } else if (tipoPago === 'parcial') {
+    msg = `Pago parcial: ${RN.calc.formatCUP(pagadoCUP)} · Falta ${RN.calc.formatCUP(falta)}`;
+  } else {
+    msg = `Cobro registrado: ${RN.calc.formatCUP(aPagar)} · Vuelto: ${RN.calc.formatCUP(excedente)}`;
+  }
+  // Detalle de monedas si es combinado
+  if (usd > 0 && cup > 0) {
+    msg += ` (${RN.moneda.formatUSD(usd)} + ${RN.calc.formatCUP(cup)})`;
+  } else if (usd > 0) {
+    msg += ` (${RN.moneda.formatUSD(usd)})`;
+  }
+  msg += ` · ${reciboNum}`;
+  RN.notifyUI.toast(msg, 'success');
+
+  // Notificación local
+  RN.notify.local('Cobro registrado', `${c.nombre}: ${RN.calc.formatCUP(montoRegistrado)}`);
+
+  // WhatsApp
+  if (enviarWA && c.telefono) {
+    RN.whatsapp.enviarComprobante(h.id);
+  }
+
+  // Ver recibo
+  RN.recibo.ver(h.id);
+};

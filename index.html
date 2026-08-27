@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="description" content="AdminRed (RedNet) — Administración de negocio de reventa de internet.">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <title>AdminRed (RedNet)</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- PIN LOCK -->
+  <div id="pin-lock" style="display:none">
+    <div class="lock-icon">🔒</div>
+    <h2>Acceso a AdminRed</h2>
+    <p class="muted" id="pin-label">Ingresa tu PIN</p>
+    <input type="password" id="pin-input" inputmode="numeric" maxlength="8" placeholder="••••">
+    <div class="flex" style="gap:10px">
+      <button class="btn primary" id="pin-unlock">Desbloquear</button>
+      <button class="btn ghost" id="pin-setup-toggle" style="display:none">Configurar PIN</button>
+    </div>
+    <p class="muted" style="font-size:12px;max-width:300px;text-align:center" id="pin-hint">
+      El archivo de datos puede estar cifrado. Si olvidas el PIN no es posible recuperar el contenido.
+    </p>
+  </div>
+
+  <!-- HEADER -->
+  <header class="app-header no-print">
+    <div class="logo"><span class="dot"></span> AdminRed <span class="muted sub">RedNet</span></div>
+    <div class="spacer"></div>
+    <span class="ver">v<span id="app-version">—</span></span>
+    <span class="clock" id="reloj"></span>
+    <div class="header-actions">
+      <button class="icon-btn" id="btn-undo" title="Deshacer">↶</button>
+      <button class="icon-btn" id="btn-save" title="Guardar">💾</button>
+      <button class="icon-btn" id="btn-theme" title="Tema">🌙</button>
+      <button class="icon-btn" id="btn-install" title="Instalar app" style="display:none">⬇️</button>
+      <button class="icon-btn" id="btn-menu" title="Más">⋮</button>
+    </div>
+  </header>
+
+  <!-- TABS — 3 grupos principales con sub-navegación -->
+  <nav class="tabs no-print" id="tabs">
+    <div class="tab-group" data-group="operacion">
+      <div class="tab active" data-view="dashboard">🏠 Operación</div>
+      <div class="subtabs">
+        <div class="subtab active" data-view="dashboard">Panel</div>
+        <div class="subtab" data-view="clientes">Clientes</div>
+        <div class="subtab" data-view="cobros">Cobros</div>
+        <div class="subtab" data-view="realizados">Realizados</div>
+        <div class="subtab" data-view="calendario">Calendario</div>
+      </div>
+    </div>
+    <div class="tab-group" data-group="finanzas">
+      <div class="tab" data-view="inversion">💰 Finanzas</div>
+      <div class="subtabs">
+        <div class="subtab" data-view="inversion">Inversión</div>
+        <div class="subtab" data-view="inventario">Inventario</div>
+        <div class="subtab" data-view="gastos">Gastos</div>
+        <div class="subtab" data-view="descuentos">Descuentos</div>
+      </div>
+    </div>
+    <div class="tab-group" data-group="analisis">
+      <div class="tab" data-view="reportes">📊 Análisis</div>
+      <div class="subtabs">
+        <div class="subtab" data-view="reportes">Reportes</div>
+        <div class="subtab" data-view="salud">Salud</div>
+        <div class="subtab" data-view="ajustes">Ajustes</div>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <!-- DASHBOARD -->
+    <section class="view active" id="view-dashboard">
+      <div class="view-header"><h2>Panel del negocio</h2><div class="spacer"></div>
+        <button class="btn primary" onclick="RN.modalCobro.abrirDesdeCobros()">+ Registrar cobro</button>
+      </div>
+      <div class="kpi-grid" id="kpi-dashboard"></div>
+      <div class="card mt-16">
+        <h3>Resumen rápido</h3>
+        <div id="dashboard-resumen"></div>
+      </div>
+      <div class="card mt-16" id="card-recuperacion">
+        <h3>Recuperación de la inversión</h3>
+        <div id="dashboard-recuperacion"></div>
+      </div>
+      <div class="card mt-16" id="card-proveedor">
+        <div id="dashboard-proveedor"></div>
+      </div>
+    </section>
+
+    <!-- CLIENTES -->
+    <section class="view" id="view-clientes">
+      <div class="view-header"><h2>Clientes</h2><div class="spacer"></div>
+        <button class="btn" onclick="RN.modalPaquete.abrir()">🧩 Planes</button>
+        <button class="btn primary" onclick="RN.modalCliente.abrir()">+ Nuevo cliente</button>
+      </div>
+      <div class="toolbar">
+        <input class="search" type="search" id="search-clientes" placeholder="Buscar por nombre, dirección, teléfono...">
+        <select id="filter-estado"><option value="">Todos los estados</option><option value="ok">Al día</option><option value="warn">Por vencer</option><option value="due">Atrasado</option><option value="paid">Pagado</option><option value="parcial">Pago parcial</option><option value="por-iniciar">Por iniciar</option></select>
+      </div>
+      <div class="accordion-list" id="lista-clientes"></div>
+    </section>
+
+    <!-- COBROS -->
+    <section class="view" id="view-cobros">
+      <div class="view-header"><h2>Cobros del mes</h2><div class="spacer"></div>
+        <button class="btn" onclick="RN.descuentos.abrirLote()">🏷️ Descuento por lote</button>
+        <button class="btn danger" onclick="RN.monthReset.confirmar()">🔄 Cerrar mes</button>
+      </div>
+      <div class="toolbar">
+        <input class="search" type="search" id="search-cobros" placeholder="Buscar cliente...">
+      </div>
+      <div class="accordion-list" id="lista-cobros"></div>
+    </section>
+
+    <!-- REALIZADOS -->
+    <section class="view" id="view-realizados">
+      <div class="view-header"><h2>Cobros realizados</h2><div class="spacer"></div></div>
+      <div class="kpi-grid" id="kpi-realizados"></div>
+      <div class="toolbar">
+        <input class="search" type="search" id="search-realizados" placeholder="Buscar por cliente o recibo..." oninput="RN.render.realizados()">
+        <select id="filtro-realizados-mes" onchange="RN.render.realizados()">
+          <option value="">Todos los meses</option>
+        </select>
+      </div>
+      <div class="accordion-list" id="lista-realizados"></div>
+    </section>
+
+    <!-- INVERSION -->
+    <section class="view" id="view-inversion">
+      <div class="view-header"><h2>Inversión / deuda de equipo</h2><div class="spacer"></div>
+        <button class="btn primary" onclick="RN.inversion.abrirNueva()">+ Nueva inversión</button>
+      </div>
+      <div class="kpi-grid" id="kpi-inversion"></div>
+      <div class="card mt-16" id="card-recuperacion-inv" style="display:none">
+        <h3>Recuperación de la inversión</h3>
+        <div id="inversion-recuperacion"></div>
+      </div>
+      <div class="accordion-list" id="lista-inversion"></div>
+    </section>
+
+    <!-- INVENTARIO -->
+    <section class="view" id="view-inventario">
+      <div class="view-header"><h2>Inventario compartido</h2><div class="spacer"></div>
+        <button class="btn primary" onclick="RN.inventario.abrirNuevoLote()">+ Comprar producto</button>
+      </div>
+      <div class="accordion-list" id="lista-inventario"></div>
+    </section>
+
+    <!-- GASTOS -->
+    <section class="view" id="view-gastos">
+      <div class="view-header"><h2>Gastos del negocio</h2><div class="spacer"></div>
+        <button class="btn primary" onclick="RN.gastos.abrirNuevo()">+ Nuevo gasto</button>
+        <button class="btn" onclick="RN.paqueteProveedor.abrir()">📡 Pagar mi servicio</button>
+      </div>
+      <div class="kpi-grid" id="kpi-gastos"></div>
+      <div class="accordion-list" id="lista-gastos"></div>
+    </section>
+
+    <!-- REPORTES -->
+    <section class="view" id="view-reportes">
+      <div class="view-header"><h2>Reportes y estadísticas</h2></div>
+      <div class="kpi-grid" id="kpi-reportes"></div>
+      <div class="card"><h3>Historial de cobros</h3>
+        <div class="table-wrap responsive"><table id="tabla-historial"><thead><tr>
+          <th>Fecha</th><th>Cliente</th><th>Concepto</th><th>Monto</th><th>Recibo</th>
+        </tr></thead><tbody></tbody></table></div>
+      </div>
+      <div class="card"><h3>Tendencia mensual de ingresos</h3><div id="tendencia-chart"></div></div>
+      <div class="card"><h3>Reporte mensual ejecutivo</h3>
+        <div class="flex mb-16"><label>Mes</label>
+          <select id="select-mes-reporte" style="max-width:200px"></select>
+          <button class="btn" onclick="RN.reporteMensual.generar()">Generar</button>
+        </div>
+        <div id="reporte-mensual-out"></div>
+      </div>
+    </section>
+
+    <!-- CALENDARIO -->
+    <section class="view" id="view-calendario">
+      <div class="view-header"><h2>Calendario de cobros</h2><div class="spacer"></div>
+        <button class="btn" onclick="RN.calendario.mesAnterior()">‹</button>
+        <span id="cal-mes-label" style="min-width:160px;text-align:center;font-weight:700"></span>
+        <button class="btn" onclick="RN.calendario.mesSiguiente()">›</button>
+      </div>
+      <div class="card">
+        <div class="cal-grid" id="cal-grid"></div>
+        <div class="flex mt-16" style="gap:16px;flex-wrap:wrap;font-size:12px;align-items:center">
+          <span class="flex" style="gap:6px"><span class="badge ok">●</span> Al día</span>
+          <span class="flex" style="gap:6px"><span class="badge warn">●</span> Por vencer</span>
+          <span class="flex" style="gap:6px"><span class="badge due">●</span> Atrasado</span>
+          <span class="flex" style="gap:6px"><span class="badge paid">●</span> Pagado</span>
+          <span class="flex" style="gap:6px"><span class="cal-corte-tag">✂ Corte</span> Día de corte</span>
+        </div>
+        <p class="muted mt-8" style="font-size:12px">Toca un día con clientes para ver el detalle, el total a cobrar y cobrar o enviar recordatorios.</p>
+      </div>
+    </section>
+
+    <!-- DESCUENTOS -->
+    <section class="view" id="view-descuentos">
+      <div class="view-header"><h2>Gestión de descuentos puntuales</h2><div class="spacer"></div>
+        <button class="btn" onclick="RN.descuentosView.exportCSV()">⬇️ Exportar CSV</button>
+      </div>
+      <div class="toolbar">
+        <select id="filter-desc-mes"><option value="">Todos los meses</option></select>
+        <select id="filter-desc-tipo"><option value="">Todos los tipos</option><option value="afectacion">Afectación</option><option value="bonificacion">Bonificación</option><option value="ajuste">Ajuste</option></select>
+        <select id="filter-desc-estado"><option value="">Todos</option><option value="aplicado">Aplicado</option><option value="pendiente">Pendiente</option><option value="anulado">Anulado</option></select>
+      </div>
+      <div class="table-wrap responsive"><table id="tabla-descuentos"><thead><tr>
+        <th>Cliente</th><th>Tipo</th><th>Motivo</th><th>Modo</th><th>Valor</th><th>Mes</th><th>Estado</th><th>Acciones</th>
+      </tr></thead><tbody></tbody></table></div>
+    </section>
+
+    <!-- SALUD -->
+    <section class="view" id="view-salud">
+      <div class="view-header"><h2>Salud del negocio</h2></div>
+      <div id="salud-out"></div>
+    </section>
+
+    <!-- AJUSTES -->
+    <section class="view" id="view-ajustes">
+      <div class="view-header"><h2>Ajustes</h2></div>
+      <div class="card">
+        <h3>Archivo de datos</h3>
+        <p class="muted mb-16">Los datos se guardan localmente. Puedes vincular un archivo real (File System Access API) o usar el almacenamiento local del navegador.</p>
+        <div class="flex wrap" style="gap:10px">
+          <button class="btn primary" onclick="RN.storageFile.vincular()">📁 Vincular / crear archivo</button>
+          <button class="btn" onclick="RN.storageFile.guardarAhora()">💾 Guardar en archivo</button>
+          <button class="btn" onclick="RN.storageFile.abrir()">📂 Abrir archivo</button>
+          <button class="btn danger" onclick="RN.storageFile.desvincular()">🔓 Desvincular archivo</button>
+          <button class="btn" onclick="RN.export.exportarBackup()">⬇️ Exportar respaldo JSON</button>
+          <button class="btn" onclick="RN.export.importarBackup()">⬆️ Importar respaldo</button>
+          <button class="btn" onclick="RN.autoBackup.restaurarUltimo()" title="Restaura la última copia automática guardada en este navegador">♻️ Restaurar respaldo automático</button>
+        </div>
+        <p class="mt-16 muted" id="archivo-status"></p>
+        <p class="mt-8 muted" id="autobackup-status" style="font-size:12px"></p>
+      </div>
+      <div class="card">
+        <h3>Configuración</h3>
+        <div class="form-row cols-2">
+          <div><label>Tasa de cambio USD (CUP por 1 USD)</label><input type="number" id="cfg-tasa-usd" step="0.01">
+            <!-- v5.12.7: indicador visual de estado de la tasa (🟢🟡🔴) -->
+            <div class="tasa-indicator" id="tasa-indicator"></div>
+          </div>
+          <div><label>Días base del mes</label><input type="number" id="cfg-dias-base" value="30"></div>
+        </div>
+        <div class="form-row cols-2">
+          <div><label>Mencionar descuento recurrente en recibo</label>
+            <select id="cfg-mencion-desc"><option value="true">Sí</option><option value="false">No</option></select></div>
+          <div><label>Tasa automática (consulta mdiv.pro)</label>
+            <select id="cfg-tasa-auto"><option value="false">Manual</option><option value="true">Automática</option></select></div>
+        </div>
+        <div class="form-row">
+          <div><label>Saldo inicial de caja (CUP) — capital semilla (el fondo se calcula automáticamente)</label><input type="number" id="cfg-fondo-caja" step="0.01" value="0"></div>
+        </div>
+        <div class="form-row">
+          <div><label>% de ganancia personal (retiro mensual) — de cada mes, del margen neto que generen los clientes (ingreso − costo del mega), este porcentaje es lo que tú te retiras como ganancia; solo el resto recupera el capital invertido. Ej: 20% → de 20mil de margen, retiras 4mil/mes y 16mil recuperan la inversión.</label><input type="number" id="cfg-pct-personal" step="1" min="0" max="100" value="0" placeholder="Ej: 30"></div>
+        </div>
+        <div class="form-row">
+          <div><label>% de ganancia de inventario — al vender material, el precio de venta se calcula automáticamente como costo × (1 + este %), pero queda editable en cada venta.</label><input type="number" id="cfg-pct-ganancia-inv" step="1" min="0" max="500" value="20" placeholder="Ej: 20"></div>
+        </div>
+        <div class="form-row">
+          <div><label>% de ganancia del mes real para recuperación (préstamos externos) — cuando una inversión es capital prestado (externo), aparte de lo que cobras a los clientes, este % de la ganancia neta real del mes (ingresos − gastos) se suma como aporte extra a la recuperación de ese préstamo. Así recuperas más rápido reflejando la utilidad real del negocio. Ej: 10% → si el mes dejó 15mil de ganancia neta, se suman 1.5mil a la recuperación. Default 0 (solo cuenta lo cobrado a clientes).</label><input type="number" id="cfg-pct-ganancia-mes" step="1" min="0" max="100" value="0" placeholder="Ej: 10"></div>
+        </div>
+        <button class="btn primary" onclick="RN.config.guardar()">Guardar configuración</button>
+      </div>
+      <div class="card">
+        <h3>Seguridad</h3>
+        <div class="flex wrap" style="gap:10px">
+          <button class="btn" onclick="RN.pin.configurar()">🔑 Configurar PIN</button>
+          <button class="btn" onclick="RN.pin.quitar()">🗑️ Quitar PIN</button>
+          <button class="btn" onclick="RN.notify.requestPermiso()">🔔 Activar notificaciones</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>WhatsApp</h3>
+        <button class="btn" onclick="RN.waTemplates.abrir()">✏️ Editar plantillas de mensajes</button>
+      </div>
+      <div class="card">
+        <h3>Zona de peligro</h3>
+        <button class="btn danger" onclick="RN.resetApp.confirmar()">⚠️ Resetear toda la app</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Print area para recibos -->
+  <div id="print-area"></div>
+
+  <!-- Notify container -->
+  <div id="notify-container"></div>
+
+  <!-- Modal genérico -->
+  <div class="modal-overlay" id="modal-overlay"><div class="modal" id="modal-box"></div></div>
+
+  <!-- FAB: botón flotante de acción rápida (móvil) -->
+  <button class="fab" id="fab-action" title="Acción rápida">＋</button>
+  <!-- v5.12.7: Botón flotante de aviso de tasa USD vencida (muestra solo cuando procede) -->
+  <button class="fab-tasa" id="fab-tasa" title="Tasa USD desactualizada" style="display:none" onclick="RN.tasaAviso.abrirModal()">💱</button>
+
+  <!-- ============================================================
+       ORDEN DE CARGA DE SCRIPTS — CRÍTICO (ver DEPENDENCIAS.md)
+       Sin bundler: un módulo que use funciones de otro debe cargarse
+       DESPUÉS de sus dependencias.
+       ============================================================ -->
+
+  <!-- 1. CORE -->
+  <script src="js/version.js"></script>
+  <script src="js/core/state.js"></script>
+  <script src="js/core/keys.js"></script>
+  <script src="js/core/config.js"></script>
+  <script src="js/core/crypto.js"></script>
+  <script src="js/core/calculations.js"></script>
+  <script src="js/core/ciclos.js"></script>
+  <script src="js/core/moneda.js"></script>
+  <script src="js/reset-app.js"></script>
+  <script src="js/core/models/investment.js"></script>
+  <script src="js/core/models/inventario.js"></script>
+  <script src="js/core/migration.js"></script>
+  <script src="js/core/checkpoint.js"></script>
+  <script src="js/core/undo.js"></script>
+  <script src="js/core/validacion.js"></script>
+  <script src="js/core/validate-fields.js"></script>
+
+  <!-- 2. STORAGE -->
+  <script src="js/storage/storage-local.js"></script>
+  <script src="js/storage/storage-file.js"></script>
+  <script src="js/storage/export.js"></script>
+  <script src="js/storage/autobackup.js"></script>
+
+  <!-- 3. UI -->
+  <script src="js/ui/theme.js"></script>
+  <script src="js/ui/notify-ui.js"></script>
+  <script src="js/ui/reloj.js"></script>
+  <script src="js/ui/tabs.js"></script>
+  <script src="js/ui/render.js"></script>
+  <script src="js/ui/inline-edit.js"></script>
+  <script src="js/ui/ui-components.js"></script>
+  <script src="js/ui/tasa-aviso.js"></script>
+
+  <!-- 4. CLIENTES -->
+  <script src="js/clientes/modal-cliente.js"></script>
+  <script src="js/clientes/confirm-delete.js"></script>
+  <script src="js/clientes/client-history.js"></script>
+
+  <!-- 5. COBROS -->
+  <script src="js/cobros/modal-cobro.js"></script>
+  <script src="js/cobros/cobranza.js"></script>
+  <script src="js/cobros/mora.js"></script>
+  <script src="js/cobros/inversion.js"></script>
+  <script src="js/cobros/inventario.js"></script>
+  <script src="js/cobros/descuentos.js"></script>
+  <script src="js/cobros/month-reset.js"></script>
+  <script src="js/cobros/caja.js"></script>
+
+  <!-- 6. REPORTES -->
+  <script src="js/reportes/historial.js"></script>
+  <script src="js/reportes/historial-mensual.js"></script>
+  <script src="js/reportes/tendencia.js"></script>
+  <script src="js/reportes/prediccion.js"></script>
+  <script src="js/reportes/estadisticas.js"></script>
+  <script src="js/reportes/reporte-mensual.js"></script>
+  <script src="js/reportes/recibo.js"></script>
+  <script src="js/reportes/calendario.js"></script>
+  <script src="js/reportes/salud.js"></script>
+  <script src="js/reportes/descuentos-view.js"></script>
+
+  <!-- 7. NOTIFICACIONES -->
+  <script src="js/notificaciones/notifications.js"></script>
+  <script src="js/notificaciones/whatsapp.js"></script>
+  <script src="js/notificaciones/wa-templates.js"></script>
+
+  <!-- 8. OTROS -->
+  <script src="js/red/equipos-red.js"></script>
+  <script src="js/paquete/modal-paquete.js"></script>
+  <script src="js/paquete/modal-paquete-proveedor.js"></script>
+  <script src="js/gastos.js"></script>
+  <script src="js/pin.js"></script>
+  <script src="js/pwa.js"></script>
+
+  <!-- 9. INIT — debe ser el último script clásico -->
+  <script src="js/tests/tests-calculo.js"></script>
+  <script src="js/init.js"></script>
+</body>
+</html>
