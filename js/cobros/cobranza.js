@@ -29,7 +29,8 @@ RN.cobranza.abrir = function () {
   var totalACobrar = 0;
   grupos.forEach(function (g) {
     g.clientes.forEach(function (c) {
-      totalACobrar += RN.calc.getPrecioNeto(c) + RN.investment.getCuotaEquipoCliente(c);
+      // v5.13.1: Bug #4 — pasar mes explícito para descuentos puntuales.
+      totalACobrar += RN.calc.getPrecioNeto(c, mes) + RN.investment.getCuotaEquipoCliente(c);
     });
   });
 
@@ -39,7 +40,7 @@ RN.cobranza.abrir = function () {
   var secciones = grupos.map(function (g) {
     var filas = g.clientes.map(function (c) {
       var estado = RN.calc.getStatus(c);
-      var neto = RN.calc.getPrecioNeto(c);
+      var neto = RN.calc.getPrecioNeto(c, mes);
       var cuotaEq = RN.investment.getCuotaEquipoCliente(c);
       var total = neto + cuotaEq;
       var tel = c.telefono ? RN.render.esc(c.telefono) : '<span class="muted">—</span>';

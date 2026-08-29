@@ -9,9 +9,35 @@ RN.calc = RN.calc || {};
 /** Devuelve el día de hoy (1-31). */
 RN.calc.hoy = function () { return new Date(); };
 
-/** Devuelve el mes actual en formato YYYY-MM. */
+/**
+ * Devuelve el mes actual en formato YYYY-MM.
+ * v5.13.1: Bug #1 — Prioriza RN.state.mesActual (establecido por cierre de mes)
+ * si es válido. Antes siempre usaba new Date() (reloj del sistema), ignorando
+ * el campo mesActual que se guardaba al cerrar mes. Esto hacía que después
+ * de cerrar un mes, la app siguiera mostrando el mes calendario real en lugar
+ * del mes operativo establecido.
+ */
 RN.calc.mesActualStr = function () {
+  if (RN.state && RN.state.mesActual && /^\d{4}-\d{2}$/.test(RN.state.mesActual)) {
+    return RN.state.mesActual;
+  }
   const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+};
+
+/**
+ * Establece RN.state.mesActual al mes del reloj del sistema.
+ * v5.13.1: Bug #1 — helper para sincronizar el mes operativo con el real.
+ */
+RN.calc.sincronizarMesReal = function () {
+  var d = new Date();
+  RN.state.mesActual = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  return RN.state.mesActual;
+};
+
+/** Devuelve el mes REAL del reloj del sistema (ignora mesActual). v5.13.1 */
+RN.calc.mesRealStr = function () {
+  var d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
 };
 
@@ -76,7 +102,8 @@ RN.calc.getStatus = function (cliente) {
     h.clienteId === cliente.id && h.tipo === 'servicio' && h.mes === mes
   );
   if (cobrosMes.length > 0) {
-    // Verificar si el pago fue completo o parcial
+    // v5.13.1: Bug #15 — coherencia confirmada con Bug #2.
+    // h.monto es SIEMPRE solo servicio, netoEsperado también es solo servicio.
     const netoEsperado = RN.calc.getPrecioNeto(cliente, mes);
     const totalServicio = cobrosMes.reduce((s, h) => s + (h.monto || 0), 0);
     if (totalServicio >= netoEsperado - 0.01) return 'paid';
@@ -136,6 +163,21 @@ RN.calc.mesesEntre = function (a, b) {
   const [ay, am] = a.split('-').map(Number);
   const [by, bm] = b.split('-').map(Number);
   return (by - ay) * 12 + (bm - am);
+};
+
+/**
+ * Deuda total de un cliente = servicio pendiente (mes actual + meses en mora)
+ * + deuda de equipo. v5.13.1: Bug #4 — nueva función centralizada para que
+ * todas las vistas (mora, cobranza, render, calendario) usen el mismo cálculo
+ * en lugar de getPrecioNeto(c) sin mes + getCuotaEquipo dispersos.
+ */
+RN.calc.deudaTotalCliente = function (cliente, mes) {
+  mes = mes || RN.calc.mesActualStr();
+  var mora = RN.calc.getMora(cliente);
+  var netoMes = RN.calc.getPrecioNeto(cliente, mes);
+  var servicioPendiente = netoMes * (mora + 1);
+  var deudaEquipo = RN.investment.getDeudaEquipoCliente(cliente);
+  return +(servicioPendiente + deudaEquipo).toFixed(2);
 };
 
 /** Mes anterior a un YYYY-MM. */
@@ -274,7 +316,10 @@ RN.calc.fondoCaja = function () {
 /** Gastos del mes. */
 RN.calc.gastosMes = function (mes) {
   mes = mes || RN.calc.mesActualStr();
-  return RN.state.gastos.filter(g => (g.mes || '').startsWith(mes.slice(0, 7) || mes)).reduce((s, g) => s + (g.monto || 0), 0);
+  // v5.13.1: Bug #9 — simplificada la lógica de filtrado.
+  var mesNorm = mes.slice(0, 7);
+  return RN.state.gastos.filter(function (g) { return (g.mes || '').slice(0, 7) === mesNorm; })
+    .reduce(function (s, g) { return s + (g.monto || 0); }, 0);
 };
 
 /** Pago al proveedor de internet del mes indicado (o null si no hay). v5.8.6 */
@@ -390,10 +435,26 @@ RN.calc.restarMeses = function (ym, n) {
   return y + '-' + String(m).padStart(2, '0');
 };
 
-/** Predicción simple de ingresos del próximo mes (media móvil de últimos 3). */
+/**
+ * Predicción de ingresos del próximo mes.
+ * v5.13.1: Bug #10 — mejorada con regresión lineal sobre los últimos 6 meses.
+ */
 RN.calc.prediccionIngresos = function () {
-  const t = RN.calc.tendenciaMensual(3);
+  var t = RN.calc.tendenciaMensual(6);
   if (!t.length) return 0;
-  const media = t.reduce((s, x) => s + x.ingresos, 0) / t.length;
-  return +media.toFixed(2);
+  if (t.length < 2) return +t[0].ingresos.toFixed(2);
+  var n = t.length;
+  var sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+  for (var i = 0; i < n; i++) {
+    var x = i;
+    var y = t[i].ingresos;
+    sumX += x; sumY += y; sumXY += x * y; sumX2 += x * x;
+  }
+  var denom = n * sumX2 - sumX * sumX;
+  var b, a;
+  if (denom === 0) { b = 0; a = sumY / n; }
+  else { b = (n * sumXY - sumX * sumY) / denom; a = (sumY - b * sumX) / n; }
+  var prediccion = a + b * n;
+  if (prediccion < 0) prediccion = 0;
+  return +prediccion.toFixed(2);
 };

@@ -55,7 +55,25 @@ RN.checkpoint.restaurar = function (idx) {
   RN.state.equiposRed = data.equiposRed || [];
   RN.state.descuentos = data.descuentos || [];
   RN.state.snapshots = data.snapshots || [];
-  RN.state.config = data.config || RN.state.config;
+  // v5.13.1: Bug #14 — Al restaurar un checkpoint, preservar la tasaUsd y
+  // fechaTasaUsd más recientes. Antes, restaurar un snapshot viejo
+  // sobreescribía la tasa actual con una tasa desactualizada del checkpoint.
+  var tasaActual = RN.state.config.tasaUsd || 0;
+  var fechaTasaActual = RN.state.config.fechaTasaUsd || null;
+  if (data.config) {
+    RN.state.config = data.config;
+  }
+  // Preservar la tasa más reciente entre la actual y la del checkpoint.
+  var tasaSnap = (data.config && data.config.tasaUsd) || 0;
+  var fechaTasaSnap = (data.config && data.config.fechaTasaUsd) || null;
+  if (fechaTasaActual && (!fechaTasaSnap || fechaTasaActual > fechaTasaSnap)) {
+    RN.state.config.tasaUsd = tasaActual;
+    RN.state.config.fechaTasaUsd = fechaTasaActual;
+  } else if (fechaTasaSnap && !fechaTasaActual) {
+    // Si no teníamos tasa pero el snapshot sí, usar la del snapshot.
+    RN.state.config.tasaUsd = tasaSnap;
+    RN.state.config.fechaTasaUsd = fechaTasaSnap;
+  }
   RN.state.reciboCounter = data.reciboCounter || 0;
   RN.state.mesActual = data.mesActual || RN.calc.mesActualStr();
   RN.state.undoIndex = idx;

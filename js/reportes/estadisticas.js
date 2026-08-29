@@ -6,8 +6,15 @@ RN.estadisticas = RN.estadisticas || {};
 RN.estadisticas.calcular = function () {
   const clientes = RN.calc.clientesActivos();
   const totalClientes = RN.state.clients.length;
-  const ticketPromedio = RN.state.history.length
-    ? RN.state.history.reduce((s, h) => s + (h.monto || 0) + (h.montoEquipo || 0), 0) / RN.state.history.length
+  // v5.13.1: Bug #7 — Ticket promedio del mes actual, solo cobros de servicio.
+  // Antes usaba TODO el historial (todos los meses + cobros de equipo/venta),
+  // lo que diluía el ticket real y mezclaba conceptos.
+  var mesActual = RN.calc.mesActualStr();
+  var cobrosMes = RN.state.history.filter(function (h) {
+    return h.mes === mesActual && (!h.tipo || h.tipo === 'servicio');
+  });
+  var ticketPromedio = cobrosMes.length
+    ? cobrosMes.reduce(function (s, h) { return s + (h.monto || 0); }, 0) / cobrosMes.length
     : 0;
   return {
     totalClientes,
@@ -28,7 +35,7 @@ RN.estadisticas.ver = function () {
     { label: 'Clientes totales', value: s.totalClientes, cls: 'blue' },
     { label: 'Clientes activos', value: s.clientesActivos, cls: 'green' },
     { label: 'Cobros registrados', value: s.cobrosRegistrados, cls: 'blue' },
-    { label: 'Ticket promedio', value: RN.calc.formatCUP(s.ticketPromedio), cls: 'amber' },
+    { label: 'Ticket promedio (mes)', value: RN.calc.formatCUP(s.ticketPromedio), cls: 'amber' },
     { label: 'Ingresos totales', value: RN.calc.formatCUP(s.ingresosTotales), cls: 'green' },
     { label: 'Gastos totales', value: RN.calc.formatCUP(s.gastosTotales), cls: 'red' },
     { label: 'Utilidad acumulada', value: RN.calc.formatCUP(s.utilidadAcumulada), cls: 'blue' },

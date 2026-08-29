@@ -19,16 +19,18 @@ RN.mora.abrir = function () {
     return;
   }
 
+  // v5.13.1: Bug #4 — pasar mes explícito para descuentos puntuales.
+  var mes = RN.calc.mesActualStr();
   var totalMorosos = RN.ciclos.totalMorosos();
   var totalDeuda = 0;
   grupos.forEach(function (g) {
-    g.clientes.forEach(function (c) { totalDeuda += RN.calc.getPrecioNeto(c); });
+    g.clientes.forEach(function (c) { totalDeuda += RN.calc.getPrecioNeto(c, mes); });
   });
 
   var secciones = grupos.map(function (g) {
     var filas = g.clientes.map(function (c) {
       var mora = RN.calc.getMora(c);
-      var neto = RN.calc.getPrecioNeto(c);
+      var neto = RN.calc.getPrecioNeto(c, mes);
       var cuotaEq = RN.investment.getCuotaEquipoCliente(c);
       var total = neto + cuotaEq;
       var tel = c.telefono ? RN.render.esc(c.telefono) : '<span class="muted">—</span>';
@@ -95,6 +97,8 @@ RN.mora._recordarMasivo = function () {
 
 /** Lista clientes con mora y permite enviar recordatorios masivos. (legacy) */
 RN.mora.listar = function () {
+  // v5.13.1: Bug #4 — mes explícito para descuentos puntuales.
+  const mes = RN.calc.mesActualStr();
   const morosos = RN.calc.clientesActivos()
     .map(c => ({ c, mora: RN.calc.getMora(c), estado: RN.calc.getStatus(c) }))
     .filter(x => x.mora > 0 || x.estado === 'due');
@@ -103,7 +107,7 @@ RN.mora.listar = function () {
     <td><strong>${RN.render.esc(x.c.nombre)}</strong></td>
     <td>${x.c.diaPago || 1}</td>
     <td><span class="badge due">${x.mora} mes(es)</span></td>
-    <td>${RN.calc.formatCUP(RN.calc.getPrecioNeto(x.c))}</td>
+    <td>${RN.calc.formatCUP(RN.calc.getPrecioNeto(x.c, mes))}</td>
     <td><button class="btn sm primary" onclick="RN.modalCobro.abrir('${x.c.id}')">Cobrar</button>
         <button class="btn sm" onclick="RN.whatsapp.enviarRecordatorio('${x.c.id}')">WhatsApp</button></td>
   </tr>`).join('') : '<tr><td colspan="5"><div class="empty">No hay clientes morosos</div></td></tr>';

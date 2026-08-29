@@ -355,10 +355,12 @@ RN.render.clientes = function () {
     return;
   }
 
+  // v5.13.1: Bug #4 — mes explícito para descuentos puntuales.
+  const mes = RN.calc.mesActualStr();
   cont.innerHTML = lista.map(c => {
     const estado = RN.calc.getStatus(c);
     const deuda = RN.investment.getDeudaEquipoCliente(c);
-    const neto = RN.calc.getPrecioNeto(c);
+    const neto = RN.calc.getPrecioNeto(c, mes);
     const cuotaEq = RN.investment.getCuotaEquipoCliente(c);
     const total = neto + cuotaEq;
     const ipHtml = c.ip ? '<span class="acc-ip">' + RN.render.esc(c.ip) + '</span>' : '';
@@ -420,9 +422,11 @@ RN.render.cobros = function () {
     return oa - ob;
   });
 
+  // v5.13.1: Bug #4 — mes explícito para descuentos puntuales.
+  const mes = RN.calc.mesActualStr();
   cont.innerHTML = lista.map(c => {
     const estado = RN.calc.getStatus(c);
-    const neto = RN.calc.getPrecioNeto(c);
+    const neto = RN.calc.getPrecioNeto(c, mes);
     const cuotaEq = RN.investment.getCuotaEquipoCliente(c);
     const total = neto + cuotaEq;
     const deuda = RN.investment.getDeudaEquipoCliente(c);

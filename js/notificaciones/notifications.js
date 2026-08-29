@@ -19,10 +19,11 @@ RN.notify.local = function (titulo, cuerpo) {
 
 /** Revisa clientes cuyo día de pago es hoy y notifica (llamado periódicamente). */
 RN.notify.revisarRecordatorios = function () {
+  const mes = RN.calc.mesActualStr();
   const hoy = new Date().getDate();
   RN.calc.clientesActivos().forEach(c => {
     if (c.diaPago === hoy && RN.calc.getStatus(c) !== 'paid') {
-      RN.notify.local('Recordatorio de pago', `${c.nombre} debe pagar hoy (${RN.calc.formatCUP(RN.calc.getPrecioNeto(c))})`);
+      RN.notify.local('Recordatorio de pago', `${c.nombre} debe pagar hoy (${RN.calc.formatCUP(RN.calc.getPrecioNeto(c, mes))})`);
     }
   });
 };

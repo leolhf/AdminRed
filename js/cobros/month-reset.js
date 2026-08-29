@@ -6,13 +6,17 @@
 RN.monthReset = RN.monthReset || {};
 
 RN.monthReset.confirmar = function () {
-  const mes = RN.calc.mesActualStr();
+  // v5.13.1: Bug #1 — usar var y precomputar mesSiguiente.
+  // Ahora mesActualStr() respeta RN.state.mesActual, asi que al asignarlo
+  // aqui tiene efecto real en todos los calculos posteriores.
+  var mes = RN.calc.mesActualStr();
+  var mesSiguiente = RN.calc.mesSiguiente(mes);
   const snapshot = RN.calc.generarSnapshot(mes);
   const sinAplicar = RN.state.descuentos.filter(d => d.mes === mes && d.estado === 'pendiente' && !d.soloPago).length;
 
   RN.uiComponents.confirm(
     'Cerrar mes — ' + RN.calc.mesTexto(mes),
-    `Se generará un snapshot con:\n• Ingresos: ${RN.calc.formatCUP(snapshot.ingresos)}\n• Gastos: ${RN.calc.formatCUP(snapshot.gastos)}\n• Utilidad: ${RN.calc.formatCUP(snapshot.utilidad)}\n• Cobranza: ${snapshot.clientesPagaron}/${snapshot.clientesTotal}\n\nSe anularán ${sinAplicar} descuento(s) puntual(es) no aplicado(s). El mes actual pasará a ${RN.calc.mesTexto(RN.calc.mesSiguiente(mes))}.`,
+    `Se generará un snapshot con:\n• Ingresos: ${RN.calc.formatCUP(snapshot.ingresos)}\n• Gastos: ${RN.calc.formatCUP(snapshot.gastos)}\n• Utilidad: ${RN.calc.formatCUP(snapshot.utilidad)}\n• Cobranza: ${snapshot.clientesPagaron}/${snapshot.clientesTotal}\n\nSe anularán ${sinAplicar} descuento(s) puntual(es) no aplicado(s). El mes actual pasará a ${RN.calc.mesTexto(mesSiguiente)}.`,
     () => {
       // 1. Snapshot
       RN.state.snapshots.push(snapshot);
@@ -22,7 +26,8 @@ RN.monthReset.confirmar = function () {
         if (d.mes === mes && d.estado === 'pendiente' && !d.soloPago) d.estado = 'anulado';
       });
       // 3. Avanzar mes actual
-      RN.state.mesActual = RN.calc.mesSiguiente(mes);
+      // v5.13.1: Ahora esto tiene efecto real porque mesActualStr() respeta RN.state.mesActual
+      RN.state.mesActual = mesSiguiente;
       // v5.12.4: Aplicar paquete pendiente si existe (cambio guardado para este mes)
       let paqueteAplicadoMsg = '';
       if (RN.state.config.paquetePendiente) {

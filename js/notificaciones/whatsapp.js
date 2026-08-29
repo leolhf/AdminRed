@@ -28,14 +28,15 @@ RN.whatsapp.enviarRecordatorio = function (clienteId) {
   if (!c) return;
   if (!c.telefono) { RN.notifyUI.toast('El cliente no tiene teléfono', 'warn'); return; }
   const tpls = RN.waTemplates.cargar();
+  const mes = RN.calc.mesActualStr();
   const mora = RN.calc.getMora(c);
   const tpl = mora > 0 ? tpls.mora : tpls.recordatorio;
   const ctx = {
     nombre: c.nombre,
     precioBase: RN.calc.formatCUP(RN.calc.getPrecioBase(c)),
     descuentoRecurrente: RN.calc.formatCUP(RN.calc.getDescuentoRecurrente(c)),
-    descuentoLinea: RN.calc.formatCUP(RN.calc.getDescuentosPuntualesMes(c.id)),
-    precioNeto: RN.calc.formatCUP(RN.calc.getPrecioNeto(c)),
+    descuentoLinea: RN.calc.formatCUP(RN.calc.getDescuentosPuntualesMes(c.id, mes)),
+    precioNeto: RN.calc.formatCUP(RN.calc.getPrecioNeto(c, mes)),
     mes: RN.calc.mesTexto(RN.calc.mesActualStr()),
     diaPago: c.diaPago || 1,
     mora: String(mora)

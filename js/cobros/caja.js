@@ -341,11 +341,10 @@ RN.caja.guardarDevolucion = function (inversionId) {
     mes: mes
   });
 
-  // v5.13.0: verificar si la deuda quedó totalmente liquidada
+  // v5.13.1: Bug #6 — eliminado el guardado duplicado dentro de if(concluida).
+  // El guardado incondicional posterior ya persiste todo el estado, por lo que
+  // el guardado extra era redundante y causaba doble checkpoint + doble I/O.
   var concluida = RN.investment.verificarConclusion(inv);
-  if (concluida) {
-    RN.storageLocal.guardar();
-  }
 
   RN.storageLocal.guardar();
   RN.uiComponents.cerrarModal();

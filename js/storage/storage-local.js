@@ -80,46 +80,103 @@ RN.storageLocal._aplicarData = function (data) {
   RN.state.equiposRed = data.equiposRed || [];
   RN.state.descuentos = data.descuentos || [];
   RN.state.snapshots = data.snapshots || [];
-  // v5.13.0: Al aplicar datos desde archivo/backup, preservar la config de
-  // tasa USD si la actual es más reciente (fechaTasaUsd mayor).
-  // Esto evita que abrir un archivo viejo sobreescriba la tasa actual.
-  var tasaActual = RN.state.config.tasaUsd || 0;
-  var fechaTasaActual = RN.state.config.fechaTasaUsd || null;
+  // v5.13.1: Bug #5 — Preservar la tasa USD más reciente al importar datos.
+  // Se recopilan candidatos de tasa de 3 fuentes (estado actual, archivo
+  // importado, localStorage) y se aplica la más reciente al FINAL, después
+  // de que toda la config se haya cargado. Esto evita que las llamadas
+  // intermedias a Object.assign sobreescriban la tasa correcta.
+  var candidatos = [];
+  // Candidato 1: estado actual (en memoria)
+  if (RN.state.config.tasaUsd) {
+    candidatos.push({
+      tasa: RN.state.config.tasaUsd,
+      fecha: RN.state.config.fechaTasaUsd || null,
+      fuente: 'estado'
+    });
+  }
+  // Candidato 2: archivo importado (data.config)
+  if (data.config && data.config.tasaUsd) {
+    candidatos.push({
+      tasa: data.config.tasaUsd,
+      fecha: data.config.fechaTasaUsd || null,
+      fuente: 'archivo'
+    });
+  }
+  // Candidato 3: localStorage (STORAGE_KEYS.CONFIG)
+  var savedConfigRaw = null;
+  try {
+    savedConfigRaw = localStorage.getItem(STORAGE_KEYS.CONFIG);
+  } catch (e) { /* ignorar */ }
+  if (savedConfigRaw) {
+    try {
+      var savedConfigTmp = JSON.parse(savedConfigRaw);
+      if (savedConfigTmp.tasaUsd) {
+        candidatos.push({
+          tasa: savedConfigTmp.tasaUsd,
+          fecha: savedConfigTmp.fechaTasaUsd || null,
+          fuente: 'localStorage'
+        });
+      }
+    } catch (e) { /* config corrupta, ignorar */ }
+  }
+  // Aplicar config del archivo importado
   if (data.config) Object.assign(RN.state.config, data.config);
   // Re-aplicar config autoritativa desde STORAGE_KEYS.CONFIG si existe.
-  // STORAGE_KEYS.CONFIG es la fuente de verdad para la configuración.
   try {
     var rawConfig = localStorage.getItem(STORAGE_KEYS.CONFIG);
     if (rawConfig) {
       var savedConfig = JSON.parse(rawConfig);
-      // Si la config guardada tiene una fecha de tasa más reciente, usarla.
-      var fechaSaved = savedConfig.fechaTasaUsd || null;
-      if (fechaSaved && (!fechaTasaActual || fechaSaved > fechaTasaActual)) {
-        RN.state.config.tasaUsd = savedConfig.tasaUsd || tasaActual;
-        RN.state.config.fechaTasaUsd = fechaSaved;
-      } else if (tasaActual && !data.config?.tasaUsd) {
-        // Si el archivo no tenía tasa pero nosotros sí, preservar la nuestra.
-        RN.state.config.tasaUsd = tasaActual;
-        RN.state.config.fechaTasaUsd = fechaTasaActual;
-      }
-      // Re-aplicar toda la config guardada (fuente autoritativa).
       Object.assign(RN.state.config, savedConfig);
     }
   } catch (e) { /* ignorar config corrupta */ }
+  // v5.13.1: Bug #5 — Aplicar la tasa más reciente al FINAL.
+  // Ordenar candidatos por fecha descendente (más reciente primero).
+  // Los candidatos sin fecha se consideran los más viejos.
+  candidatos.sort(function (a, b) {
+    if (!a.fecha && !b.fecha) return 0;
+    if (!a.fecha) return 1;
+    if (!b.fecha) return -1;
+    return a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : 0;
+  });
+  if (candidatos.length > 0) {
+    RN.state.config.tasaUsd = candidatos[0].tasa;
+    RN.state.config.fechaTasaUsd = candidatos[0].fecha;
+  }
   RN.state.reciboCounter = data.reciboCounter || 0;
   RN.state.mesActual = data.mesActual || RN.calc.mesActualStr();
+};
+
+/**
+ * v5.13.1: Bug #16 — Debounce para los guardados asíncronos (archivo + IndexedDB).
+ * Antes, cada llamada a guardar() disparaba inmediatamente una escritura a
+ * archivo y a IndexedDB. Si el usuario hacía varios cambios rápidos (ej.
+ * cobrar a 10 clientes seguidos), se acumulaban decenas de escrituras
+ * asíncronas simultáneas, causando race conditions y picos de I/O.
+ * Ahora los guardados asíncronos se agrupan con un debounce de 500ms.
+ * El checkpoint y el persistir() (localStorage) siguen siendo síncronos.
+ */
+RN.storageLocal._debounceAsync = null;
+RN.storageLocal._guardarAsyncDebounced = function () {
+  if (RN.storageLocal._debounceAsync) {
+    clearTimeout(RN.storageLocal._debounceAsync);
+  }
+  RN.storageLocal._debounceAsync = setTimeout(function () {
+    RN.storageLocal._debounceAsync = null;
+    // Guardar en archivo vinculado (best-effort)
+    if (RN.state.fileHandle && window.showSaveFilePicker) {
+      RN.storageFile.guardarAhora().catch(() => {});
+    }
+    // v5.11.2: respaldo automático en IndexedDB (best-effort, no bloquea)
+    if (RN.autoBackup && RN.autoBackup.guardar) {
+      RN.autoBackup.guardar().catch(() => {});
+    }
+  }, 500);
 };
 
 /** Guarda estado + crea checkpoint. Helper usado por toda la app. */
 RN.storageLocal.guardar = function () {
   RN.checkpoint.crear();
   RN.storageLocal.persistir();
-  // Si hay archivo vinculado, guardar también ahí (best-effort)
-  if (RN.state.fileHandle && window.showSaveFilePicker) {
-    RN.storageFile.guardarAhora().catch(() => {});
-  }
-  // v5.11.2: respaldo automático en IndexedDB (best-effort, no bloquea)
-  if (RN.autoBackup && RN.autoBackup.guardar) {
-    RN.autoBackup.guardar().catch(() => {});
-  }
+  // v5.13.1: Bug #16 — guardados asíncronos con debounce
+  RN.storageLocal._guardarAsyncDebounced();
 };

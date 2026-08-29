@@ -5,29 +5,51 @@
  */
 RN.moneda = RN.moneda || {};
 
-/** Consulta automática de la tasa USD→CUP vía proxy CORS a mdiv.pro. */
+/**
+ * Consulta automática de la tasa USD→CUP vía proxy CORS a mdiv.pro.
+ * v5.13.1: Bug #12 — Intenta múltiples proxies CORS en cascada para mayor
+ * resiliencia. Si corsproxy.io falla, prueba allorigins.win, luego
+ * cors-anywhere, y finalmente conexión directa. Antes dependía de un único
+ * proxy, por lo que si éste caía, la tasa automática nunca se actualizaba.
+ */
 RN.moneda.actualizarTasaAuto = async function () {
   if (!RN.state.config.tasaAuto) return;
-  try {
-    const resp = await fetch('https://corsproxy.io/?https://mdiv.pro/api/rate', { signal: AbortSignal.timeout(8000) });
-    const data = await resp.json();
-    // v5.13.0: Validar que la tasa sea un número realista (entre 1 y 10000).
-    // Antes, si la API devolvía 0, null o un valor irreal, se sobreescribía
-    // la tasa manual del usuario y se "perdía".
-    if (data && data.rate && +data.rate > 0 && +data.rate < 100000) {
-      RN.state.config.tasaUsd = +data.rate;
-      // v5.12.7: Registrar la fecha de actualización de la tasa (aviso de vencimiento 24h/72h)
-      RN.state.config.fechaTasaUsd = new Date().toISOString();
-      RN.config.persistir();
-      RN.notifyUI.toast('Tasa USD actualizada: ' + data.rate + ' CUP', 'success');
-    } else {
-      console.warn('Tasa automática: respuesta inválida de mdiv.pro', data);
+  // v5.13.1: Bug #12 — lista de proxies CORS en orden de preferencia.
+  var targetUrl = 'https://mdiv.pro/api/rate';
+  var proxies = [
+    function (url) { return 'https://corsproxy.io/?' + url; },
+    function (url) { return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url); },
+    function (url) { return 'https://cors-anywhere.herokuapp.com/' + url; },
+    function (url) { return url; } // intento directo (sin proxy)
+  ];
+  var data = null;
+  for (var i = 0; i < proxies.length; i++) {
+    try {
+      var proxyUrl = proxies[i](targetUrl);
+      var resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
+      if (!resp.ok) continue;
+      data = await resp.json();
+      // v5.13.0: Validar que la tasa sea un número realista (entre 1 y 100000).
+      if (data && data.rate && +data.rate > 0 && +data.rate < 100000) {
+        break; // tasa válida obtenida
+      } else {
+        console.warn('Tasa automática: respuesta inválida de proxy #' + (i + 1), data);
+        data = null;
+      }
+    } catch (e) {
+      console.warn('Tasa automática: proxy #' + (i + 1) + ' falló:', e.message);
+      data = null;
     }
-  } catch (e) {
+  }
+  if (data && data.rate && +data.rate > 0 && +data.rate < 100000) {
+    RN.state.config.tasaUsd = +data.rate;
+    RN.state.config.fechaTasaUsd = new Date().toISOString();
+    RN.config.persistir();
+    RN.notifyUI.toast('Tasa USD actualizada: ' + data.rate + ' CUP', 'success');
+  } else {
     // v5.13.0: No mostrar error si ya hay una tasa manual configurada.
-    // Solo avisar si no hay tasa alguna.
     if (!RN.state.config.tasaUsd) {
-      RN.notifyUI.toast('No se pudo consultar la tasa automática', 'warn');
+      RN.notifyUI.toast('No se pudo consultar la tasa automática (todos los proxies fallaron)', 'warn');
     }
   }
 };
@@ -35,8 +57,8 @@ RN.moneda.actualizarTasaAuto = async function () {
 /** Devuelve el equivalente en USD de un monto CUP (o '' si no hay tasa). */
 RN.moneda.aUSD = function (cup) {
   const tasa = RN.state.config.tasaUsd || 0;
-  if (!tasa) return '';
-  return (cup / tasa).toFixed(2);
+  if (!tasa) return 0;
+  return +((+cup || 0) / tasa).toFixed(2);
 };
 
 /** Convierte un monto en USD a CUP usando la tasa vigente (o 0 si no hay tasa). */
@@ -60,7 +82,7 @@ RN.moneda.formatUSD = function (usd) {
 RN.moneda.mostrar = function (cup) {
   let s = RN.calc.formatCUP(cup);
   const usd = RN.moneda.aUSD(cup);
-  if (usd) s += ' <span class="muted" style="font-size:12px">(' + usd + ' USD)</span>';
+  if (usd > 0) s += ' <span class="muted" style="font-size:12px">(' + RN.moneda.formatUSD(usd) + '</span>';
   return s;
 };
 

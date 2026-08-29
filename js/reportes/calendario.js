@@ -128,7 +128,7 @@ RN.calendario.abrirDia = function (dia) {
 
   var filas = clientes.map(function (c) {
     var estado = RN.calc.getStatus(c);
-    var neto = RN.calc.getPrecioNeto(c);
+    var neto = RN.calc.getPrecioNeto(c, ym);
     var cuotaEq = RN.investment.getCuotaEquipoCliente(c);
     var total = neto + cuotaEq;
     totalACobrar += total;

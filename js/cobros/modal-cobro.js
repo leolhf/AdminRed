@@ -514,10 +514,16 @@ RN.modalCobro.confirmar = function () {
   // ya registran solo el neto. El vuelto entra y sale, no afecta la ganancia.
   var fondoDespues = +(fondoAntes + neto).toFixed(2);
 
-  // El monto que se registra como ingreso
-  var montoRegistrado = aPagar;
+  // v5.13.1: Bug #2 y #3 — separar consistentemente servicio y equipo.
+  // Antes: pago parcial registraba pagadoCUP (servicio+equipo mezclados) en h.monto,
+  // causando doble conteo en ingresosMes() y equipo no descontado.
+  // Ahora: h.monto SIEMPRE es solo servicio, h.montoEquipo SIEMPRE es solo equipo pagado.
+  var montoServicioRegistrado = neto;
+  var montoEquipoPagado = montoEq;
   if (tipoPago === 'parcial') {
-    montoRegistrado = pagadoCUP;
+    // En pago parcial, el pago se asigna primero al servicio, luego al equipo
+    montoServicioRegistrado = Math.min(pagadoCUP, neto);
+    montoEquipoPagado = Math.max(0, pagadoCUP - neto);
   }
 
   // Recibo
@@ -529,8 +535,10 @@ RN.modalCobro.confirmar = function () {
     clienteId: c.id,
     tipo: 'servicio',
     mes,
-    monto: tipoPago === 'parcial' ? pagadoCUP : neto,
-    montoEquipo: montoEq,
+    // v5.13.1: h.monto SIEMPRE es solo el servicio (nunca incluye equipo)
+    monto: montoServicioRegistrado,
+    // v5.13.1: h.montoEquipo SIEMPRE es solo el equipo realmente pagado
+    montoEquipo: montoEquipoPagado,
     fecha: new Date().toISOString(),
     reciboNum,
     notas,
@@ -543,7 +551,7 @@ RN.modalCobro.confirmar = function () {
     montoPagadoCUPDesdeUSD: cupDesdeUSD,
     totalPagadoCUP: pagadoCUP,
     totalPagadoUSD: pagadoUSD,
-    totalCUP: montoRegistrado,
+    totalCUP: montoServicioRegistrado + montoEquipoPagado,
     totalAPagar: aPagar,
     tasaUsd: tasa,
     // ====== Campos de tipo de pago ======
@@ -563,9 +571,11 @@ RN.modalCobro.confirmar = function () {
     }
   });
 
-  // Descontar equipo (solo si el pago no es parcial, o si el pago parcial cubre al menos el equipo)
-  if (montoEq > 0 && c.deudaEquipo > 0 && tipoPago !== 'parcial') {
-    c.deudaEquipo = Math.max(0, +(c.deudaEquipo - montoEq).toFixed(2));
+  // v5.13.1: Bug #3 — descuenta equipo SIEMPRE que se haya pagado parte del equipo.
+  // Antes: tipoPago !== 'parcial' impedía descontar equipo en pago parcial,
+  // pero el equipo pagado se registraba en h.montoEquipo, quedando deuda fantasma.
+  if (montoEquipoPagado > 0 && c.deudaEquipo > 0) {
+    c.deudaEquipo = Math.max(0, +(c.deudaEquipo - montoEquipoPagado).toFixed(2));
   }
 
   RN.storageLocal.guardar();

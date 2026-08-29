@@ -35,6 +35,55 @@ RN.validacion.validar = function () {
     }
   });
 
+  // v5.13.1: Bug #13 — Validación financiera de datos.
+  // Detecta valores negativos imposibles y duplicados que corrompen cálculos.
+
+  // Clientes: precios negativos o deuda de equipo negativa
+  RN.state.clients.forEach((c, i) => {
+    if (typeof c.precio === 'number' && c.precio < 0) {
+      errores.push(`Cliente ${c.id} tiene precio negativo: ${c.precio}`);
+    }
+    if (c.deudaEquipo !== undefined && c.deudaEquipo !== null && +c.deudaEquipo < 0) {
+      errores.push(`Cliente ${c.id} tiene deudaEquipo negativa: ${c.deudaEquipo}`);
+    }
+  });
+
+  // Historial: montos negativos y cobros duplicados (mismo cliente + mes)
+  var cobrosVistos = {};
+  RN.state.history.forEach((h, i) => {
+    if (typeof h.monto === 'number' && h.monto < 0) {
+      errores.push(`Historial ${h.id || '#' + i} con monto negativo: ${h.monto}`);
+    }
+    if (h.montoEquipo !== undefined && +h.montoEquipo < 0) {
+      errores.push(`Historial ${h.id || '#' + i} con montoEquipo negativo: ${h.montoEquipo}`);
+    }
+    // Detectar cobros duplicados: mismo cliente + mismo mes + tipo servicio
+    if (h.clienteId && h.mes && (!h.tipo || h.tipo === 'servicio')) {
+      var key = h.clienteId + '|' + h.mes;
+      if (cobrosVistos[key]) {
+        errores.push(`Cobro duplicado: cliente ${h.clienteId} ya tiene cobro de servicio para ${h.mes} (hist ${h.id || '#' + i})`);
+      }
+      cobrosVistos[key] = true;
+    }
+  });
+
+  // Gastos: montos negativos
+  RN.state.gastos.forEach((g, i) => {
+    if (typeof g.monto === 'number' && g.monto < 0) {
+      errores.push(`Gasto ${g.id || '#' + i} con monto negativo: ${g.monto}`);
+    }
+  });
+
+  // Config: tasa USD inválida si tasaAuto está activada
+  if (RN.state.config.tasaAuto && (!RN.state.config.tasaUsd || RN.state.config.tasaUsd <= 0)) {
+    errores.push('Tasa automática activada pero no hay tasa USD válida configurada');
+  }
+  if (RN.state.config.tasaUsd !== undefined && RN.state.config.tasaUsd !== null) {
+    if (+RN.state.config.tasaUsd < 0) {
+      errores.push(`Tasa USD negativa: ${RN.state.config.tasaUsd}`);
+    }
+  }
+
   return { ok: errores.length === 0, errores };
 };
 

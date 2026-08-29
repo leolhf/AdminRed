@@ -137,6 +137,7 @@ RN.migration.migrar = function (data) {
     // formatear repartiendo los digitos en 4 octetos. Si ya tiene puntos, se
     // respeta y solo se eliminan caracteres invalidos. Si no encaja en 4 octetos,
     // se deja tal cual para no danar el dato.
+    // v5.13.1: Bug #18 — validacion con regex despues de migrar.
     if (Array.isArray(data.clients)) {
       data.clients.forEach(function (c) {
         if (!c.ip) return;
@@ -144,6 +145,11 @@ RN.migration.migrar = function (data) {
         if (ip.indexOf('.') !== -1) {
           // Ya tiene formato de IP: conservar solo digitos y puntos
           c.ip = ip.replace(/[^0-9.]/g, '');
+          // v5.13.1: Bug #18 — validar formato IP (4 octetos 0-255)
+          if (!RN.migration._esIpValida(c.ip)) {
+            console.warn('IP migrada invalida, se deja sin formato:', c.ip);
+            c.ip = '';
+          }
           return;
         }
         // IP plana (solo digitos): intentar formatear a 4 octetos
@@ -176,6 +182,11 @@ RN.migration.migrar = function (data) {
           }
           return octetos.join('.');
         })();
+        // v5.13.1: Bug #18 — validar que la IP migrada sea valida
+        if (!RN.migration._esIpValida(c.ip)) {
+          console.warn('IP migrada invalida desde digitos planos, se descarta:', c.ip);
+          c.ip = '';
+        }
       });
     }
     v = 7;
@@ -198,4 +209,25 @@ RN.migration.migrar = function (data) {
 
   data.esquema = RN.migration.VERSION_ESQUEMA;
   return data;
+};
+
+/**
+ * v5.13.1: Bug #18 — Valida que una string sea una IPv4 valida.
+ * Formato: 4 octetos (0-255) separados por puntos.
+ * @param {string} ip - string a validar
+ * @returns {boolean}
+ */
+RN.migration._esIpValida = function (ip) {
+  if (!ip || typeof ip !== 'string') return false;
+  var partes = ip.split('.');
+  if (partes.length !== 4) return false;
+  for (var i = 0; i < 4; i++) {
+    var octeto = partes[i];
+    if (!/^\d{1,3}$/.test(octeto)) return false;
+    var val = parseInt(octeto, 10);
+    if (isNaN(val) || val < 0 || val > 255) return false;
+    // No permitir ceros a la izquierda (ej: "01", "001") excepto "0" itself
+    if (octeto.length > 1 && octeto[0] === '0') return false;
+  }
+  return true;
 };

@@ -140,13 +140,20 @@ RN.investment.aporteCliente = function (inv, clienteId) {
   if (!inv || !clienteId) return 0;
   const f = RN.investment.fechaCompra(inv);
   const desde = f ? RN.investment._medianocheLocal(f) : 0;
+  // v5.13.1: Bug #11 — filtrar también por mes >= mes de compra.
+  // Antes solo se filtraba por fecha (h.fecha >= desde), pero un cobro
+  // registrado con fecha posterior pero mes anterior al de compra se incluía,
+  // inflando el aporte. Ahora exigimos h.mes >= mesCompra.
+  const mesCompra = f ? f.slice(0, 7) : null;
   return (RN.state.history || [])
     .filter(function (h) {
       if (h.clienteId !== clienteId) return false;
       if (h.tipo && h.tipo !== 'servicio') return false;
       if (!desde) return true;
       const t = RN.investment._medianocheLocal(h.fecha);
-      return t >= desde;
+      if (t < desde) return false;
+      if (mesCompra && h.mes && h.mes < mesCompra) return false;
+      return true;
     })
     .reduce(function (s, h) { return s + (h.monto || 0); }, 0);
 };
@@ -163,6 +170,16 @@ RN.investment.costoMegaClienteMes = function (cliente, mes) {
   if (precioMegaProv <= 0) return 0;
   const megas = RN.calc.getMegasCliente(cliente);
   return +(megas * precioMegaProv).toFixed(2);
+};
+
+/**
+ * v5.13.1: Bug #17 — Indica si el costo del mega está configurado.
+ * Si es false, las métricas de margen y recuperación de inversión están
+ * infladas (asumen costo 0). La UI debería advertir al usuario.
+ */
+RN.investment.costoMegaConfigurado = function () {
+  var precioMegaProv = +(RN.state.config.proveedorPrecioMega || 0);
+  return precioMegaProv > 0;
 };
 
 /** v5.11.3 — % de ganancia personal retenida (no recupera inversión). Global, 0-100. */
@@ -184,6 +201,8 @@ RN.investment.aporteRecuperacionCliente = function (inv, clienteId) {
   const cli = (RN.state.clients || []).find(function (c) { return c.id === clienteId; });
   const f = RN.investment.fechaCompra(inv);
   const desde = f ? RN.investment._medianocheLocal(f) : 0;
+  // v5.13.1: Bug #11 — filtrar también por mes >= mes de compra.
+  const mesCompra = f ? f.slice(0, 7) : null;
   const pct = RN.investment.pctPersonal();
   const factorRec = 1 - pct / 100;
   const cobros = (RN.state.history || []).filter(function (h) {
@@ -191,7 +210,9 @@ RN.investment.aporteRecuperacionCliente = function (inv, clienteId) {
     if (h.tipo && h.tipo !== 'servicio') return false;
     if (!desde) return true;
     const t = RN.investment._medianocheLocal(h.fecha);
-    return t >= desde;
+    if (t < desde) return false;
+    if (mesCompra && h.mes && h.mes < mesCompra) return false;
+    return true;
   });
   // Agrupar cobros por mes: restar el costo del mes una sola vez por mes.
   const porMes = {};
@@ -218,12 +239,16 @@ RN.investment.margenNetoCliente = function (inv, clienteId) {
   const cli = (RN.state.clients || []).find(function (c) { return c.id === clienteId; });
   const f = RN.investment.fechaCompra(inv);
   const desde = f ? RN.investment._medianocheLocal(f) : 0;
+  // v5.13.1: Bug #11 — filtrar también por mes >= mes de compra.
+  const mesCompra = f ? f.slice(0, 7) : null;
   const cobros = (RN.state.history || []).filter(function (h) {
     if (h.clienteId !== clienteId) return false;
     if (h.tipo && h.tipo !== 'servicio') return false;
     if (!desde) return true;
     const t = RN.investment._medianocheLocal(h.fecha);
-    return t >= desde;
+    if (t < desde) return false;
+    if (mesCompra && h.mes && h.mes < mesCompra) return false;
+    return true;
   });
   const porMes = {};
   cobros.forEach(function (h) {
