@@ -847,7 +847,7 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
   overflow: hidden;
   transition: max-height .28s ease;
 }
-.acc-card.open .acc-details { max-height: 1200px; }
+.acc-card.open .acc-details { max-height: 5000px; }
 
 /* Filas de datos dentro del detalle (label + valor) */
 .acc-row {

@@ -172,3 +172,23 @@ migración automática y pruebas extensas.
 - **Compatibilidad:** Sin cambios en el modelo de datos, la persistencia
   ni la interfaz. Los datos guardados en versiones anteriores se cargan
   sin migración.
+
+---
+
+## Fix CSS — Botones de Editar/Eliminar no visibles en móvil
+
+### Problema
+En la sección de Inversión, al expandir una tarjeta con muchos clientes
+vinculados o muchas filas condicionales activas, los botones de
+**Editar** y **Eliminar** (al final del detalle) no se veían en móvil.
+
+**Causa:** `.acc-card.open .acc-details` tenía `max-height: 1200px` con
+`overflow: hidden`. Las tarjetas de inversión pueden tener hasta ~23
+filas de detalle + aportes por cada cliente + botones, superando los
+1200px y cortando el contenido final.
+
+### Solución
+`styles.css`: `max-height: 1200px` → `max-height: 5000px` (mismo valor
+que ya usan las cintillas de mes en el historial de cobros). Esto
+garantiza que todo el contenido, incluidos los botones, sea visible al
+expandir cualquier tarjeta.
