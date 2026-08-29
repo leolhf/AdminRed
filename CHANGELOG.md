@@ -1,5 +1,45 @@
 # Changelog — AdminRed (RedNet)
 
+## v5.13.2 — Fusión Deuda + Inversión
+
+### Refactorización arquitectónica (sin cambios visuales ni de datos)
+- **Fusión de `deudas.js` en `inversion.js`**: Los dos módulos gestionaban el mismo modelo de datos (`RN.state.investments`) con solo un filtro de diferencia. Se unifican en un solo módulo. `deudas.js` eliminado (−201 líneas).
+- **Devoluciones movidas de `caja.js` a `inversion.js`**: `caja.js` mezclaba retiros de caja con devoluciones de préstamo. Ahora `caja.js` tiene responsabilidad única (solo retiros). 421 → 212 líneas (−50%).
+- **Helpers compartidos en `investment.js`**: Extraídos `_cobrosClienteDesde()` y `_margenMensualClientes()`, eliminando 6 funciones duplicadas (filtro de cobros 3×, bucle de margen 3×).
+- **Helper `_filaDetalle()` en `render.js`**: Centraliza las ~22 filas de detalle condicionales de las tarjetas de inversión, reemplazando ternarios inline por `{ cond: … }`.
+- **Bug corregido en `eliminar()`**: La versión de `deudas.js` SIEMPRE borraba las devoluciones asociadas, incluso para capital propio. Ahora la función unificada solo borra devoluciones cuando es préstamo externo.
+
+### Archivos modificados
+- `js/version.js` — versión 5.13.1 → 5.13.2
+- `js/core/models/investment.js` — 2 helpers extraídos, 6 funciones simplificadas (646 → 638 líneas)
+- `js/cobros/inversion.js` — absorbe lógica de deudas + devoluciones (módulo unificado)
+- `js/cobros/deudas.js` — **ELIMINADO** (fusionado en inversion.js)
+- `js/cobros/caja.js` — devoluciones movidas a inversion.js (421 → 212 líneas)
+- `js/ui/render.js` — helper `_filaDetalle()` + 22 filas refactorizadas + referencias actualizadas
+- `index.html` — eliminado `<script src="js/cobros/deudas.js">`
+- `CHANGELOG_v5.13.2.md` — changelog detallado de esta versión
+
+### Verificación
+- Sintaxis JS: 0 errores en todos los archivos.
+- Referencias rotas: 0 (cero referencias a `RN.deudas`, `RN.caja.devolucion*` o `deudas.js` en código ejecutable).
+- Compatibilidad: total (sin cambios en modelo de datos ni persistencia).
+
+---
+
+## v5.13.1 — Corrección de 18 bugs de auditoría
+
+Versión de corrección de errores detectados en la auditoría de v5.13.0. Se corrigen 18 bugs sin cambiar la arquitectura ni el modelo de datos. Ver `CHANGELOG_v5.13.1.md` para el detalle completo de cada bug.
+
+### Bugs principales corregidos
+- `mesActual` guardado pero nunca leído (cálculos usaban reloj del sistema).
+- Pago parcial mezclaba servicio y equipo en `h.monto` (doble conteo).
+- Descuento de equipo no aplicaba en pago parcial.
+- `actualizarTasaAuto()` podía sobreescribir tasa con valor inválido.
+- `eliminar()` divergente entre `deudas.js` e `inversion.js`.
+- Validación de IPs con puntos, migración de datos, y 12 bugs más.
+
+---
+
 ## v5.13.0 — 27 ago 2026
 
 ### Tasa USD: persistencia robusta

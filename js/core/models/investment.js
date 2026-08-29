@@ -132,29 +132,43 @@ RN.investment.diasDesdeCompra = function (inv) {
 };
 
 /**
+ * v5.13.2 — Helper compartido: filtra los cobros de un cliente desde la fecha
+ * de compra de la inversión. Centraliza la lógica que antes estaba duplicada
+ * en aporteCliente(), aporteRecuperacionCliente() y margenNetoCliente().
+ *
+ * Filtros aplicados:
+ *   - h.clienteId === clienteId
+ *   - h.tipo es 'servicio' o undefined
+ *   - h.fecha >= fechaCompra (medianoche local, evita bug de zona horaria)
+ *   - h.mes >= mesCompra (v5.13.1 Bug #11: evita inflar con cobros de mes anterior)
+ *
+ * @param {string} clienteId — ID del cliente
+ * @param {object} inv — inversión (para obtener fechaCompra)
+ * @returns {Array} cobros filtrados (orden del history original)
+ */
+RN.investment._cobrosClienteDesde = function (clienteId, inv) {
+  var f = RN.investment.fechaCompra(inv);
+  var desde = f ? RN.investment._medianocheLocal(f) : 0;
+  var mesCompra = f ? f.slice(0, 7) : null;
+  return (RN.state.history || []).filter(function (h) {
+    if (h.clienteId !== clienteId) return false;
+    if (h.tipo && h.tipo !== 'servicio') return false;
+    if (!desde) return true;
+    var t = RN.investment._medianocheLocal(h.fecha);
+    if (t < desde) return false;
+    if (mesCompra && h.mes && h.mes < mesCompra) return false;
+    return true;
+  });
+};
+
+/**
  * v5.11.0 — Aporte BRUTO de un cliente vinculado (ingreso cobrado) desde la
  * fecha de compra. Se mantiene por compatibilidad. Para la ganancia real
  * (aporte neto) usar aporteRecuperacionCliente().
  */
 RN.investment.aporteCliente = function (inv, clienteId) {
   if (!inv || !clienteId) return 0;
-  const f = RN.investment.fechaCompra(inv);
-  const desde = f ? RN.investment._medianocheLocal(f) : 0;
-  // v5.13.1: Bug #11 — filtrar también por mes >= mes de compra.
-  // Antes solo se filtraba por fecha (h.fecha >= desde), pero un cobro
-  // registrado con fecha posterior pero mes anterior al de compra se incluía,
-  // inflando el aporte. Ahora exigimos h.mes >= mesCompra.
-  const mesCompra = f ? f.slice(0, 7) : null;
-  return (RN.state.history || [])
-    .filter(function (h) {
-      if (h.clienteId !== clienteId) return false;
-      if (h.tipo && h.tipo !== 'servicio') return false;
-      if (!desde) return true;
-      const t = RN.investment._medianocheLocal(h.fecha);
-      if (t < desde) return false;
-      if (mesCompra && h.mes && h.mes < mesCompra) return false;
-      return true;
-    })
+  return RN.investment._cobrosClienteDesde(clienteId, inv)
     .reduce(function (s, h) { return s + (h.monto || 0); }, 0);
 };
 
@@ -199,21 +213,9 @@ RN.investment.pctPersonal = function () {
 RN.investment.aporteRecuperacionCliente = function (inv, clienteId) {
   if (!inv || !clienteId) return 0;
   const cli = (RN.state.clients || []).find(function (c) { return c.id === clienteId; });
-  const f = RN.investment.fechaCompra(inv);
-  const desde = f ? RN.investment._medianocheLocal(f) : 0;
-  // v5.13.1: Bug #11 — filtrar también por mes >= mes de compra.
-  const mesCompra = f ? f.slice(0, 7) : null;
   const pct = RN.investment.pctPersonal();
   const factorRec = 1 - pct / 100;
-  const cobros = (RN.state.history || []).filter(function (h) {
-    if (h.clienteId !== clienteId) return false;
-    if (h.tipo && h.tipo !== 'servicio') return false;
-    if (!desde) return true;
-    const t = RN.investment._medianocheLocal(h.fecha);
-    if (t < desde) return false;
-    if (mesCompra && h.mes && h.mes < mesCompra) return false;
-    return true;
-  });
+  const cobros = RN.investment._cobrosClienteDesde(clienteId, inv);
   // Agrupar cobros por mes: restar el costo del mes una sola vez por mes.
   const porMes = {};
   cobros.forEach(function (h) {
@@ -237,19 +239,7 @@ RN.investment.aporteRecuperacionCliente = function (inv, clienteId) {
 RN.investment.margenNetoCliente = function (inv, clienteId) {
   if (!inv || !clienteId) return 0;
   const cli = (RN.state.clients || []).find(function (c) { return c.id === clienteId; });
-  const f = RN.investment.fechaCompra(inv);
-  const desde = f ? RN.investment._medianocheLocal(f) : 0;
-  // v5.13.1: Bug #11 — filtrar también por mes >= mes de compra.
-  const mesCompra = f ? f.slice(0, 7) : null;
-  const cobros = (RN.state.history || []).filter(function (h) {
-    if (h.clienteId !== clienteId) return false;
-    if (h.tipo && h.tipo !== 'servicio') return false;
-    if (!desde) return true;
-    const t = RN.investment._medianocheLocal(h.fecha);
-    if (t < desde) return false;
-    if (mesCompra && h.mes && h.mes < mesCompra) return false;
-    return true;
-  });
+  const cobros = RN.investment._cobrosClienteDesde(clienteId, inv);
   const porMes = {};
   cobros.forEach(function (h) {
     const mes = h.mes || '__sinmes__';
@@ -265,6 +255,32 @@ RN.investment.margenNetoCliente = function (inv, clienteId) {
 };
 
 /**
+ * v5.13.2 — Helper compartido: suma el margen mensual de los clientes activos
+ * vinculados a una inversión para un mes dado. Centraliza el bucle que antes
+ * estaba duplicado en aporteMensualNeto(), margenMensualBruto() y
+ * retiroMensualEstimado().
+ *
+ * El margen de cada cliente = precioNeto − costoMega. Solo se suma si es > 0.
+ *
+ * @param {object} inv — inversión con clienteIds
+ * @param {string} mes — mes en formato YYYY-MM
+ * @returns {number} suma de márgenes positivos de los clientes activos vinculados
+ */
+RN.investment._margenMensualClientes = function (inv, mes) {
+  if (!inv || !inv.clienteIds || !inv.clienteIds.length) return 0;
+  var total = 0;
+  inv.clienteIds.forEach(function (cid) {
+    var cli = (RN.state.clients || []).find(function (c) { return c.id === cid; });
+    if (!cli || cli.activo === false) return;
+    var precioNeto = RN.calc.getPrecioNeto(cli, mes);
+    var costo = RN.investment.costoMegaClienteMes(cli, mes);
+    var margen = precioNeto - costo;
+    if (margen > 0) total += margen;
+  });
+  return total;
+};
+
+/**
  * v5.11.3 — Aporte mensual neto estimado de los clientes vinculados (para la
  * proyección). Basado en el ingreso neto esperado mensual de cada cliente
  * activo vinculado (precio neto - costo mega), aplicando retención personal.
@@ -274,16 +290,8 @@ RN.investment.aporteMensualNeto = function (inv) {
   const pct = RN.investment.pctPersonal();
   const factorRec = 1 - pct / 100;
   const mes = RN.calc.mesActualStr();
-  let total = 0;
-  inv.clienteIds.forEach(function (cid) {
-    const cli = (RN.state.clients || []).find(function (c) { return c.id === cid; });
-    if (!cli || cli.activo === false) return;
-    const precioNeto = RN.calc.getPrecioNeto(cli, mes);
-    const costo = RN.investment.costoMegaClienteMes(cli, mes);
-    const margen = precioNeto - costo;
-    if (margen > 0) total += margen * factorRec;
-  });
-  return +total.toFixed(2);
+  var total = RN.investment._margenMensualClientes(inv, mes);
+  return +(total * factorRec).toFixed(2);
 };
 
 /**
@@ -356,15 +364,7 @@ RN.investment.retiroMensualEstimado = function (inv) {
   const pct = RN.investment.pctPersonal();
   if (pct <= 0) return 0;
   const mes = RN.calc.mesActualStr();
-  let totalMargenMensual = 0;
-  inv.clienteIds.forEach(function (cid) {
-    const cli = (RN.state.clients || []).find(function (c) { return c.id === cid; });
-    if (!cli || cli.activo === false) return;
-    const precioNeto = RN.calc.getPrecioNeto(cli, mes);
-    const costo = RN.investment.costoMegaClienteMes(cli, mes);
-    const margen = precioNeto - costo;
-    if (margen > 0) totalMargenMensual += margen;
-  });
+  var totalMargenMensual = RN.investment._margenMensualClientes(inv, mes);
   return +(totalMargenMensual * pct / 100).toFixed(2);
 };
 
@@ -377,15 +377,7 @@ RN.investment.retiroMensualEstimado = function (inv) {
 RN.investment.margenMensualBruto = function (inv) {
   if (!inv || !inv.clienteIds || !inv.clienteIds.length) return 0;
   const mes = RN.calc.mesActualStr();
-  let total = 0;
-  inv.clienteIds.forEach(function (cid) {
-    const cli = (RN.state.clients || []).find(function (c) { return c.id === cid; });
-    if (!cli || cli.activo === false) return;
-    const precioNeto = RN.calc.getPrecioNeto(cli, mes);
-    const costo = RN.investment.costoMegaClienteMes(cli, mes);
-    const margen = precioNeto - costo;
-    if (margen > 0) total += margen;
-  });
+  var total = RN.investment._margenMensualClientes(inv, mes);
   return +total.toFixed(2);
 };
 

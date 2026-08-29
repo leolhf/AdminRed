@@ -92,7 +92,7 @@ RN.render.vista = function (view) {
     case 'cobros': RN.render.cobros(); break;
     case 'realizados': RN.render.realizados(); break;
     case 'inversion': RN.render.inversion(); break;
-    case 'deudas': RN.deudas && RN.deudas.render(); break;
+    case 'deudas': RN.inversion.renderDeudas(); break;
     case 'inventario': RN.render.inventario(); break;
     case 'gastos': RN.render.gastos(); break;
     case 'reportes': RN.render.reportes(); break;
@@ -614,6 +614,27 @@ RN.render.toggleCintillaMes = function (cintillaId) {
   if (chev) chev.textContent = isOpen ? ' ▲' : ' ▼';
 };
 
+// v5.13.2: Helper para generar filas de detalle (.acc-row) en las tarjetas
+// de inversión. Centraliza el patrón repetido ~20 veces en render.inversion().
+//   label: texto de la etiqueta (ya escapado por el llamador)
+//   valor: HTML del valor (puede incluir <strong>, <span class="badge">, etc.)
+//   opts:  { bold: true, strong: true, color: 'var(--warn)', cond: false }
+//     bold   → aplica font-weight:600 a toda la fila
+//     strong → envuelve el valor en <strong> (útil para valores planos)
+//     color  → style="color:VAR" dentro del <strong>
+//     cond   → si es false, devuelve '' (fila omitida). Útil para filas condicionales.
+RN.render._filaDetalle = function (label, valor, opts) {
+  opts = opts || {};
+  if (opts.cond === false) return '';
+  var style = opts.bold ? ' style="font-weight:600"' : '';
+  var valHtml = valor;
+  if (opts.strong) {
+    var colorStyle = opts.color ? ' style="color:' + opts.color + '"' : '';
+    valHtml = '<strong' + colorStyle + '>' + valor + '</strong>';
+  }
+  return '<div class="acc-row"' + style + '><span class="acc-label">' + label + '</span><span class="acc-value">' + valHtml + '</span></div>';
+};
+
 // ---------- INVERSION ----------
 RN.render.inversion = function () {
   const kpi = document.getElementById('kpi-inversion');
@@ -694,34 +715,34 @@ RN.render.inversion = function () {
         '<span class="acc-chevron">▼</span>' +
       '</div>' +
       '<div class="acc-details">' +
-        '<div class="acc-row"><span class="acc-label">Fecha de compra</span><span class="acc-value">' + fechaTxt + '</span></div>' +
-        '<div class="acc-row"><span class="acc-label">Días transcurridos</span><span class="acc-value">' + (fechaC ? dias + ' días' : '<span class="muted">—</span>') + '</span></div>' +
-        '<div class="acc-row"><span class="acc-label">Monto invertido</span><span class="acc-value">' + RN.calc.formatCUP(inv.monto) + '</span></div>' +
-        '<div class="acc-row"><span class="acc-label">Origen del capital</span><span class="acc-value"><span class="badge ' + (esPrestamo ? 'warn' : 'ok') + '">' + RN.render.esc(origenTxt) + '</span></span></div>' +
-        (esPrestamo ? '<div class="acc-row"><span class="acc-label">Saldo a devolver</span><span class="acc-value"><strong style="color:var(--warn)">' + RN.calc.formatCUP(saldoDevolver) + '</strong></span></div>' : '') +
-        (esPrestamo ? '<div class="acc-row"><span class="acc-label">Ya devuelto</span><span class="acc-value">' + RN.calc.formatCUP(totalDevuelto) + '</span></div>' : '') +
-        (esPrestamo ? '<div class="acc-row"><span class="acc-label">Recuperado neto (− devoluciones)</span><span class="acc-value">' + RN.calc.formatCUP(recuperadoNeto) + '</span></div>' : '') +
-        (inv.monedaPago ? '<div class="acc-row"><span class="acc-label">Pago de la compra (' + inv.monedaPago + ')</span><span class="acc-value">' + RN.moneda.desglosePagoHTML({ moneda: inv.monedaPago, montoUSD: inv.montoPagoUSD, montoCUP: inv.montoPagoCUP, montoCUPDesdeUSD: inv.montoPagoCUPDesdeUSD, totalRecibidoCUP: inv.totalPagoCUP, tasaUsd: inv.tasaUsdCompra }) + '</span></div>' : '') +
-        '<div class="acc-row"><span class="acc-label">Ingreso bruto de clientes</span><span class="acc-value">' + RN.calc.formatCUP(totalAporteBruto) + '</span></div>' +
-        '<div class="acc-row"><span class="acc-label">Margen neto (− costo del mega)</span><span class="acc-value">' + (totalMargenNeto >= 0 ? '' : '<span style="color:#c62828">') + RN.calc.formatCUP(totalMargenNeto) + (totalMargenNeto >= 0 ? '' : '</span>') + '</span></div>' +
-        (pctPersonal > 0 ? '<div class="acc-row"><span class="acc-label">Ganancia personal retenida acumulada (' + pctPersonal + '%)</span><span class="acc-value">' + RN.calc.formatCUP(acumRetenido) + '</span></div>' : '') +
-        '<div class="acc-row" style="font-weight:600"><span class="acc-label">Recuperado (neto, automático)</span><span class="acc-value"><strong>' + RN.calc.formatCUP(recuperado) + '</strong></span></div>' +
-        '<div class="acc-row"><span class="acc-label">% recuperación</span><span class="acc-value"><span class="badge ' + (pct >= 100 ? 'ok' : 'warn') + '">' + pct + '%</span></span></div>' +
-        '<div class="acc-row"><span class="acc-label">Margen neto mensual (bruto)</span><span class="acc-value">' + RN.calc.formatCUP(margenMesBruto) + '</span></div>' +
-        (pctPersonal > 0 ? '<div class="acc-row"><span class="acc-label">Disponible para retirar/mes (' + pctPersonal + '% del margen)</span><span class="acc-value"><strong style="color:var(--green)">' + RN.calc.formatCUP(retiroMes) + '</strong></span></div>' : '') +
-        '<div class="acc-row"><span class="acc-label">Aporte neto mensual a recuperación</span><span class="acc-value">' + RN.calc.formatCUP(aporteMesNeto) + '</span></div>' +
-        (pctGananciaMes > 0 ? '<div class="acc-row"><span class="acc-label">Aporte extra del mes (' + pctGananciaMes + '% de la ganancia neta)</span><span class="acc-value"><strong style="color:var(--green)">+' + RN.calc.formatCUP(aporteExtraMes) + '</strong></span></div>' : '') +
-        (pctGananciaMes > 0 ? '<div class="acc-row"><span class="acc-label">Aporte extra acumulado</span><span class="acc-value">' + RN.calc.formatCUP(aporteExtraAcum) + '</span></div>' : '') +
-        (pctGananciaMes > 0 ? '<div class="acc-row" style="font-weight:600"><span class="acc-label">Recuperado efectivo (cobrado + aporte extra)</span><span class="acc-value"><strong>' + RN.calc.formatCUP(recuperadoEfectivo) + '</strong> <span class="badge ' + (pctEfectivo >= 100 ? 'ok' : 'warn') + '">' + pctEfectivo + '%</span></span></div>' : '') +
-        '<div class="acc-row" style="font-weight:600"><span class="acc-label">Tiempo restante para recuperar</span><span class="acc-value"><strong>' + RN.render.esc(RN.investment.proyectarRecuperacion(inv)) + '</strong></span></div>' +
-        '<div class="acc-row"><span class="acc-label">Clientes vinculados</span><span class="acc-value">' + (inv.clienteIds || []).length + '</span></div>' +
+        RN.render._filaDetalle('Fecha de compra', fechaTxt) +
+        RN.render._filaDetalle('Días transcurridos', (fechaC ? dias + ' días' : '<span class="muted">—</span>')) +
+        RN.render._filaDetalle('Monto invertido', RN.calc.formatCUP(inv.monto)) +
+        RN.render._filaDetalle('Origen del capital', '<span class="badge ' + (esPrestamo ? 'warn' : 'ok') + '>' + RN.render.esc(origenTxt) + '</span>') +
+        RN.render._filaDetalle('Saldo a devolver', RN.calc.formatCUP(saldoDevolver), { strong: true, color: 'var(--warn)', cond: esPrestamo }) +
+        RN.render._filaDetalle('Ya devuelto', RN.calc.formatCUP(totalDevuelto), { cond: esPrestamo }) +
+        RN.render._filaDetalle('Recuperado neto (− devoluciones)', RN.calc.formatCUP(recuperadoNeto), { cond: esPrestamo }) +
+        RN.render._filaDetalle('Pago de la compra (' + inv.monedaPago + ')', RN.moneda.desglosePagoHTML({ moneda: inv.monedaPago, montoUSD: inv.montoPagoUSD, montoPagoCUP: inv.montoPagoCUP, montoPagoCUPDesdeUSD: inv.montoPagoCUPDesdeUSD, totalRecibidoCUP: inv.totalPagoCUP, tasaUsd: inv.tasaUsdCompra }), { cond: !!inv.monedaPago }) +
+        RN.render._filaDetalle('Ingreso bruto de clientes', RN.calc.formatCUP(totalAporteBruto)) +
+        RN.render._filaDetalle('Margen neto (− costo del mega)', (totalMargenNeto >= 0 ? '' : '<span style="color:#c62828">') + RN.calc.formatCUP(totalMargenNeto) + (totalMargenNeto >= 0 ? '' : '</span>')) +
+        RN.render._filaDetalle('Ganancia personal retenida acumulada (' + pctPersonal + '%)', RN.calc.formatCUP(acumRetenido), { cond: pctPersonal > 0 }) +
+        RN.render._filaDetalle('Recuperado (neto, automático)', RN.calc.formatCUP(recuperado), { bold: true, strong: true }) +
+        RN.render._filaDetalle('% recuperación', '<span class="badge ' + (pct >= 100 ? 'ok' : 'warn') + '>' + pct + '%</span>') +
+        RN.render._filaDetalle('Margen neto mensual (bruto)', RN.calc.formatCUP(margenMesBruto)) +
+        RN.render._filaDetalle('Disponible para retirar/mes (' + pctPersonal + '% del margen)', RN.calc.formatCUP(retiroMes), { strong: true, color: 'var(--green)', cond: pctPersonal > 0 }) +
+        RN.render._filaDetalle('Aporte neto mensual a recuperación', RN.calc.formatCUP(aporteMesNeto)) +
+        RN.render._filaDetalle('Aporte extra del mes (' + pctGananciaMes + '% de la ganancia neta)', '+' + RN.calc.formatCUP(aporteExtraMes), { strong: true, color: 'var(--green)', cond: pctGananciaMes > 0 }) +
+        RN.render._filaDetalle('Aporte extra acumulado', RN.calc.formatCUP(aporteExtraAcum), { cond: pctGananciaMes > 0 }) +
+        RN.render._filaDetalle('Recuperado efectivo (cobrado + aporte extra)', RN.calc.formatCUP(recuperadoEfectivo) + ' <span class="badge ' + (pctEfectivo >= 100 ? 'ok' : 'warn') + '>' + pctEfectivo + '%</span>', { bold: true, strong: true, cond: pctGananciaMes > 0 }) +
+        RN.render._filaDetalle('Tiempo restante para recuperar', RN.render.esc(RN.investment.proyectarRecuperacion(inv)), { bold: true, strong: true }) +
+        RN.render._filaDetalle('Clientes vinculados', (inv.clienteIds || []).length) +
         '<div class="divider" style="margin:8px 0"></div>' +
-        '<div class="acc-row" style="font-weight:600"><span class="acc-label">Ganancia real por cliente (recupera el capital)</span><span class="acc-value"><strong>' + RN.calc.formatCUP(totalRecuperacion) + '</strong></span></div>' +
+        RN.render._filaDetalle('Ganancia real por cliente (recupera el capital)', RN.calc.formatCUP(totalRecuperacion), { bold: true, strong: true }) +
         aportesHtml +
         '<div class="acc-actions">' +
           (esPrestamo
-            ? '<button class="btn sm primary" onclick="RN.caja.devolucionPrestamo(\'' + inv.id + '\')">💨 Devolver préstamo</button>' +
-              '<button class="btn sm" onclick="RN.caja.historialDevoluciones(\'' + inv.id + '\')">📋 Devoluciones</button>'
+            ? '<button class="btn sm primary" onclick="RN.inversion.devolucionPrestamo(\'' + inv.id + '\')">💨 Devolver préstamo</button>' +
+              '<button class="btn sm" onclick="RN.inversion.historialDevoluciones(\'' + inv.id + '\')">📋 Devoluciones</button>'
             : '') +
           '<button class="btn sm" onclick="RN.inversion.abrirEditar(\'' + inv.id + '\')">Editar</button>' +
           '<button class="btn sm danger" onclick="RN.inversion.eliminar(\'' + inv.id + '\')">🗑</button>' +
