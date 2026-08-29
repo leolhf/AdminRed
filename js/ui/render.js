@@ -92,7 +92,6 @@ RN.render.vista = function (view) {
     case 'cobros': RN.render.cobros(); break;
     case 'realizados': RN.render.realizados(); break;
     case 'inversion': RN.render.inversion(); break;
-    case 'deudas': RN.inversion.renderDeudas(); break;
     case 'inventario': RN.render.inventario(); break;
     case 'gastos': RN.render.gastos(); break;
     case 'reportes': RN.render.reportes(); break;
@@ -639,12 +638,22 @@ RN.render._filaDetalle = function (label, valor, opts) {
 RN.render.inversion = function () {
   const kpi = document.getElementById('kpi-inversion');
   const pctPersonal = RN.investment.pctPersonal();
+  // v5.13.2 (fusi贸n visual): KPIs combinados de inversi贸n + deudas en una sola grid.
   if (kpi) {
+    var _deudasActivas = RN.investment.deudasActivas();
+    var _deudasConcluidas = RN.investment.deudasConcluidas();
+    var _saldoDeudas = _deudasActivas.reduce(function (s, i) { return s + RN.investment.saldoADevolver(i); }, 0);
+    var _devueltoActivas = _deudasActivas.reduce(function (s, i) { return s + RN.investment.totalDevuelto(i); }, 0);
+    var _devueltoConcluidas = _deudasConcluidas.reduce(function (s, i) { return s + RN.investment.totalDevuelto(i); }, 0);
     kpi.innerHTML = [
       { label: 'Total invertido', value: RN.calc.formatCUP(RN.investment.totalInvertido()), cls: 'blue' },
       { label: 'Recuperado (neto)', value: RN.calc.formatCUP(RN.investment.totalRecuperado()), cls: 'green' },
       { label: '% recuperaci贸n', value: RN.investment.porcentajeRecuperacion() + '%', cls: 'amber' },
-      { label: 'Por recuperar', value: RN.calc.formatCUP(Math.max(0, RN.investment.totalInvertido() - RN.investment.totalRecuperado())), cls: 'red' }
+      { label: 'Por recuperar', value: RN.calc.formatCUP(Math.max(0, RN.investment.totalInvertido() - RN.investment.totalRecuperado())), cls: 'red' },
+      { label: 'Deudas activas', value: String(_deudasActivas.length), cls: 'blue' },
+      { label: 'Saldo por devolver', value: RN.calc.formatCUP(_saldoDeudas), cls: 'red' },
+      { label: 'Ya devuelto (activas)', value: RN.calc.formatCUP(_devueltoActivas), cls: 'amber' },
+      { label: 'Concluidas', value: String(_deudasConcluidas.length) + ' 路 ' + RN.calc.formatCUP(_devueltoConcluidas), cls: 'green' }
     ].map(k => '<div class="kpi ' + k.cls + '"><div class="label">' + k.label + '</div><div class="value">' + k.value + '</div></div>').join('');
   }
 
@@ -667,7 +676,16 @@ RN.render.inversion = function () {
     cont.innerHTML = '<div class="acc-empty"><div class="icon">馃搱</div>No hay inversiones registradas.</div>';
     return;
   }
-  cont.innerHTML = RN.state.investments.map(inv => {
+  // v5.13.3 (fix duplicaci贸n): el bloque "Inversiones" solo muestra capital propio.
+  // Los pr茅stamos externos (prestado_externo) se muestran en el bloque "Deudas personales activas"
+  // con toda su informaci贸n de recuperaci贸n integrada, para evitar duplicados.
+  var _inversionesPropias = RN.state.investments.filter(function (inv) {
+    return RN.investment.origenCapital(inv) !== 'prestado_externo';
+  });
+  if (!_inversionesPropias.length) {
+    cont.innerHTML = '<div class="acc-empty"><div class="icon">頎巾硤</div>No hay inversiones con capital propio registradas.</div>';
+  } else {
+  cont.innerHTML = _inversionesPropias.map(inv => {
     const recuperado = RN.investment.recuperadoRealInv(inv);
     const pct = inv.monto ? Math.round(recuperado / inv.monto * 100) : 0;
     const dotCls = pct >= 100 ? 'ok' : 'warn';
@@ -750,6 +768,7 @@ RN.render.inversion = function () {
       '</div>' +
     '</div>';
   }).join('');
+  }
 
   // v5.12.6: disparar la animaci贸n de la barra de recuperaci贸n tras pintarla.
   if (typeof requestAnimationFrame === 'function') {
@@ -757,6 +776,14 @@ RN.render.inversion = function () {
   } else {
     RN.render.animarBarrasRecuperacion();
   }
+
+  // v5.13.2 (fusi贸n visual): renderizar tambi茅n las listas de deudas
+  // (activas y concluidas) dentro de esta misma vista unificada.
+  // Los KPIs de deudas ya se integraron arriba en la grid combinada.
+  var _act = RN.investment.deudasActivas();
+  var _conc = RN.investment.deudasConcluidas();
+  RN.inversion._renderDeudasActivas(_act);
+  RN.inversion._renderDeudasConcluidas(_conc);
 };
 // ---------- INVENTARIO ----------
 RN.render.inventario = function () {

@@ -58,8 +58,7 @@
     <div class="tab-group" data-group="finanzas">
       <div class="tab" data-view="inversion">💰 Finanzas</div>
       <div class="subtabs">
-        <div class="subtab" data-view="inversion">Inversión</div>
-        <div class="subtab" data-view="deudas">Deudas</div>
+        <div class="subtab active" data-view="inversion">Inversiones y deudas</div>
         <div class="subtab" data-view="inventario">Inventario</div>
         <div class="subtab" data-view="gastos">Gastos</div>
         <div class="subtab" data-view="descuentos">Descuentos</div>
@@ -133,31 +132,36 @@
       <div class="accordion-list" id="lista-realizados"></div>
     </section>
 
-    <!-- INVERSION -->
+    <!-- INVERSION + DEUDAS (v5.13.2: fusion visual) -->
     <section class="view" id="view-inversion">
-      <div class="view-header"><h2>Inversión / deuda de equipo</h2><div class="spacer"></div>
+      <div class="view-header"><h2>Inversiones y deudas</h2><div class="spacer"></div>
         <button class="btn primary" onclick="RN.inversion.abrirNueva()">+ Nueva inversión</button>
       </div>
+
+      <!-- KPIs combinados: inversión + deudas -->
       <div class="kpi-grid" id="kpi-inversion"></div>
+
+      <!-- Barra de recuperación global de la inversión -->
       <div class="card mt-16" id="card-recuperacion-inv" style="display:none">
         <h3>Recuperación de la inversión</h3>
         <div id="inversion-recuperacion"></div>
       </div>
-      <div class="accordion-list" id="lista-inversion"></div>
-    </section>
 
-    <!-- DEUDAS PERSONALES -->
-    <section class="view" id="view-deudas">
-      <div class="view-header"><h2>Deudas personales</h2><div class="spacer"></div>
-        <button class="btn primary" onclick="RN.inversion.abrirNueva()">+ Nueva deuda</button>
-      </div>
-      <div class="kpi-grid" id="kpi-deudas"></div>
+      <!-- Bloque 1: Inversiones (capital propio + prestamos con clientes vinculados) -->
       <div class="card mt-16">
-        <h3>Deudas activas <span class="muted" style="font-size:13px;font-weight:400">(pr\u00e9stamos por devolver)</span></h3>
+        <h3>Inversiones <span class="muted" style="font-size:13px;font-weight:400">(capital invertido en equipos con clientes vinculados)</span></h3>
+        <div class="accordion-list" id="lista-inversion"></div>
+      </div>
+
+      <!-- Bloque 2: Deudas personales activas (prestamos externos por devolver) -->
+      <div class="card mt-16">
+        <h3>Deudas personales activas <span class="muted" style="font-size:13px;font-weight:400">(préstamos por devolver)</span></h3>
         <div class="accordion-list" id="lista-deudas-activas"></div>
       </div>
+
+      <!-- Bloque 3: Historial de deudas concluidas (totalmente liquidadas) -->
       <div class="card mt-16" id="card-deudas-concluidas" style="display:none">
-        <h3>Historial de deudas concluidas <span class="muted" style="font-size:13px;font-weight:400">(totalmente liquidadas)</span></h3>
+        <h3>Deudas concluidas <span class="muted" style="font-size:13px;font-weight:400">(totalmente liquidadas)</span></h3>
         <div class="accordion-list" id="lista-deudas-concluidas"></div>
       </div>
     </section>

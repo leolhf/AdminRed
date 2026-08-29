@@ -474,13 +474,11 @@ RN.inversion.eliminarDevolucion = function (gastoId, inversionId) {
  * Render principal de la vista "Deudas personales".
  * Pinta los KPIs, la lista de deudas activas y el historial de concluidas.
  */
+// v5.13.2 (fusi\u00f3n visual): renderDeudas ahora delega en render.inversion()
+// que pinta inversiones + deudas + KPIs combinados en la vista unificada.
+// Se conserva por compatibilidad con llamadas existentes (guardar, eliminar, devoluciones).
 RN.inversion.renderDeudas = function () {
-  var activas = RN.investment.deudasActivas();
-  var concluidas = RN.investment.deudasConcluidas();
-
-  RN.inversion._renderKPIsDeudas(activas, concluidas);
-  RN.inversion._renderDeudasActivas(activas);
-  RN.inversion._renderDeudasConcluidas(concluidas);
+  RN.render.inversion();
 };
 
 /**
@@ -614,6 +612,31 @@ RN.inversion._cardDeuda = function (inv, esConcluida) {
     +   barraHtml
     +   (inv.monedaPago ? '<div class="acc-row"><span class="acc-label">Pago (' + inv.monedaPago + ')</span><span class="acc-value">' + RN.moneda.desglosePagoHTML({ moneda: inv.monedaPago, montoUSD: inv.montoPagoUSD, montoCUP: inv.montoPagoCUP, montoCUPDesdeUSD: inv.montoPagoCUPDesdeUSD, totalRecibidoCUP: inv.totalPagoCUP, tasaUsd: inv.tasaUsdCompra }) + '</span></div>' : '')
     +   devsHtml
+    +   '<div class="divider" style="margin:8px 0"></div>'
+    // v5.13.3: información de recuperación de la inversión (clientes vinculados)
+    +   (function () {
+        var _aportes = RN.investment.aportesPorCliente(inv);
+        var _recuperado = RN.investment.recuperadoRealInv(inv);
+        var _pctRec = inv.monto ? Math.round(_recuperado / inv.monto * 100) : 0;
+        var _margenMes = RN.investment.margenMensualBruto(inv);
+        var _aporteMes = RN.investment.aporteMensualNeto(inv);
+        var _proyeccion = RN.investment.proyectarRecuperacion(inv);
+        var _nClientes = (inv.clienteIds || []).length;
+        var _html = '<div class="acc-row" style="font-weight:600"><span class="acc-label">Recuperación de la inversión</span><span class="acc-value">' + _pctRec + '%</span></div>'
+          + '<div class="acc-row"><span class="acc-label">Clientes vinculados</span><span class="acc-value">' + _nClientes + '</span></div>'
+          + '<div class="acc-row"><span class="acc-label">Recuperado (neto, automático)</span><span class="acc-value"><strong>' + RN.calc.formatCUP(_recuperado) + '</strong></span></div>'
+          + '<div class="acc-row"><span class="acc-label">Margen neto mensual (bruto)</span><span class="acc-value">' + RN.calc.formatCUP(_margenMes) + '</span></div>'
+          + '<div class="acc-row"><span class="acc-label">Aporte neto mensual a recuperación</span><span class="acc-value">' + RN.calc.formatCUP(_aporteMes) + '</span></div>'
+          + '<div class="acc-row"><span class="acc-label">Tiempo restante para recuperar</span><span class="acc-value"><strong>' + RN.render.esc(_proyeccion) + '</strong></span></div>';
+        if (_aportes.length) {
+          _html += '<div class="acc-row" style="font-weight:600"><span class="acc-label">Ganancia por cliente</span><span class="acc-value">' + RN.calc.formatCUP(RN.investment.totalRecuperacionClientes(inv)) + '</span></div>';
+          _aportes.forEach(function (a) {
+            var _nom = a.cliente ? RN.render.esc(a.cliente.nombre) : '<span class="muted">— eliminado —</span>';
+            _html += '<div class="acc-row"><span class="acc-label">' + _nom + '</span><span class="acc-value"><strong>' + RN.calc.formatCUP(a.recuperacion) + '</strong></span></div>';
+          });
+        }
+        return _html;
+      })()
     +   '<div class="divider" style="margin:8px 0"></div>'
     +   '<div class="acc-actions">'
     +     (esConcluida

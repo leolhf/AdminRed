@@ -1,5 +1,16 @@
 # Changelog — AdminRed (RedNet)
 
+## v5.13.3 — Fusión visual Inversión + Deudas
+
+### Interfaz unificada (fusión visual del Paso 5)
+- **Eliminada la subpestaña "Deudas"** del grupo Finanzas. Ahora existe una sola subpestaña "Inversiones y deudas".
+- **Fusionadas las dos vistas** (`view-inversion` + `view-deudas`) en una única sección con 3 bloques: inversiones, deudas activas, deudas concluidas.
+- **KPIs combinados**: 8 indicadores en una sola grid (4 de inversión + 4 de deudas).
+- **Render unificado**: `render.inversion()` ahora pinta todo (inversiones + deudas + KPIs combinados). `renderDeudas()` delega en `render.inversion()`.
+- **Navegación limpia**: eliminado `case 'deudas'` de render.js y `deudas: 'finanzas'` de tabs.js.
+
+Ver detalles en `CHANGELOG_v5.13.3.md`.
+
 ## v5.13.2 — Fusión Deuda + Inversión
 
 ### Refactorización arquitectónica (sin cambios visuales ni de datos)
