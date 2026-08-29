@@ -174,7 +174,20 @@ RN.inversion.guardar = function () {
   // v5.12.1: el monto se deriva del bloque de pago (modo derivado)
   const pago = RN.moneda.leerBloquePago('inv-pago', 0);
   const monto = pago.totalRecibidoCUP || 0;
+  // v5.13.4 (Mejora #5): Validar montos no negativos
+  if ((pago.montoUSD || 0) < 0 || (pago.montoCUP || 0) < 0) {
+    RN.notifyUI.toast('Los montos de pago no pueden ser negativos', 'error');
+    return;
+  }
+  // v5.13.4 (Mejora #5): Advertir si la tasa parece irreal y hay pago en USD
+  if ((pago.montoUSD || 0) > 0 && pago.tasaUsd > 0 && (pago.tasaUsd < 1 || pago.tasaUsd > 100000)) {
+    RN.notifyUI.toast('La tasa USD (' + pago.tasaUsd + ') parece irreal. Revísala en Ajustes.', 'warn');
+  }
   if (monto <= 0) { RN.notifyUI.toast('Ingresa cuánto pagaste en USD y/o CUP para calcular el monto invertido', 'error'); return; }
+  // v5.13.4 (Mejora #5): Validar monto de inversión razonable (no más de 100 millones CUP)
+  if (monto > 100000000) {
+    RN.notifyUI.toast('El monto invertido (' + RN.calc.formatCUP(monto) + ') parece excesivo. Verifica los datos.', 'warn');
+  }
   const clientes = Array.from(document.getElementById('inv-clientes').selectedOptions).map(o => o.value);
   const fechaCompraRaw = document.getElementById('inv-fecha-compra').value;
   if (!fechaCompraRaw) { RN.notifyUI.toast('La fecha de compra es obligatoria', 'error'); return; }
@@ -355,16 +368,28 @@ RN.inversion._validarDevolucion = function (input, saldoDevolver, fondoDisponibl
  */
 RN.inversion.guardarDevolucion = function (inversionId) {
   var monto = parseFloat(document.getElementById('dev-monto').value) || 0;
+  if (monto < 0) {
+    RN.notifyUI.toast('El monto no puede ser negativo', 'error');
+    return;
+  }
   if (monto <= 0) {
     RN.notifyUI.toast('El monto debe ser mayor que 0', 'error');
+    return;
+  }
+  // v5.13.4 (Mejora #5): Validar que la devolución no exceda el saldo pendiente
+  var inv = (RN.state.investments || []).find(function (i) { return i.id === inversionId; });
+  if (!inv) return;
+  var totalDevuelto = RN.investment.totalDevuelto(inv);
+  var saldoPendiente = inv.monto - totalDevuelto;
+  if (monto > saldoPendiente + 0.01) {
+    RN.notifyUI.toast('La devolución (' + RN.calc.formatCUP(monto) +
+      ') excede el saldo pendiente (' + RN.calc.formatCUP(saldoPendiente) + ')', 'error');
     return;
   }
   var concepto = document.getElementById('dev-concepto').value.trim();
   var fecha = document.getElementById('dev-fecha').value || new Date().toISOString().slice(0, 10);
   var fechaISO = new Date(fecha).toISOString();
   var mes = fecha.slice(0, 7);
-  var inv = (RN.state.investments || []).find(function (i) { return i.id === inversionId; });
-  if (!inv) return;
 
   if (!concepto) {
     concepto = 'Devolución de préstamo: ' + inv.concepto;

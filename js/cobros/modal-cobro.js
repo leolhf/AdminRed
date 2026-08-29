@@ -471,6 +471,30 @@ RN.modalCobro.confirmar = function () {
   var cup = inpCup ? (parseFloat(inpCup.value) || 0) : 0;
   var tasa = RN.moneda.tasa();
 
+  // ====== v5.13.4 (Mejora #5): Validación visual de campos financieros ======
+  // Validar que los montos no sean negativos
+  if (usd < 0 || cup < 0 || montoEq < 0) {
+    RN.notifyUI.toast('Los montos no pueden ser negativos', 'error');
+    return;
+  }
+  // Validar que el monto de equipo no exceda la deuda pendiente
+  var deudaEqActual = RN.investment.getDeudaEquipoCliente(c);
+  if (montoEq > deudaEqActual + 0.01) {
+    RN.notifyUI.toast('El monto de equipo (' + RN.calc.formatCUP(montoEq) +
+      ') excede la deuda pendiente (' + RN.calc.formatCUP(deudaEqActual) + ')', 'error');
+    return;
+  }
+  // Validar que el neto del servicio no sea negativo (no debería pasar, pero por seguridad)
+  if (neto < 0) {
+    RN.notifyUI.toast('El precio neto del servicio es negativo. Revisa descuentos recurrentes.', 'error');
+    return;
+  }
+  // Validar tasa USD razonable (entre 1 y 100000 CUP/USD) si hay pago en USD
+  if (usd > 0 && tasa > 0 && (tasa < 1 || tasa > 100000)) {
+    RN.notifyUI.toast('La tasa USD (' + tasa + ') parece irreal. Revísala en Ajustes.', 'warn');
+    // No bloqueamos, solo advertimos (la tasa puede ser legítimamente extrema)
+  }
+
   // Total a pagar (neto servicio + equipo)
   var aPagar = neto + montoEq;
 
@@ -601,7 +625,7 @@ RN.modalCobro.confirmar = function () {
   RN.notifyUI.toast(msg, 'success');
 
   // Notificación local
-  RN.notify.local('Cobro registrado', `${c.nombre}: ${RN.calc.formatCUP(montoRegistrado)}`);
+  RN.notify.local('Cobro registrado', c.nombre + ': ' + RN.calc.formatCUP(aPagar));
 
   // WhatsApp
   if (enviarWA && c.telefono) {

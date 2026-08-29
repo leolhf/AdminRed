@@ -65,6 +65,11 @@ RN.tests.ejecutar = function () {
     RN.tests._testMora();
     RN.tests._testGetStatus();
     RN.tests._testPrecioNetoNoNegativo();
+    RN.tests._testMesActualRespetaState();   // Bug #1
+    RN.tests._testDeudaTotalCliente();        // Bug #4
+    RN.tests._testAUSD();                     // Bug #8
+    RN.tests._testAporteRecuperacionFecha();  // Bug #11
+    RN.tests._testCostoMegaConfigurado();     // Bug #17
   } finally {
     // Restaurar siempre
     RN.state = stateReal;
@@ -212,4 +217,248 @@ RN.tests._testGetStatus = function () {
   // Caso 5: con mora de meses anteriores -> 'due'
   RN.state.history = [{ id: 'h1', clienteId: 'c1', tipo: 'servicio', mes: '2025-06', monto: 500 }];
   RN.tests._assertEq(RN.calc.getStatus(RN.state.clients[0]), 'due', 'getStatus: con mora -> due');
+};
+
+// ---------------- Tests de bugs críticos corregidos (v5.13.1+) ----------------
+
+/**
+ * Bug #1: mesActualStr() debe respetar RN.state.mesActual en lugar de
+ * usar siempre el reloj del sistema. Si el usuario cerró el mes a sep-2025
+ * (mesActual='2025-09'), aunque el reloj real sea diciembre, la app debe
+ * operar en septiembre.
+ */
+RN.tests._testMesActualRespetaState = function () {
+  // Guardar y restaurar RN.state.mesActual
+  var mesGuardado = RN.state.mesActual;
+  try {
+    // Caso 1: mesActual definido y válido -> lo respeta
+    RN.state.mesActual = '2025-09';
+    RN.tests._assertEq(RN.calc.mesActualStr(), '2025-09', 'Bug #1: mesActualStr respeta RN.state.mesActual');
+
+    // Caso 2: mesActual vacío/null -> usa reloj del sistema (formato YYYY-MM)
+    RN.state.mesActual = null;
+    var real = RN.calc.mesActualStr();
+    RN.tests._assert(/^\d{4}-\d{2}$/.test(real), 'Bug #1: sin mesActual, usa reloj del sistema (formato YYYY-MM)');
+
+    // Caso 3: mesActual con formato inválido -> usa reloj del sistema
+    RN.state.mesActual = 'septiembre-2025';
+    var real2 = RN.calc.mesActualStr();
+    RN.tests._assert(/^\d{4}-\d{2}$/.test(real2), 'Bug #1: mesActual inválido -> fallback a reloj del sistema');
+
+    // Caso 4: mesRealStr SIEMPRE usa el reloj, ignora mesActual
+    RN.state.mesActual = '2025-09';
+    var realStr = RN.calc.mesRealStr();
+    RN.tests._assert(/^\d{4}-\d{2}$/.test(realStr), 'Bug #1: mesRealStr siempre usa el reloj (ignora mesActual)');
+  } finally {
+    RN.state.mesActual = mesGuardado;
+  }
+};
+
+/**
+ * Bug #4: deudaTotalCliente() debe sumar el servicio pendiente del mes actual
+ * más los meses en mora, más la deuda de equipo. Antes de la corrección cada
+ * vista calculaba la deuda de forma distinta.
+ */
+RN.tests._testDeudaTotalCliente = function () {
+  RN.calc.mesActualStr = function () { return '2025-09'; };
+  RN.state = RN.tests._mockState({
+    config: { graciaDias: 5, diasBaseMes: 30 },
+    planes: [{ id: 'p1', nombre: 'Básico', megas: 10, precio: 500 }],
+    clients: [{
+      id: 'c1', nombre: 'Ana', precio: 500, planId: null, activo: true,
+      diaPago: 5, mesInicio: '2025-01', descuentoRecurrente: 0,
+      deudaEquipo: 300, deudaEquipoOriginal: 1000
+    }],
+    history: [
+      { id: 'h1', clienteId: 'c1', tipo: 'servicio', mes: '2025-06', monto: 500 }
+    ],
+    descuentos: []
+  });
+
+  // Mora: pagó hasta jun-2025, actual sep-2025 -> 2 meses en mora (jul, ago)
+  // Servicio pendiente = 500 * (2 + 1) = 1500  (mora + mes actual)
+  // Deuda equipo = 300
+  // Total = 1800
+  RN.tests._assertEq(RN.calc.deudaTotalCliente(RN.state.clients[0]), 1800,
+    'Bug #4: deudaTotalCliente = servicio(1500) + equipo(300) = 1800');
+
+  // Sin deuda de equipo
+  RN.state.clients[0].deudaEquipo = 0;
+  RN.tests._assertEq(RN.calc.deudaTotalCliente(RN.state.clients[0]), 1500,
+    'Bug #4: deudaTotalCliente sin deuda equipo = 1500');
+
+  // Sin mora (pagó el mes actual)
+  RN.state.clients[0].deudaEquipo = 300;
+  RN.state.history = [{ id: 'h1', clienteId: 'c1', tipo: 'servicio', mes: '2025-09', monto: 500 }];
+  RN.tests._assertEq(RN.calc.deudaTotalCliente(RN.state.clients[0]), 800,
+    'Bug #4: deudaTotalCliente al día = 500 (servicio) + 300 (equipo) = 800');
+
+  // Deuda total nunca negativa
+  RN.state.history = [{ id: 'h1', clienteId: 'c1', tipo: 'servicio', mes: '2025-12', monto: 500 }];
+  RN.state.clients[0].deudaEquipo = 0;
+  RN.tests._assert(RN.calc.deudaTotalCliente(RN.state.clients[0]) >= 0,
+    'Bug #4: deudaTotalCliente nunca negativa');
+};
+
+/**
+ * Bug #8: aUSD() debe devolver un número, no un string. Antes de la corrección
+ * podía devolver strings concatenados o NaN, lo que rompía comparaciones
+ * numéricas y formato.
+ */
+RN.tests._testAUSD = function () {
+  RN.state = RN.tests._mockState({
+    config: { tasaUsd: 320 }
+  });
+
+  // Conversión normal: 640 CUP / 320 = 2 USD
+  var r1 = RN.moneda.aUSD(640);
+  RN.tests._assertEq(r1, 2, 'Bug #8: aUSD(640) con tasa 320 = 2');
+  RN.tests._assert(typeof r1 === 'number', 'Bug #8: aUSD devuelve number (no string)');
+
+  // Monto 0 -> 0 (número)
+  var r0 = RN.moneda.aUSD(0);
+  RN.tests._assertEq(r0, 0, 'Bug #8: aUSD(0) = 0');
+  RN.tests._assert(typeof r0 === 'number', 'Bug #8: aUSD(0) es number');
+
+  // Sin tasa -> 0 (número, no NaN ni string vacío)
+  RN.state.config.tasaUsd = 0;
+  var rNoTasa = RN.moneda.aUSD(1000);
+  RN.tests._assertEq(rNoTasa, 0, 'Bug #8: aUSD sin tasa = 0');
+  RN.tests._assert(typeof rNoTasa === 'number', 'Bug #8: aUSD sin tasa devuelve number');
+
+  // Argumento inválido (undefined/null) -> 0 (número, no NaN)
+  var rUndef = RN.moneda.aUSD(undefined);
+  RN.tests._assertEq(rUndef, 0, 'Bug #8: aUSD(undefined) = 0 (no NaN)');
+  RN.tests._assert(typeof rUndef === 'number', 'Bug #8: aUSD(undefined) es number');
+
+  var rNull = RN.moneda.aUSD(null);
+  RN.tests._assertEq(rNull, 0, 'Bug #8: aUSD(null) = 0 (no NaN)');
+
+  // String numérico -> parsea correctamente
+  RN.state.config.tasaUsd = 320;
+  var rStr = RN.moneda.aUSD('640');
+  RN.tests._assertEq(rStr, 2, 'Bug #8: aUSD("640") = 2 (parsea string numérico)');
+  RN.tests._assert(typeof rStr === 'number', 'Bug #8: aUSD(string) devuelve number');
+
+  // Round-trip aCUP(aUSD(x)) ≈ x
+  RN.state.config.tasaUsd = 320;
+  RN.tests._assertEq(RN.moneda.aCUP(RN.moneda.aUSD(960)), 960,
+    'Bug #8: aCUP(aUSD(960)) = 960 (round-trip)');
+};
+
+/**
+ * Bug #11: aporteRecuperacionCliente() debe filtrar los cobros por fecha de
+ * compra. Antes de la corrección, si un cliente tenía cobros anteriores a la
+ * fecha de compra de la inversión, esos cobros se sumaban e inflaban la
+ * recuperación. Ahora _cobrosClienteDesde filtra por h.fecha >= fechaCompra
+ * y h.mes >= mesCompra.
+ */
+RN.tests._testAporteRecuperacionFecha = function () {
+  RN.state = RN.tests._mockState({
+    config: { graciaDias: 5, diasBaseMes: 30, proveedorPrecioMega: 0, pctPersonalInversion: 0 },
+    planes: [{ id: 'p1', nombre: 'Básico', megas: 10, precio: 500 }],
+    clients: [{
+      id: 'c1', nombre: 'Ana', precio: 500, planId: 'p1', megas: 10,
+      activo: true, diaPago: 5, mesInicio: '2025-01', descuentoRecurrente: 0
+    }],
+    investments: [{
+      id: 'inv1', clienteId: 'c1', monto: 3000, fechaCompra: '2025-06-15'
+    }],
+    history: [
+      // Cobro ANTERIOR a la compra (mayo) — NO debe contar
+      { id: 'h0', clienteId: 'c1', tipo: 'servicio', mes: '2025-05', fecha: '2025-05-10', monto: 500 },
+      // Cobro POSTERIOR a la compra — SÍ debe contar
+      { id: 'h1', clienteId: 'c1', tipo: 'servicio', mes: '2025-06', fecha: '2025-06-20', monto: 500 },
+      { id: 'h2', clienteId: 'c1', tipo: 'servicio', mes: '2025-07', fecha: '2025-07-05', monto: 500 },
+      // Cobro de OTRO cliente — NO debe contar
+      { id: 'h3', clienteId: 'c2', tipo: 'servicio', mes: '2025-07', fecha: '2025-07-05', monto: 500 },
+      // Cobro tipo 'equipo' — NO debe contar (solo servicio)
+      { id: 'h4', clienteId: 'c1', tipo: 'equipo', mes: '2025-07', fecha: '2025-07-06', monto: 200 }
+    ],
+    descuentos: []
+  });
+
+  var inv = RN.state.investments[0];
+  // Sin costo de mega (proveedorPrecioMega=0) y pctPersonal=0:
+  // aporteRecuperacion = suma de cobros posteriores a la compra = 500 + 500 = 1000
+  // (h0 de mayo excluido, h3 de otro cliente excluido, h4 de equipo excluido)
+  RN.tests._assertEq(RN.investment.aporteRecuperacionCliente(inv, 'c1'), 1000,
+    'Bug #11: aporteRecuperacion excluye cobros anteriores a fechaCompra (solo jun+jul = 1000)');
+
+  // _cobrosClienteDesde debe devolver solo 2 cobros
+  var cobros = RN.investment._cobrosClienteDesde('c1', inv);
+  RN.tests._assertEq(cobros.length, 2,
+    'Bug #11: _cobrosClienteDesde filtra por fecha y devuelve solo 2 cobros');
+
+  // Con costo de mega: 10 megas × 1 CUP/mega = 10 costo por mes
+  // jun: 500 - 10 = 490; jul: 500 - 10 = 490; total = 980
+  RN.state.config.proveedorPrecioMega = 1;
+  RN.tests._assertEq(RN.investment.aporteRecuperacionCliente(inv, 'c1'), 980,
+    'Bug #11: aporteRecuperacion con costoMega descuenta 10/mes (980)');
+
+  // Con % personal 50%: solo la mitad recupera capital
+  RN.state.config.pctPersonalInversion = 50;
+  RN.tests._assertEq(RN.investment.aporteRecuperacionCliente(inv, 'c1'), 490,
+    'Bug #11: aporteRecuperacion con 50% personal = 980×0.5 = 490');
+
+  // Cobro del MISMO DÍA de la compra (15-jun) — debe incluirse
+  RN.state.config.proveedorPrecioMega = 0;
+  RN.state.config.pctPersonalInversion = 0;
+  RN.state.history = [
+    { id: 'hs', clienteId: 'c1', tipo: 'servicio', mes: '2025-06', fecha: '2025-06-15', monto: 500 }
+  ];
+  RN.tests._assertEq(RN.investment.aporteRecuperacionCliente(inv, 'c1'), 500,
+    'Bug #11: cobro del mismo día de la compra SÍ se incluye (sin bug de zona horaria)');
+
+  // Cobro del día ANTERIOR a la compra (14-jun) — debe excluirse
+  RN.state.history = [
+    { id: 'hs', clienteId: 'c1', tipo: 'servicio', mes: '2025-06', fecha: '2025-06-14', monto: 500 }
+  ];
+  RN.tests._assertEq(RN.investment.aporteRecuperacionCliente(inv, 'c1'), 0,
+    'Bug #11: cobro del día anterior a la compra se excluye');
+};
+
+/**
+ * Bug #17: costoMegaConfigurado() indica si el costo de proveedor está
+ * configurado. Si no lo está, las métricas de margen y recuperación de
+ * inversión están infladas (asumen costo 0). La UI debe advertir al usuario.
+ */
+RN.tests._testCostoMegaConfigurado = function () {
+  // Sin precio de proveedor -> false
+  RN.state = RN.tests._mockState({
+    config: { proveedorPrecioMega: 0 }
+  });
+  RN.tests._assertEq(RN.investment.costoMegaConfigurado(), false,
+    'Bug #17: costoMegaConfigurado = false cuando proveedorPrecioMega = 0');
+
+  // Sin la clave en config -> false
+  RN.state.config = {};
+  RN.tests._assertEq(RN.investment.costoMegaConfigurado(), false,
+    'Bug #17: costoMegaConfigurado = false cuando no existe proveedorPrecioMega');
+
+  // Con precio válido -> true
+  RN.state.config.proveedorPrecioMega = 1.5;
+  RN.tests._assertEq(RN.investment.costoMegaConfigurado(), true,
+    'Bug #17: costoMegaConfigurado = true cuando proveedorPrecioMega > 0');
+
+  // Con precio negativo -> false (no válido)
+  RN.state.config.proveedorPrecioMega = -1;
+  RN.tests._assertEq(RN.investment.costoMegaConfigurado(), false,
+    'Bug #17: costoMegaConfigurado = false cuando proveedorPrecioMega es negativo');
+
+  // Con string numérico válido -> true (+() lo parsea)
+  RN.state.config.proveedorPrecioMega = '2';
+  RN.tests._assertEq(RN.investment.costoMegaConfigurado(), true,
+    'Bug #17: costoMegaConfigurado = true con string numérico "2"');
+
+  // Impacto en costoMegaClienteMes: sin config -> 0 (margen inflado)
+  RN.state.config.proveedorPrecioMega = 0;
+  var cli = { id: 'c1', megas: 10, planId: null };
+  RN.tests._assertEq(RN.investment.costoMegaClienteMes(cli, '2025-06'), 0,
+    'Bug #17: costoMegaClienteMes = 0 sin config (margen inflado, por eso se advierte)');
+
+  // Con config -> costo real
+  RN.state.config.proveedorPrecioMega = 1.5;
+  RN.tests._assertEq(RN.investment.costoMegaClienteMes(cli, '2025-06'), 15,
+    'Bug #17: costoMegaClienteMes = 15 con 10 megas × 1.5 CUP/mega');
 };

@@ -87,6 +87,33 @@ RN.validacion.validar = function () {
   return { ok: errores.length === 0, errores };
 };
 
+/**
+ * v5.13.4 (Mejora #2) — Ejecuta validar() y muestra el resultado en un modal.
+ * Wrapper de UI para que el usuario pueda ver los errores de integridad sin
+ * abrir la consola. Se invoca desde Ajustes → Diagnóstico.
+ */
+RN.validacion.verificar = function () {
+  var res = RN.validacion.validar();
+  var esc = function (s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  };
+  var color = res.ok ? 'var(--success)' : 'var(--danger)';
+  var ico = res.ok ? '\u2705' : '\u26a0\ufe0f';
+  var body = res.ok
+    ? '<p style="text-align:center;font-weight:700;color:' + color + ';margin:20px 0">' + ico + ' No se detectaron errores de integridad.</p>'
+    : '<h4 style="color:var(--danger)">Errores de integridad (' + res.errores.length + ')</h4>' +
+      res.errores.map(function (e) {
+        return '<div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:6px;padding:8px 12px;margin-bottom:6px;font-size:13px">' + esc(e) + '</div>';
+      }).join('');
+  var html =
+    '<div class="modal-header"><h3>\ud83e\uddea Validaci\u00f3n de integridad</h3>' +
+    '<button class="close" onclick="RN.uiComponents.cerrarModal()">\u00d7</button></div>' +
+    '<div class="modal-body">' + body + '</div>' +
+    '<div class="modal-footer"><button class="btn ghost" onclick="RN.uiComponents.cerrarModal()">Cerrar</button></div>';
+  RN.uiComponents.modal(html, { lg: true });
+  return res;
+};
+
 // v5.11.2: indicador visual de "cambios sin guardar" (punto rojo en header + beforeunload).
 // Evita pérdidas accidentales al cerrar la pestaña con cambios sin guardar.
 RN.validacion._beforeunloadInstalado = false;

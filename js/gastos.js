@@ -92,7 +92,16 @@ RN.gastos.guardar = function () {
   if (!concepto) { RN.notifyUI.toast('El concepto es obligatorio', 'error'); return; }
   const usd = parseFloat((document.getElementById('g-monto-usd') || {}).value) || 0;
   const cup = parseFloat((document.getElementById('g-monto-cup') || {}).value) || 0;
+  // v5.13.4 (Mejora #5): Validar montos no negativos
+  if (usd < 0 || cup < 0) {
+    RN.notifyUI.toast('Los montos no pueden ser negativos', 'error');
+    return;
+  }
   const tasa = RN.moneda.tasa();
+  // v5.13.4 (Mejora #5): Advertir si la tasa parece irreal y hay pago en USD
+  if (usd > 0 && tasa > 0 && (tasa < 1 || tasa > 100000)) {
+    RN.notifyUI.toast('La tasa USD (' + tasa + ') parece irreal. Revísala en Ajustes.', 'warn');
+  }
   const totalCUP = +((usd * tasa) + cup).toFixed(2);
   if (totalCUP <= 0) { RN.notifyUI.toast('El monto debe ser mayor que 0', 'error'); return; }
 

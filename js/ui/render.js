@@ -145,11 +145,18 @@ RN.render.barraRecuperacion = function () {
   else if (pct >= 100) estadoTxt = '<span style="color:var(--green)">✓ Inversión recuperada</span>';
   else estadoTxt = '<span class="muted">En proceso de recuperación</span>';
 
+  // v5.13.4: Bug #17 - Advertencia visible cuando no hay precio de proveedor
+  // configurado. Sin ese dato, el margen y el % de recuperacion se calculan
+  // asumiendo costo 0, por lo que estan inflados. La auditoria v5.13.0 (Bug #17)
+  // pedia que la UI advirtiera al usuario; la funcion costoMegaConfigurado()
+  // ya existia desde v5.13.1 pero no se usaba en la UI.
+  var sinCosto = !RN.investment.costoMegaConfigurado();
+
   var html = '';
   html += '<div class="recup-card">';
   html += '  <div class="recup-head">';
-  html += '    <div class="recup-titulo"><span class="recup-ico">📈</span> <strong>Recuperación de la inversión</strong></div>';
-  html += '    <div class="recup-pct"><strong>' + pct + '%</strong></div>';
+  html += '    <div class="recup-titulo"><span class="recup-ico">������</span> <strong>Recuperación de la inversión</strong></div>';
+  html += '    <div class="recup-pct"><strong>' + pct + '%</strong>' + (sinCosto ? ' <span class="muted" style="font-size:11px">(estimado)</span>' : '') + '</div>';
   html += '  </div>';
   html += '  <div class="recup-bar"><div class="recup-fill ' + cls + '" data-pct="' + pctVisual + '" style="width:0%"></div></div>';
   html += '  <div class="recup-datos">';
@@ -158,6 +165,11 @@ RN.render.barraRecuperacion = function () {
   html += '    <div class="recup-dato"><span class="muted">Por recuperar</span><strong style="color:var(--danger)">' + RN.calc.formatCUP(faltante) + '</strong></div>';
   html += '  </div>';
   html += '  <div class="recup-estado">' + estadoTxt + '</div>';
+  if (sinCosto) {
+    html += '  <div style="margin-top:10px;padding:10px 12px;border-radius:8px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.35);font-size:12px;color:#e6a700">';
+    html += '    \u26a0\ufe0f El % de recuperación está <strong>inflado</strong>: no hay precio de proveedor por mega configurado, por lo que el margen se calcula asumiendo costo 0. Configura el precio del mega en Ajustes \u2192 Proveedor para ver la recuperación real.';
+    html += '  </div>';
+  }
   html += '</div>';
   return html;
 };
@@ -237,7 +249,7 @@ RN.render.dashboard = function () {
       <div class="flex wrap" style="gap:24px">
         <div><strong>Clientes activos:</strong> ${RN.calc.clientesActivos().length}</div>
         <div><strong>Planes:</strong> ${RN.state.planes.length}</div>
-        <div><strong>Inversión recuperada:</strong> ${RN.investment.porcentajeRecuperacion()}%</div>
+        <div><strong>Inversión recuperada:</strong> ${RN.investment.porcentajeRecuperacion()}%${RN.investment.costoMegaConfigurado() ? '' : ' <span class="muted" style="font-size:12px">(estimado, sin costo de proveedor)</span>'}</div>
         <div><strong>Predicción próximo mes:</strong> ${RN.calc.formatCUP(RN.calc.prediccionIngresos())}</div>
       </div>`;
   }
@@ -648,7 +660,7 @@ RN.render.inversion = function () {
     kpi.innerHTML = [
       { label: 'Total invertido', value: RN.calc.formatCUP(RN.investment.totalInvertido()), cls: 'blue' },
       { label: 'Recuperado (neto)', value: RN.calc.formatCUP(RN.investment.totalRecuperado()), cls: 'green' },
-      { label: '% recuperación', value: RN.investment.porcentajeRecuperacion() + '%', cls: 'amber' },
+      { label: '% recuperación' + (RN.investment.costoMegaConfigurado() ? '' : ' (estimado)'), value: RN.investment.porcentajeRecuperacion() + '%', cls: 'amber' },
       { label: 'Por recuperar', value: RN.calc.formatCUP(Math.max(0, RN.investment.totalInvertido() - RN.investment.totalRecuperado())), cls: 'red' },
       { label: 'Deudas activas', value: String(_deudasActivas.length), cls: 'blue' },
       { label: 'Saldo por devolver', value: RN.calc.formatCUP(_saldoDeudas), cls: 'red' },
