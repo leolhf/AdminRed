@@ -121,14 +121,14 @@ RN.storageLocal._aplicarData = function (data) {
   }
   // Aplicar config del archivo importado
   if (data.config) Object.assign(RN.state.config, data.config);
-  // Re-aplicar config autoritativa desde STORAGE_KEYS.CONFIG si existe.
-  try {
-    var rawConfig = localStorage.getItem(STORAGE_KEYS.CONFIG);
-    if (rawConfig) {
-      var savedConfig = JSON.parse(rawConfig);
-      Object.assign(RN.state.config, savedConfig);
-    }
-  } catch (e) { /* ignorar config corrupta */ }
+  // v5.13.16 (BUG-CRITICO): Eliminada la re-aplicacion de STORAGE_KEYS.CONFIG.
+  // Antes, este bloque hacia Object.assign(RN.state.config, savedConfig) con la
+  // config de STORAGE_KEYS.CONFIG, lo que sobreescribia la config del backup
+  // importado (data.config) con la config local stale. Como persistir() ya no
+  // se llama en la mayoria de los flujos (ISSUE #22, ISSUE #4),
+  // STORAGE_KEYS.CONFIG esta desactualizada y sobreescribia cambios como
+  // paquetePendiente, fondo de caja, % de ganancia, etc. La tasa USD se sigue
+  // preservando via la logica de candidatos (Bug #5) que se aplica mas abajo.
   // v5.13.1: Bug #5 — Aplicar la tasa más reciente al FINAL.
   // Ordenar candidatos por fecha descendente (más reciente primero).
   // Los candidatos sin fecha se consideran los más viejos.
@@ -177,6 +177,14 @@ RN.storageLocal._guardarAsyncDebounced = function () {
 RN.storageLocal.guardar = function () {
   RN.checkpoint.crear();
   RN.storageLocal.persistir();
+  // v5.13.16 (BUG-CRITICO): Sincronizar STORAGE_KEYS.CONFIG con el estado actual.
+  // Desde v5.13.5 (ISSUE #22, ISSUE #4) se eliminó la llamada explicita a
+  // RN.config.persistir() en config.guardar() y modal-paquete-proveedor, lo que
+  // dejo STORAGE_KEYS.CONFIG desactualizada. Aunque ya no se re-aplica al cargar
+  // (ver init.js paso 4b eliminado), la mantenemos sincronizada aqui para que
+  // ambos almacenamientos (DATA y CONFIG) sean consistentes y evitar problemas
+  // futuros si alguna parte del codigo vuelve a leer STORAGE_KEYS.CONFIG.
+  if (RN.config && RN.config.persistir) RN.config.persistir();
   // v5.13.1: Bug #16 — guardados asíncronos con debounce
   RN.storageLocal._guardarAsyncDebounced();
 };

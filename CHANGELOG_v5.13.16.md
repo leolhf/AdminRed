@@ -8,6 +8,63 @@ Esta versión implementa **todos** los hallazgos de la auditoría de la sección
 
 ---
 
+## BUG-CRÍTICO (pós-auditoría) — Configuración (incluido `paquetePendiente`) se pierde al reabrir la app
+
+### Síntoma reportado
+Al configurar el paquete mensual que se comprará el próximo mes (paquete pendiente), cerrar la app y volver a abrirla, la configuración desaparece. El mismo problema afecta a **todos** los cambios de configuración hechos desde Ajustes (tasa USD, fondo de caja, días de corte, % de ganancia, etc.).
+
+### Causa raíz
+El sistema usa **dos claves** de `localStorage` para guardar la configuración:
+
+- `adminred:data` (`STORAGE_KEYS.DATA`) — blob completo del estado, incluye `config: RN.state.config` (vía `serializar()`).
+- `adminred:config` (`STORAGE_KEYS.CONFIG`) — snapshot solo de configuración (vía `RN.config.persistir()`).
+
+Desde **v5.13.5** (ISSUE #22 e ISSUE #4) se eliminaron las llamadas a `RN.config.persistir()` dentro de `RN.config.guardar()` y `modal-paquete-proveedor.guardarCambios()` por considerarlas "redundantes". Esto dejó `STORAGE_KEYS.CONFIG` **desactualizada**: cada vez que el usuario cambiaba configuración, solo se actualizaba `STORAGE_KEYS.DATA` (vía `guardar()` → `persistir()`), pero `STORAGE_KEYS.CONFIG` quedaba con valores antiguos.
+
+El problema crítico estaba en `js/init.js` **paso 4b**: después de cargar el blob autoritativo de `STORAGE_KEYS.DATA` (que contenía la config actualizada), el código volvía a llamar `RN.config.cargar()`, que leía `STORAGE_KEYS.CONFIG` (stale) y la aplicaba con `Object.assign(RN.state.config, ...)`, **sobrescribiendo** la configuración reciente con la versión antigua. Al reabrir la app, el usuario veía los valores anteriores.
+
+El mismo patrón existía en `storage-local.js _aplicarData()` (usado al importar un backup): después de aplicar `data.config`, re-aplicaba `STORAGE_KEYS.CONFIG` stale.
+
+### Solución (3 cambios en 2 archivos)
+
+**1. `js/init.js` — Eliminado el paso 4b (segundo `RN.config.cargar()`)**
+Ahora la secuencia de carga es:
+- Paso 3: `RN.config.cargar()` — fallback inicial (para primera ejecución sin `STORAGE_KEYS.DATA`).
+- Paso 4: `RN.storageLocal.cargar()` — carga `STORAGE_KEYS.DATA` (fuente autoritativa, incluye config).
+- ~~Paso 4b: `RN.config.cargar()`~~ — **ELIMINADO** (sobrescribía config fresca con config stale).
+
+**2. `js/storage/storage-local.js` — `_aplicarData()`**
+Eliminado el bloque que re-aplicaba `STORAGE_KEYS.CONFIG` después de aplicar `data.config`. Se preservó la lógica de tasa USD (Bug #5): los candidatos se recolectan antes de cualquier `Object.assign` y la tasa más reciente se aplica al final.
+
+**3. `js/storage/storage-local.js` — `guardar()`**
+Añadida la llamada `RN.config.persistir()` dentro de `guardar()` para mantener `STORAGE_KEYS.CONFIG` sincronizada con `STORAGE_KEYS.DATA` en cada guardado. Esto garantiza que ambas claves siempre contengan la misma configuración, evitando desincronización futura.
+
+```js
+RN.storageLocal.guardar = function () {
+  RN.checkpoint.crear();
+  RN.storageLocal.persistir();
+  // v5.13.16 (BUG-CRITICO): Sincronizar STORAGE_KEYS.CONFIG con el estado actual.
+  if (RN.config && RN.config.persistir) RN.config.persistir();
+  RN.storageLocal._guardarAsyncDebounced();
+};
+```
+
+### Impacto del fix
+- ✅ `paquetePendiente` persiste al cerrar y reabrir la app.
+- ✅ Todos los cambios de Ajustes (tasa USD, fondo de caja, días de corte, % ganancia, sobreventa) persisten correctamente.
+- ✅ Importación de backups no sobrescribe config con valores stale.
+- ✅ Ambas claves de storage (`DATA` y `CONFIG`) permanecen sincronizadas.
+
+### Verificación
+- Tests automáticos: **73/74 pasan** (1 fallo pre-existente no relacionado).
+- Simulación Node: `paquetePendiente` sobrevive al reinicio ✓
+- Simulación Node: configuración completa sobrevive al reinicio ✓
+
+### Archivos modificados
+- `js/init.js` (eliminación paso 4b + comentario explicativo)
+- `js/storage/storage-local.js` (fix `_aplicarData` + sync `guardar`)
+
+
 ## BUG-1 (crítico) — `proyectarRecuperacion` ignora el aporte extra acumulado
 
 ### Causa raíz

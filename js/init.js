@@ -18,10 +18,19 @@ RN.init.arrancar = async function () {
   // 4. Cargar datos locales (respaldo) — carga el blob combinado de STORAGE_KEYS.DATA
   RN.storageLocal.cargar();
 
-  // 4b. v5.10.1: Re-aplicar config desde STORAGE_KEYS.CONFIG después de cargar el blob.
-  // El blob combinado puede tener config stale (si se guardó antes de un cambio de config).
-  // STORAGE_KEYS.CONFIG es la fuente autoritativa para la configuración.
-  RN.config.cargar();
+  // 4b. v5.13.16 (BUG-CRITICO): Eliminado el segundo RN.config.cargar().
+  // Antes, este paso re-aplicaba STORAGE_KEYS.CONFIG después de cargar el blob
+  // de STORAGE_KEYS.DATA. Pero desde v5.13.5 (ISSUE #22 y ISSUE #4) se eliminó
+  // la llamada a RN.config.persistir() en config.guardar() y en
+  // modal-paquete-proveedor.guardarCambios(), por lo que STORAGE_KEYS.CONFIG
+  // dejó de actualizarse al guardar cambios de configuración (tasa, fondo, %,
+  // paquete pendiente, etc.). Al re-aplicarla aquí al final, se sobreescribía
+  // la config más reciente que venía en STORAGE_KEYS.DATA con la config stale
+  // de STORAGE_KEYS.CONFIG, perdiéndose los cambios al reabrir la app.
+  // Ahora STORAGE_KEYS.DATA (cargada en el paso 4) es la fuente autoritativa
+  // para la configuración, ya que serializar() incluye config: RN.state.config.
+  // El paso 3 (RN.config.cargar()) se mantiene como fallback inicial para el
+  // caso en que STORAGE_KEYS.DATA no exista todavía (primera ejecución).
 
   // 4c. v5.10.3: Restaurar el flag de cifrado del archivo ANTES de tocar el handle.
   // Sin esto, al reiniciar fileIsEncrypted=false y guardar sobreescribiría un archivo
