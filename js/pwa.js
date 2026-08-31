@@ -64,22 +64,16 @@ RN.pwa.init = function () {
 
 /**
  * v5.12.7: Notifica al usuario que hay una nueva versión disponible.
- * v5.13.12: NO fuerza la recarga automáticamente. En su lugar, marca el
- * botón de versión del header con un punto rojo pulsante (clase .has-update)
- * para que el usuario decida cuándo aplicar la actualización al tocarlo.
- * Si el botón no existe (p. ej. DOM aún no listo), cae al toast clásico.
+ * Muestra un toast y activa el nuevo SW inmediatamente (skipWaiting) para
+ * que la próxima recarga cargue los assets nuevos.
  */
 RN.pwa._notificarActualizacion = function (reg) {
-  RN.pwa._updatePendiente = true;
-  var btn = document.getElementById('btn-version');
-  if (btn) {
-    btn.classList.add('has-update');
-    btn.title = 'Nueva versión disponible — tocar para actualizar ahora';
-    btn.setAttribute('aria-label', 'Nueva versión disponible, tocar para actualizar');
-  } else {
-    // Fallback: toast si el botón aún no está en el DOM
-    RN.notifyUI.toast('⬇️ Nueva versión disponible. Toca "v' + APP_VERSION + '" en el encabezado para actualizar.', 'info', 8000);
+  // Enviar mensaje al SW esperando para que se active (skipWaiting)
+  if (reg.waiting) {
+    reg.waiting.postMessage({ type: 'SKIP_WAITING' });
   }
+  // Avisar al usuario con un toast de larga duración
+  RN.notifyUI.toast('⬇️ Nueva versión disponible. Recargando para actualizar…', 'info', 6000);
 };
 
 RN.pwa.instalar = async function () {
@@ -92,72 +86,4 @@ RN.pwa.instalar = async function () {
   RN.pwa._deferredPrompt = null;
   const btn = document.getElementById('btn-install');
   if (btn) btn.style.display = 'none';
-};
-
-/**
- * v5.13.12: Fuerza la comprobación de actualizaciones del Service Worker.
- * Se invoca al tocar el botón de versión del header.
- *
- * Flujo:
- *  1. Si ya hay un SW esperando (reg.waiting) → hay update pendiente:
- *     lo activa (SKIP_WAITING) y la página se recarga sola (controllerchange).
- *  2. Si no, llama reg.update() para pedir al navegador que re-descargue sw.js
- *     desde la red y compare. Si tras esto aparece un reg.waiting, lo activa.
- *  3. Si tras la comprobación no hay nada nuevo, avisa "última versión".
- *
- * Si el navegador no soporta SW (o no hay controller), recarga la página
- * sin más (útil en desarrollo o primer arranque).
- */
-RN.pwa.forzarActualizacion = async function () {
-  var btn = document.getElementById('btn-version');
-
-  // Caso A: ya tenemos un SW esperando (update pendiente detectado antes).
-  if (RN.pwa._updatePendiente && navigator.serviceWorker.controller) {
-    try {
-      var reg = await navigator.serviceWorker.getRegistration();
-      if (reg && reg.waiting) {
-        RN.notifyUI.toast('⬇️ Aplicando actualización…', 'info', 4000);
-        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-        // controllerchange disparará la recarga automática (ver init de pwa).
-        return;
-      }
-    } catch (e) { /* continuar abajo */ }
-  }
-
-  // Caso B: no hay update pendiente conocido → forzar comprobación.
-  if (btn) { btn.classList.add('checking'); btn.disabled = true; }
-  try {
-    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) {
-      // Sin SW activo (primer arranque o no soportado): recargar la página.
-      RN.notifyUI.toast('Recargando…', 'info', 2000);
-      setTimeout(function () { window.location.reload(); }, 600);
-      return;
-    }
-    var registration = await navigator.serviceWorker.getRegistration();
-    if (!registration) {
-      RN.notifyUI.toast('Recargando…', 'info', 2000);
-      setTimeout(function () { window.location.reload(); }, 600);
-      return;
-    }
-    // Pide al navegador que compruebe sw.js en la red ahora mismo.
-    await registration.update();
-
-    // Tras update(), puede que ya haya un SW esperando.
-    if (registration.waiting) {
-      RN.pwa._updatePendiente = true;
-      RN.notifyUI.toast('⬇️ Nueva versión encontrada. Aplicando…', 'success', 4000);
-      registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-      // La recarga ocurre en controllerchange.
-    } else {
-      // No hay nada nuevo.
-      RN.pwa._updatePendiente = false;
-      if (btn) btn.classList.remove('has-update');
-      RN.notifyUI.toast('✅ Tienes la última versión (v' + APP_VERSION + ')', 'success', 3500);
-    }
-  } catch (e) {
-    console.warn('[forzarActualizacion]', e);
-    RN.notifyUI.toast('⚠️ No se pudo comprobar la actualización. Revisa tu conexión.', 'warn', 4000);
-  } finally {
-    if (btn) { btn.classList.remove('checking'); btn.disabled = false; }
-  }
 };

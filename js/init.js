@@ -11,13 +11,6 @@ RN.init.arrancar = async function () {
   // 2. Versión en header
   const verEl = document.getElementById('app-version');
   if (verEl) verEl.textContent = APP_VERSION;
-  // v5.13.12: el badge de versión es un botón que fuerza la actualización;
-  // sincronizamos su title/aria-label con la versión real.
-  const verBtn = document.getElementById('btn-version');
-  if (verBtn) {
-    verBtn.setAttribute('aria-label', 'Versión ' + APP_VERSION + ', tocar para actualizar');
-    verBtn.title = 'Tocar para comprobar si hay actualizaciones';
-  }
 
   // 3. Config (carga desde STORAGE_KEYS.CONFIG)
   RN.config.cargar();
@@ -123,9 +116,6 @@ RN.init.arrancar = async function () {
   if (btnInstall) btnInstall.addEventListener('click', () => RN.pwa.instalar());
   const btnMenu = document.getElementById('btn-menu');
   if (btnMenu) btnMenu.addEventListener('click', RN.init.menuRapido);
-  // v5.13.12: botón de versión → fuerza la comprobación de actualizaciones del SW.
-  const btnVersion = document.getElementById('btn-version');
-  if (btnVersion) btnVersion.addEventListener('click', () => RN.pwa.forzarActualizacion());
 
   // FAB: botón flotante de acción rápida (móvil)
   const fab = document.getElementById('fab-action');
