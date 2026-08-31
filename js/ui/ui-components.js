@@ -1,13 +1,39 @@
 /**
- * ui/ui-components.js — Componentes de interfaz reutilizables (modal, confirm).
+ * ui/ui-components.js — Componentes de interfaz reutilizables (modal, confirm, prompt).
+ *
+ * v5.13.18 (BUG-CRITICO): Sistema de pila de modales (modal stack).
+ * Antes existía un solo modal global. Cuando se llamaba confirm() o prompt()
+ * mientras otro modal estaba abierto (ej: modal de cliente al importar contactos),
+ * el nuevo diálogo SOBREESCRIBÍA el contenido del modal-box, destruyendo el
+ * formulario anterior. Al cerrar el confirm/prompt, cerrarModal() ocultaba el
+ * overlay entero, perdiéndose el modal original.
+ *
+ * Ahora modal() guarda el contenido actual en una pila antes de mostrar el nuevo,
+ * y cerrarModal() restaura el nivel anterior si la pila no está vacía. Esto
+ * permite modales anidados (confirm/prompt sobre cualquier modal) sin perder
+ * el modal padre.
  */
 RN.uiComponents = RN.uiComponents || {};
+
+// v5.13.18: Pila de modales para soportar modales anidados.
+RN.uiComponents._modalStack = [];
 
 /** Abre un modal con contenido HTML. */
 RN.uiComponents.modal = function (html, opts) {
   opts = opts || {};
   const box = document.getElementById('modal-box');
   const overlay = document.getElementById('modal-overlay');
+
+  // v5.13.18 (BUG-CRITICO): Si ya hay un modal abierto, guardar su contenido
+  // y className en la pila antes de sobrescribir, para poder restaurarlo al
+  // cerrar este nuevo modal (modales anidados).
+  if (overlay.classList.contains('open')) {
+    RN.uiComponents._modalStack.push({
+      html: box.innerHTML,
+      className: box.className
+    });
+  }
+
   box.className = 'modal' + (opts.lg ? ' lg' : '');
   box.innerHTML = html;
   overlay.classList.add('open');
@@ -15,8 +41,21 @@ RN.uiComponents.modal = function (html, opts) {
   overlay.onclick = (e) => { if (e.target === overlay) RN.uiComponents.cerrarModal(); };
 };
 
-/** Cierra el modal. */
+/** Cierra el modal. Si hay modales apilados, restaura el nivel anterior. */
 RN.uiComponents.cerrarModal = function () {
+  // v5.13.18 (BUG-CRITICO): Si hay modales en la pila, restaurar el anterior
+  // en lugar de cerrar el overlay. Esto permite que confirm/prompt abiertos
+  // sobre otro modal se cierren sin destruir el modal padre.
+  if (RN.uiComponents._modalStack.length > 0) {
+    var prev = RN.uiComponents._modalStack.pop();
+    var box = document.getElementById('modal-box');
+    box.className = prev.className;
+    box.innerHTML = prev.html;
+    // Re-asignar el onclick del overlay (se perdió al restaurar innerHTML)
+    var overlay = document.getElementById('modal-overlay');
+    overlay.onclick = (e) => { if (e.target === overlay) RN.uiComponents.cerrarModal(); };
+    return;
+  }
   document.getElementById('modal-overlay').classList.remove('open');
 };
 

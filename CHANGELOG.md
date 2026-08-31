@@ -1,5 +1,24 @@
 # Changelog — AdminRed (RedNet)
 
+## v5.13.18 — Bug crítico: importar contactos del teléfono cerraba el modal de cliente
+
+### Resumen
+Al usar el botón "Contactos" para importar un contacto guardado del teléfono dentro del modal de cliente, el modal **se cerraba** al agregar el nombre o número de teléfono, perdiéndose el formulario entero.
+
+- **BUG-CRÍTICO:** El sistema de modales no soportaba modales anidados. `confirm()`/`prompt()` sobrescribían el modal-box destruyendo el formulario del cliente, y al cerrar el diálogo se ocultaba el overlay entero.
+- **Solución:** Se implementó un **sistema de pila de modales** en `ui-components.js` que preserva y restaura el modal padre. Se reestructuró `importarDeContactos()` para llenar campos directos antes de abrir diálogos, y los callbacks re-query los elementos por ID.
+- **Beneficio global:** Cualquier `confirm()`/`prompt()` llamado desde dentro de un modal (descuentos, exportación, inventario, etc.) ahora preserva el modal padre.
+
+Detalle completo en `CHANGELOG_v5.13.18.md`.
+
+## v5.13.16 — Auditoría Inversiones (24 hallazgos) + Bug crítico persistencia de configuración
+
+### Resumen
+- **Auditoría Inversiones:** 24 hallazgos implementados (5 bugs, 4 lógica, 3 duplicados, 6 UI, 5 código) de la auditoría v5.13.15.
+- **BUG-CRÍTICO (post-auditoría):** La configuración (incluido `paquetePendiente`) se perdía al reabrir la app. Causa: `STORAGE_KEYS.CONFIG` quedó desactualizada tras ISSUE #22/#4, y `init.js` paso 4b re-aplicaba la config stale sobre la config fresca de `STORAGE_KEYS.DATA`. Fix: eliminado paso 4b, sincronización de ambas claves en `guardar()`.
+
+Detalle completo en `CHANGELOG_v5.13.16.md`.
+
 ## v5.13.15 — Arreglos en Realizados (cintilla expandible + separación KPIs)
 
 ### Resumen

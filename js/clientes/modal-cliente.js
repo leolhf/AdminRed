@@ -42,61 +42,64 @@ RN.modalCliente.importarDeContactos = async function () {
 
     const contacto = contacts[0];
 
-    // Llenar nombre
+    // v5.13.18 (BUG-CRITICO): Reestructuración del orden de ejecución.
+    // ANTES: el código llenaba nombre, luego teléfono, luego dirección
+    // secuencialmente. Si el nombre requería un confirm() (campo no vacío),
+    // el confirm() reemplazaba el innerHTML del modal-box DESTRUUYENDO el
+    // formulario del cliente. Las búsquedas posteriores de 'cl-tel' y 'cl-dir'
+    // devolvían null porque el modal ahora mostraba el diálogo de confirmación.
+    // Además, al cerrar el confirm/prompt, cerrarModal() cerraba todo el overlay,
+    // perdiéndose el modal del cliente entero.
+    //
+    // AHORA: con el sistema de pila de modales (ui-components.js v5.13.18),
+    // cerrar el confirm/prompt restaura el modal padre. Pero aún hay que
+    // reestructurar el orden:
+    //   1. Leer TODOS los elementos del DOM y sus valores actuales primero.
+    //   2. Llenar TODOS los campos directos (sin interacción) síncronamente.
+    //   3. Ejecutar confirm/prompt al FINAL, después de todos los fills directos.
+    //   4. Los callbacks de confirm/prompt re-query los elementos por ID.
+
+    // Paso 1: Leer referencias a todos los campos del formulario del cliente.
+    var nombreInput = document.getElementById('cl-nombre');
+    var telInput = document.getElementById('cl-tel');
+    var dirInput = document.getElementById('cl-dir');
+
+    // Guardar valores actuales antes de modificar nada.
+    var nombreActual = nombreInput ? nombreInput.value.trim() : '';
+    var telActual = telInput ? telInput.value.trim() : '';
+    var dirActual = dirInput ? dirInput.value.trim() : '';
+
+    // Paso 2: Llenar campos directos (sin requerir interacción del usuario).
+
+    // Nombre: solo llenar directo si está vacío.
+    // Si no está vacío, se pide confirmación más adelante (paso 3).
+    var necesitaConfirmNombre = false;
     if (contacto.name && contacto.name.length > 0) {
-      const nombreInput = document.getElementById('cl-nombre');
-      if (nombreInput && !nombreInput.value.trim()) {
-        // Solo llenar si está vacío (no sobreescribir si ya tiene datos)
+      if (nombreInput && !nombreActual) {
         nombreInput.value = contacto.name[0];
       } else if (nombreInput) {
-        // v5.13.5 (ISSUE #19): Usar RN.uiComponents.confirm() en lugar del
-        // confirm() nativo para mantener consistencia visual con el tema.
-        RN.uiComponents.confirm(
-          'Reemplazar nombre',
-          '¿Reemplazar el nombre actual ("' + nombreInput.value + '") por "' + contacto.name[0] + '"?',
-          function () { nombreInput.value = contacto.name[0]; }
-        );
+        necesitaConfirmNombre = true;
       }
     }
 
-    // Llenar teléfono
+    // Teléfono: si tiene un solo número, llenar directo.
+    // Si tiene varios, se pide selección más adelante (paso 3).
+    var necesitaPromptTel = false;
     if (contacto.tel && contacto.tel.length > 0) {
-      const telInput = document.getElementById('cl-tel');
       if (telInput) {
         if (contacto.tel.length === 1) {
           telInput.value = contacto.tel[0];
         } else {
-          // v5.13.5 (ISSUE #19): Múltiples números — usar RN.uiComponents con
-          // selección. Antes se usaba prompt() nativo. Como el prompt estilizado
-          // es de texto libre, lo mantenemos pero con el componente de la app.
-          const opciones = contacto.tel.map((t, i) => (i + 1) + '. ' + t).join('\n');
-          RN.uiComponents.prompt(
-            'Varios números',
-            'El contacto tiene varios números:\n' + opciones + '\n\nEscribe el número de la opción (1-' + contacto.tel.length + '):',
-            '1',
-            function (valor) {
-              var i = parseInt(valor, 10) - 1;
-              if (i >= 0 && i < contacto.tel.length) {
-                telInput.value = contacto.tel[i];
-              } else {
-                telInput.value = contacto.tel[0]; // fallback al primero
-              }
-            },
-            { type: 'number', step: '1' }
-          );
+          necesitaPromptTel = true;
         }
       }
-    } else {
-      RN.notifyUI.toast('Este contacto no tiene número de teléfono.', 'warn');
     }
 
-    // Llenar dirección
+    // Dirección: llenar directo siempre (sin interacción).
     if (contacto.address && contacto.address.length > 0) {
-      const dirInput = document.getElementById('cl-dir');
       if (dirInput) {
-        const addr = contacto.address[0];
-        // Construir string de dirección desde los campos disponibles
-        let partes = [];
+        var addr = contacto.address[0];
+        var partes = [];
         if (addr.streetAddress) partes.push(addr.streetAddress);
         if (addr.city) partes.push(addr.city);
         if (addr.region) partes.push(addr.region);
@@ -107,6 +110,59 @@ RN.modalCliente.importarDeContactos = async function () {
       }
     }
 
+    // Paso 3: Ejecutar diálogos de confirmación/selección al final.
+    // Estos abren un modal anidado sobre el modal del cliente.
+    // El sistema de pila (v5.13.18) restaura el modal del cliente al cerrarlos.
+    // Los callbacks re-query los elementos por ID porque el innerHTML se restaura.
+
+    // v5.13.18: Si ambos dialogos son necesarios (confirm nombre + prompt tel),
+    // encadenarlos: el prompt se abre despues de cerrar el confirm, no simultaneamente.
+    var abrirPromptTel = function () {
+      var opciones = contacto.tel.map(function (t, i) { return (i + 1) + '. ' + t; }).join('\n');
+      RN.uiComponents.prompt(
+        'Varios números',
+        'El contacto tiene varios números:\n' + opciones + '\n\nEscribe el número de la opción (1-' + contacto.tel.length + '):',
+        '1',
+        function (valor) {
+          var inp = document.getElementById('cl-tel');
+          if (!inp) return;
+          var i = parseInt(valor, 10) - 1;
+          if (i >= 0 && i < contacto.tel.length) {
+            inp.value = contacto.tel[i];
+          } else {
+            inp.value = contacto.tel[0]; // fallback al primero
+          }
+        },
+        { type: 'number', step: '1' }
+      );
+    };
+
+    if (necesitaConfirmNombre) {
+      RN.uiComponents.confirm(
+        'Reemplazar nombre',
+        '¿Reemplazar el nombre actual ("' + nombreActual + '") por "' + contacto.name[0] + '"?',
+        function () {
+          var inp = document.getElementById('cl-nombre');
+          if (inp) inp.value = contacto.name[0];
+          // Encadenar: abrir el prompt de telefono despues de confirmar el nombre.
+          if (necesitaPromptTel) abrirPromptTel();
+        },
+        {
+          onCancel: function () {
+            // Si cancela el nombre, aun abrir el prompt de telefono.
+            if (necesitaPromptTel) abrirPromptTel();
+          }
+        }
+      );
+    } else if (necesitaPromptTel) {
+      abrirPromptTel();
+    }
+
+    // Aviso si el contacto no tiene teléfono.
+    if (!contacto.tel || contacto.tel.length === 0) {
+      RN.notifyUI.toast('Este contacto no tiene número de teléfono.', 'warn');
+    }
+
     RN.notifyUI.toast('Datos importados del contacto', 'success');
   } catch (e) {
     if (e.name !== 'AbortError') {
@@ -115,7 +171,6 @@ RN.modalCliente.importarDeContactos = async function () {
   }
 };
 
-/** Verifica si la Contact Picker API está disponible en este navegador. */
 RN.modalCliente.soportaContactos = function () {
   return ('contacts' in navigator) && ('ContactsManager' in window);
 };
