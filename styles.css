@@ -89,6 +89,37 @@ html, body {
   border: 1px solid var(--border); padding: 2px 7px; border-radius: 20px;
   white-space: nowrap;
 }
+/* v5.13.12: la versión es un botón que fuerza la actualización del SW.
+   Apariencia discreta (pill), pero claramente clicable. */
+.app-header .ver#btn-version {
+  cursor: pointer; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+  position: relative;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.app-header .ver#btn-version:hover {
+  background: var(--primary-soft); border-color: var(--primary); color: var(--primary);
+}
+.app-header .ver#btn-version:active { transform: scale(.96); }
+.app-header .ver#btn-version:focus-visible {
+  outline: 2px solid var(--primary); outline-offset: 1px;
+}
+/* Estado "comprobando…" mientras busca actualizaciones */
+.app-header .ver#btn-version.checking {
+  color: var(--text-muted); opacity: .7; cursor: progress;
+}
+/* Punto rojo que avisa que hay una actualización esperando */
+.app-header .ver#btn-version .ver-update-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--danger);
+  flex-shrink: 0; animation: rnpulse 1.6s infinite;
+  display: none;
+}
+.app-header .ver#btn-version.has-update .ver-update-dot { display: inline-block; }
+.app-header .ver#btn-version.has-update {
+  border-color: var(--danger); color: var(--danger);
+  background: var(--danger-soft);
+}
 .app-header .header-actions { display: flex; gap: 6px; align-items: center; }
 .app-header .clock {
   font-size: 11px; color: var(--text-muted); text-align: right;
