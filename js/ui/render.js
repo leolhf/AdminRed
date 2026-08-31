@@ -818,22 +818,49 @@ RN.render.inversion = function () {
   const kpi = document.getElementById('kpi-inversion');
   const pctPersonal = RN.investment.pctPersonal();
   // v5.13.2 (fusión visual): KPIs combinados de inversión + deudas en una sola grid.
+  // v5.13.16 (UI-3): KPIs agrupados en dos bloques con sub-títulos para reducir
+  //   el scroll vertical en móvil y dar contexto visual inmediato.
+  // v5.13.16 (LOG-1): El KPI "% recuperación" usa porcentajeRecuperacionEfectiva()
+  //   cuando pctGananciaMes > 0, para ser consistente con el "% efectivo" de cada
+  //   card. Antes usaba porcentajeRecuperacion() (solo margen de clientes) y
+  //   contradecía el porcentaje efectivo de las cards.
   if (kpi) {
     var _deudasActivas = RN.investment.deudasActivas();
     var _deudasConcluidas = RN.investment.deudasConcluidas();
     var _saldoDeudas = _deudasActivas.reduce(function (s, i) { return s + RN.investment.saldoADevolver(i); }, 0);
     var _devueltoActivas = _deudasActivas.reduce(function (s, i) { return s + RN.investment.totalDevuelto(i); }, 0);
     var _devueltoConcluidas = _deudasConcluidas.reduce(function (s, i) { return s + RN.investment.totalDevuelto(i); }, 0);
-    kpi.innerHTML = [
+    var _pctGananciaMes = RN.investment.pctGananciaMes();
+    // v5.13.16 (LOG-1): usar % efectivo cuando hay aporte extra de ganancia del mes
+    var _pctRecKPI = _pctGananciaMes > 0
+      ? RN.investment.porcentajeRecuperacionEfectiva()
+      : RN.investment.porcentajeRecuperacion();
+    var _totalRecKPI = _pctGananciaMes > 0
+      ? RN.investment.totalRecuperadoEfectivo()
+      : RN.investment.totalRecuperado();
+    var _estimadoTxt = RN.investment.costoMegaConfigurado() ? '' : ' (estimado)';
+    var _pctLabel = _pctGananciaMes > 0 ? '% recuperación efectiva' + _estimadoTxt : '% recuperación' + _estimadoTxt;
+    var _kpiInversiones = [
       { label: 'Total invertido', value: RN.calc.formatCUP(RN.investment.totalInvertido()), cls: 'blue' },
-      { label: 'Recuperado (neto)', value: RN.calc.formatCUP(RN.investment.totalRecuperado()), cls: 'green' },
-      { label: '% recuperación' + (RN.investment.costoMegaConfigurado() ? '' : ' (estimado)'), value: RN.investment.porcentajeRecuperacion() + '%', cls: 'amber' },
-      { label: 'Por recuperar', value: RN.calc.formatCUP(Math.max(0, RN.investment.totalInvertido() - RN.investment.totalRecuperado())), cls: 'red' },
+      { label: 'Recuperado', value: RN.calc.formatCUP(_totalRecKPI), cls: 'green' },
+      { label: _pctLabel, value: _pctRecKPI + '%', cls: 'amber' },
+      { label: 'Por recuperar', value: RN.calc.formatCUP(Math.max(0, RN.investment.totalInvertido() - _totalRecKPI)), cls: 'red' }
+    ];
+    var _kpiDeudas = [
       { label: 'Deudas activas', value: String(_deudasActivas.length), cls: 'blue' },
       { label: 'Saldo por devolver', value: RN.calc.formatCUP(_saldoDeudas), cls: 'red' },
       { label: 'Ya devuelto (activas)', value: RN.calc.formatCUP(_devueltoActivas), cls: 'amber' },
       { label: 'Concluidas', value: String(_deudasConcluidas.length) + ' · ' + RN.calc.formatCUP(_devueltoConcluidas), cls: 'green' }
-    ].map(k => '<div class="kpi ' + k.cls + '"><div class="label">' + k.label + '</div><div class="value">' + k.value + '</div></div>').join('');
+    ];
+    var _kpiHtml = '<div class="kpi-group-title">Inversiones</div>'
+      + '<div class="kpi-grid">'
+      + _kpiInversiones.map(k => '<div class="kpi ' + k.cls + '"><div class="label">' + k.label + '</div><div class="value">' + k.value + '</div></div>').join('')
+      + '</div>'
+      + '<div class="kpi-group-title" style="margin-top:12px">Deudas personales</div>'
+      + '<div class="kpi-grid">'
+      + _kpiDeudas.map(k => '<div class="kpi ' + k.cls + '"><div class="label">' + k.label + '</div><div class="value">' + k.value + '</div></div>').join('')
+      + '</div>';
+    kpi.innerHTML = _kpiHtml;
   }
 
   // v5.12.6 (propuesta B): barra animada de recuperación global de la inversión.
@@ -864,88 +891,13 @@ RN.render.inversion = function () {
   if (!_inversionesPropias.length) {
     cont.innerHTML = '<div class="acc-empty"><div class="icon">📈</div>No hay inversiones con capital propio registradas.</div>';
   } else {
+  // v5.13.16 (DUP-2): Se reemplaza el card inline (~80 lineas) por la funcion
+  // unificada RN.inversion._cardInversion(inv, {esDeuda: false}), que comparte
+  // la misma estructura HTML con las cards de deuda. Los campos adicionales
+  // (ingreso bruto, margen neto, aporte extra, etc.) se migraron a
+  // _htmlDetalleRecuperacion con renderizado condicional.
   cont.innerHTML = _inversionesPropias.map(inv => {
-    const recuperado = RN.investment.recuperadoRealInv(inv);
-    const pct = inv.monto ? Math.round(recuperado / inv.monto * 100) : 0;
-    const dotCls = pct >= 100 ? 'ok' : 'warn';
-    const fechaC = RN.investment.fechaCompra(inv);
-    const fechaTxt = fechaC ? new Date(fechaC).toLocaleDateString('es-CU') : '<span class="muted">—</span>';
-    const dias = RN.investment.diasDesdeCompra(inv);
-    const aportes = RN.investment.aportesPorCliente(inv);
-    const totalAporteBruto = RN.investment.totalAporteClientes(inv);
-    const totalMargenNeto = RN.investment.totalMargenNetoClientes(inv);
-    const totalRecuperacion = RN.investment.totalRecuperacionClientes(inv);
-    const aporteMesNeto = RN.investment.aporteMensualNeto(inv);
-    const acumRetenido = RN.investment.acumuladoRetenido(inv);
-    const retiroMes = RN.investment.retiroMensualEstimado(inv);
-    const margenMesBruto = RN.investment.margenMensualBruto(inv);
-    // v5.12.9: nuevo modelo de origen del capital + devoluciones + aporte extra de ganancia del mes
-    const origenCap = RN.investment.origenCapital(inv);
-    const origenTxt = RN.investment.origenCapitalTxt(inv);
-    const esPrestamo = origenCap === 'prestado_externo';
-    const totalDevuelto = RN.investment.totalDevuelto(inv);
-    const saldoDevolver = RN.investment.saldoADevolver(inv);
-    const recuperadoNeto = RN.investment.recuperadoNetoInv(inv);
-    const pctGananciaMes = RN.investment.pctGananciaMes();
-    const aporteExtraMes = RN.investment.aporteExtraMes(inv);
-    const aporteExtraAcum = RN.investment.aporteExtraAcumulado(inv);
-    const recuperadoEfectivo = RN.investment.recuperadoEfectivo(inv);
-    const pctEfectivo = inv.monto ? Math.round(recuperadoEfectivo / inv.monto * 100) : 0;
-    const aportesHtml = aportes.length ? aportes.map(a => {
-      const nom = a.cliente ? RN.render.esc(a.cliente.nombre) : '<span class="muted">— eliminado —</span>';
-      const pctCli = inv.monto ? Math.round(a.recuperacion / inv.monto * 100) : 0;
-      const signoMargen = a.margenNeto >= 0 ? '' : '<span style="color:#c62828">';
-      const cierreSigno = a.margenNeto >= 0 ? '' : '</span>';
-      return '<div class="acc-row"><span class="acc-label">' + nom + '<br><span class="muted" style="font-size:11px">Bruto: ' + RN.calc.formatCUP(a.aporte) + ' · Margen neto: ' + signoMargen + RN.calc.formatCUP(a.margenNeto) + cierreSigno + '</span></span><span class="acc-value"><strong>' + RN.calc.formatCUP(a.recuperacion) + '</strong> <span class="muted" style="font-size:11px">(' + pctCli + '%)</span></span></div>';
-    }).join('') : '<div class="acc-row"><span class="acc-value muted">Sin clientes vinculados</span></div>';
-    return '<div class="acc-card" id="acc-inv-' + inv.id + '">' +
-      '<div class="acc-summary" onclick="RN.render.toggleCard(\'acc-inv-' + RN.render.escAttr(inv.id) + '\')">' +
-        '<span class="acc-dot ' + dotCls + '"></span>' +
-        '<div class="acc-summary-main">' +
-          '<div class="acc-summary-name">' + RN.render.esc(inv.concepto) + '</div>' +
-          '<div class="acc-summary-sub">' + (esPrestamo ? '💨 Préstamo · debe ' + RN.calc.formatCUP(saldoDevolver) + ' · ' : '') + (inv.clienteIds || []).length + ' clientes vinculados · ' + pct + '% recuperado' + (fechaC ? ' · ' + dias + ' días' : '') + '</div>' +
-        '</div>' +
-        '<div class="acc-summary-total">' +
-          '<div class="amt">' + RN.calc.formatCUP(inv.monto) + '</div>' +
-          '<div class="lbl">Invertido</div>' +
-        '</div>' +
-        '<span class="acc-chevron">▼</span>' +
-      '</div>' +
-      '<div class="acc-details">' +
-        RN.render._filaDetalle('Fecha de compra', fechaTxt) +
-        RN.render._filaDetalle('Días transcurridos', (fechaC ? dias + ' días' : '<span class="muted">—</span>')) +
-        RN.render._filaDetalle('Monto invertido', RN.calc.formatCUP(inv.monto)) +
-        RN.render._filaDetalle('Origen del capital', '<span class="badge ' + (esPrestamo ? 'warn' : 'ok') + '>' + RN.render.esc(origenTxt) + '</span>') +
-        RN.render._filaDetalle('Saldo a devolver', RN.calc.formatCUP(saldoDevolver), { strong: true, color: 'var(--warn)', cond: esPrestamo }) +
-        RN.render._filaDetalle('Ya devuelto', RN.calc.formatCUP(totalDevuelto), { cond: esPrestamo }) +
-        RN.render._filaDetalle('Recuperado neto (− devoluciones)', RN.calc.formatCUP(recuperadoNeto), { cond: esPrestamo }) +
-        RN.render._filaDetalle('Pago de la compra (' + inv.monedaPago + ')', RN.moneda.desglosePagoHTML({ moneda: inv.monedaPago, montoUSD: inv.montoPagoUSD, montoPagoCUP: inv.montoPagoCUP, montoPagoCUPDesdeUSD: inv.montoPagoCUPDesdeUSD, totalRecibidoCUP: inv.totalPagoCUP, tasaUsd: inv.tasaUsdCompra }), { cond: !!inv.monedaPago }) +
-        RN.render._filaDetalle('Ingreso bruto de clientes', RN.calc.formatCUP(totalAporteBruto)) +
-        RN.render._filaDetalle('Margen neto (− costo del mega)', (totalMargenNeto >= 0 ? '' : '<span style="color:#c62828">') + RN.calc.formatCUP(totalMargenNeto) + (totalMargenNeto >= 0 ? '' : '</span>')) +
-        RN.render._filaDetalle('Ganancia personal retenida acumulada (' + pctPersonal + '%)', RN.calc.formatCUP(acumRetenido), { cond: pctPersonal > 0 }) +
-        RN.render._filaDetalle('Recuperado (neto, automático)', RN.calc.formatCUP(recuperado), { bold: true, strong: true }) +
-        RN.render._filaDetalle('% recuperación', '<span class="badge ' + (pct >= 100 ? 'ok' : 'warn') + '>' + pct + '%</span>') +
-        RN.render._filaDetalle('Margen neto mensual (bruto)', RN.calc.formatCUP(margenMesBruto)) +
-        RN.render._filaDetalle('Disponible para retirar/mes (' + pctPersonal + '% del margen)', RN.calc.formatCUP(retiroMes), { strong: true, color: 'var(--green)', cond: pctPersonal > 0 }) +
-        RN.render._filaDetalle('Aporte neto mensual a recuperación', RN.calc.formatCUP(aporteMesNeto)) +
-        RN.render._filaDetalle('Aporte extra del mes (' + pctGananciaMes + '% de la ganancia neta)', '+' + RN.calc.formatCUP(aporteExtraMes), { strong: true, color: 'var(--green)', cond: pctGananciaMes > 0 }) +
-        RN.render._filaDetalle('Aporte extra acumulado', RN.calc.formatCUP(aporteExtraAcum), { cond: pctGananciaMes > 0 }) +
-        RN.render._filaDetalle('Recuperado efectivo (cobrado + aporte extra)', RN.calc.formatCUP(recuperadoEfectivo) + ' <span class="badge ' + (pctEfectivo >= 100 ? 'ok' : 'warn') + '>' + pctEfectivo + '%</span>', { bold: true, strong: true, cond: pctGananciaMes > 0 }) +
-        RN.render._filaDetalle('Tiempo restante para recuperar', RN.render.esc(RN.investment.proyectarRecuperacion(inv)), { bold: true, strong: true }) +
-        RN.render._filaDetalle('Clientes vinculados', (inv.clienteIds || []).length) +
-        '<div class="divider" style="margin:8px 0"></div>' +
-        RN.render._filaDetalle('Ganancia real por cliente (recupera el capital)', RN.calc.formatCUP(totalRecuperacion), { bold: true, strong: true }) +
-        aportesHtml +
-        '<div class="acc-actions">' +
-          (esPrestamo
-            ? '<button class="btn sm primary" onclick="RN.inversion.devolucionPrestamo(\'' + RN.render.escAttr(inv.id) + '\')">💨 Devolver préstamo</button>' +
-              '<button class="btn sm" onclick="RN.inversion.historialDevoluciones(\'' + RN.render.escAttr(inv.id) + '\')">📋 Devoluciones</button>'
-            : '') +
-          '<button class="btn sm" onclick="RN.inversion.abrirEditar(\'' + RN.render.escAttr(inv.id) + '\')">Editar</button>' +
-          '<button class="btn sm danger" onclick="RN.inversion.eliminar(\'' + RN.render.escAttr(inv.id) + '\')">🗑</button>' +
-        '</div>' +
-      '</div>' +
-    '</div>';
+    return RN.inversion._cardInversion(inv, { esDeuda: false });
   }).join('');
   }
 

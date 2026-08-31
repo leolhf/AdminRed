@@ -224,6 +224,14 @@ main {
      (barra de busqueda, tarjetas, listas) para que no quede pegada. */
   margin-bottom: 14px;
 }
+/* v5.13.16 (UI-3): Sub-titulos para agrupar KPIs en bloques tematicos
+   (Inversiones / Deudas personales) dentro de la vista unificada. */
+.kpi-group-title {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .5px; color: var(--text-muted);
+  margin: 0 0 6px 0; padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
 .kpi {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: 12px; box-shadow: var(--shadow);

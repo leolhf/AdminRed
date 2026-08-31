@@ -72,8 +72,7 @@ RN.investment.totalInvertido = function () {
  * manual histórico inv.recuperado.
  */
 RN.investment.totalRecuperado = function () {
-  const self = this;
-  return RN.state.investments.reduce((s, i) => s + self.recuperadoRealInv(i), 0);
+  return RN.state.investments.reduce((s, i) => s + RN.investment.recuperadoRealInv(i), 0);
 };
 
 /** Porcentaje global de recuperación (basado en el recuperado automático). */
@@ -84,11 +83,39 @@ RN.investment.porcentajeRecuperacion = function () {
 };
 
 /**
+ * v5.13.16 (BUG-1) — Restante EFECTIVO de una inversión por recuperar.
+ *
+ * Cuando pctGananciaMes > 0, el "recuperado efectivo" incluye el aporte extra
+ * acumulado de la ganancia del mes (además del margen de los clientes). Antes,
+ * proyectarRecuperacion() y mesesParaRecuperar() usaban recuperadoRealInv()
+ * (solo margen de clientes), lo que producía una proyección pesimista e
+ * inconsistente con el "% efectivo" que muestra la card.
+ *
+ * Cuando pctGananciaMes === 0, se comporta igual que antes (restante sobre
+ * recuperadoRealInv), preservando el comportamiento histórico.
+ *
+ * @param {object} inv — inversión
+ * @returns {number} monto restante efectivo, mínimo 0
+ */
+RN.investment.restanteEfectivo = function (inv) {
+  var monto = inv.monto || 0;
+  var rec = RN.investment.pctGananciaMes() > 0
+    ? RN.investment.recuperadoEfectivo(inv)
+    : RN.investment.recuperadoRealInv(inv);
+  return Math.max(0, +(monto - rec).toFixed(2));
+};
+
+/**
  * Proyecta la fecha de recuperación total de una inversión según el aporte
  * neto mensual de los clientes vinculados (v5.11.3: usa ganancia real, no bruta).
+ *
+ * v5.13.16 (BUG-1): usa restanteEfectivo() para ser consistente con el
+ * "% efectivo" de la card cuando pctGananciaMes > 0.
+ * v5.13.16 (LOG-3): añade nota aclarativa de que la estimación se basa en el
+ * precio esperado mensual, no en el histórico real de cobros.
  */
 RN.investment.proyectarRecuperacion = function (inv) {
-  const restante = (inv.monto || 0) - RN.investment.recuperadoRealInv(inv);
+  const restante = RN.investment.restanteEfectivo(inv);
   const aporteMensual = RN.investment.aporteMensualNeto(inv);
   if (restante <= 0) return 'Recuperada';
   if (aporteMensual <= 0) return '—';
@@ -97,15 +124,18 @@ RN.investment.proyectarRecuperacion = function (inv) {
   const fecha = new Date();
   fecha.setMonth(fecha.getMonth() + meses);
   const fechaTxt = fecha.toLocaleDateString('es-CU', { month: 'long', year: 'numeric' });
-  return 'Faltan ' + meses + ' mes' + (meses === 1 ? '' : 'es') + ' (≈' + dias + ' días) · ' + fechaTxt;
+  // v5.13.16 (LOG-3): aclaración de que es una estimación basada en el precio esperado.
+  return 'Faltan ' + meses + ' mes' + (meses === 1 ? '' : 'es') + ' (≈' + dias + ' días) · ' + fechaTxt
+    + ' · estimación según precio esperado mensual';
 };
 
 /**
  * v5.12.1 — Meses restantes para recuperar la inversión (número entero).
  * Devuelve null si no se puede calcular (sin aporte mensual o ya recuperada).
+ * v5.13.16 (BUG-1): usa restanteEfectivo() para consistencia con la card.
  */
 RN.investment.mesesParaRecuperar = function (inv) {
-  const restante = (inv.monto || 0) - RN.investment.recuperadoRealInv(inv);
+  const restante = RN.investment.restanteEfectivo(inv);
   if (restante <= 0) return 0;
   const aporteMensual = RN.investment.aporteMensualNeto(inv);
   if (aporteMensual <= 0) return null;
@@ -300,31 +330,30 @@ RN.investment.aporteMensualNeto = function (inv) {
  */
 RN.investment.aportesPorCliente = function (inv) {
   if (!inv || !inv.clienteIds || !inv.clienteIds.length) return [];
-  const self = this;
   return inv.clienteIds.map(function (cid) {
     const cli = (RN.state.clients || []).find(function (c) { return c.id === cid; });
     return {
       cliente: cli,
-      aporte: self.aporteCliente(inv, cid),               // bruto (compat)
-      margenNeto: self.margenNetoCliente(inv, cid),       // ganancia real antes de retención
-      recuperacion: self.aporteRecuperacionCliente(inv, cid) // lo que recupera el capital
+      aporte: RN.investment.aporteCliente(inv, cid),               // bruto (compat)
+      margenNeto: RN.investment.margenNetoCliente(inv, cid),       // ganancia real antes de retención
+      recuperacion: RN.investment.aporteRecuperacionCliente(inv, cid) // lo que recupera el capital
     };
   }).sort(function (a, b) { return b.recuperacion - a.recuperacion; });
 };
 
 /** v5.11.0 — Total aportado (BRUTO) por los clientes vinculados desde la compra. */
 RN.investment.totalAporteClientes = function (inv) {
-  return this.aportesPorCliente(inv).reduce(function (s, x) { return s + x.aporte; }, 0);
+  return RN.investment.aportesPorCliente(inv).reduce(function (s, x) { return s + x.aporte; }, 0);
 };
 
 /** v5.11.3 — Total que los clientes vinculados han recuperado del capital (NETO, con retención). */
 RN.investment.totalRecuperacionClientes = function (inv) {
-  return this.aportesPorCliente(inv).reduce(function (s, x) { return s + x.recuperacion; }, 0);
+  return RN.investment.aportesPorCliente(inv).reduce(function (s, x) { return s + x.recuperacion; }, 0);
 };
 
 /** v5.11.3 — Total de margen neto generado por los clientes vinculados (antes de retención). */
 RN.investment.totalMargenNetoClientes = function (inv) {
-  return this.aportesPorCliente(inv).reduce(function (s, x) { return s + x.margenNeto; }, 0);
+  return RN.investment.aportesPorCliente(inv).reduce(function (s, x) { return s + x.margenNeto; }, 0);
 };
 
 /**
@@ -335,7 +364,7 @@ RN.investment.totalMargenNetoClientes = function (inv) {
 RN.investment.recuperadoRealInv = function (inv) {
   if (!inv) return 0;
   if (!inv.clienteIds || !inv.clienteIds.length) return +(inv.recuperado || 0);
-  return this.totalRecuperacionClientes(inv);
+  return RN.investment.totalRecuperacionClientes(inv);
 };
 
 
@@ -486,6 +515,27 @@ RN.investment.pctGananciaMes = function () {
 };
 
 /**
+ * v5.13.16 (DUP-3) — Helper compartido: gastos OPERATIVOS de un mes
+ * (excluyendo devoluciones de inversión y retiros de caja, que son
+ * movimientos de capital, no gastos operativos).
+ *
+ * Centraliza el filtro que antes estaba duplicado inline en aporteExtraMes() y
+ * aporteExtraAcumulado(). Si se añade una nueva categoría de movimiento de
+ * capital, basta con actualizar este único helper.
+ *
+ * @param {string} mes — mes en formato YYYY-MM
+ * @returns {number} suma de gastos operativos del mes
+ */
+RN.investment._gastosOperativosMes = function (mes) {
+  var mesNorm = (mes || '').slice(0, 7);
+  if (!mesNorm) return 0;
+  return (RN.state.gastos || [])
+    .filter(function (g) { return (g.mes || '').slice(0, 7) === mesNorm; })
+    .filter(function (g) { return !g.esDevolucionInversion && !g.esRetiroCaja; })
+    .reduce(function (s, g) { return s + (g.monto || 0); }, 0);
+};
+
+/**
  * v5.12.9 — Aporte extra sugerido del mes para esta inversión, basado en la
  * GANANCIA NETA REAL del mes (ingresos del mes − gastos del mes, excluyendo
  * las propias devoluciones/retiros de caja).
@@ -498,12 +548,14 @@ RN.investment.aporteExtraMes = function (inv) {
   if (pct <= 0) return 0;
   var mes = RN.calc.mesActualStr();
   var ingresos = RN.calc.ingresosMes(mes);
-  // Gastos del mes EXCLUYendo devoluciones de inversión y retiros de caja
-  // (esos son movimientos de capital, no gastos operativos).
-  var gastos = (RN.state.gastos || [])
-    .filter(function (g) { return (g.mes || '').slice(0, 7) === mes; })
-    .filter(function (g) { return !g.esDevolucionInversion && !g.esRetiroCaja; })
-    .reduce(function (s, g) { return s + (g.monto || 0); }, 0);
+  // v5.13.16 (DUP-3): usar el helper compartido _gastosOperativosMes en lugar
+  // del filtro inline. Esto EXCLUYE devoluciones de inversión y retiros de
+  // caja (movimientos de capital, no gastos operativos). Nota (LOG-4): por eso
+  // la ganancia neta del mes NO descuenta las devoluciones, aunque el fondo de
+  // caja sí se reduce por ellas (fondoCaja() resta TODOS los gastos). Son dos
+  // métricas distintas: el aporte extra mide cuánto "sobra" del margen
+  // operativo, no cuánto dinero físico hay en caja.
+  var gastos = RN.investment._gastosOperativosMes(mes);
   var gananciaNeta = ingresos - gastos;
   if (gananciaNeta <= 0) return 0;
   return +(gananciaNeta * pct / 100).toFixed(2);
@@ -518,20 +570,26 @@ RN.investment.aporteExtraMes = function (inv) {
 RN.investment.aporteExtraAcumulado = function (inv) {
   var pct = RN.investment.pctGananciaMes();
   if (pct <= 0) return 0;
-  // Sumar ganancia neta de cada mes con ingresos, excluyendo devoluciones/retiros.
+  // v5.13.16 (BUG-2): sumar SOLO cobros de servicio (h.tipo === 'servicio' o
+  // undefined). Los cobros de tipo 'equipo' (pago de equipo del cliente) son
+  // movimientos de capital, no ingresos operativos; y las ventas de inventario
+  // ('venta-inventario') son ingresos no recurrentes que no deben computar para
+  // el aporte extra de recuperación de capital. Además, se quitó h.montoEquipo
+  // (es capital, no ingreso) para no inflar el aporte extra.
   var porMes = {};
   (RN.state.history || []).forEach(function (h) {
+    if (h.tipo && h.tipo !== 'servicio') return;  // solo cobros de servicio
     var mes = (h.mes || '').slice(0, 7);
     if (!mes) return;
     if (!porMes[mes]) porMes[mes] = 0;
-    porMes[mes] += (h.monto || 0) + (h.montoEquipo || 0);
+    porMes[mes] += (h.monto || 0);  // sin h.montoEquipo (es capital, no ingreso)
   });
-  (RN.state.gastos || []).forEach(function (g) {
-    if (g.esDevolucionInversion || g.esRetiroCaja) return;
-    var mes = (g.mes || '').slice(0, 7);
-    if (!mes) return;
-    if (!porMes[mes]) porMes[mes] = 0;
-    porMes[mes] -= (g.monto || 0);
+  // v5.13.16 (DUP-3): usar el helper compartido para restar gastos operativos.
+  // Construimos el set de meses con ingresos y restamos los gastos operativos
+  // de cada uno.
+  var mesesConIngreso = Object.keys(porMes);
+  mesesConIngreso.forEach(function (mes) {
+    porMes[mes] -= RN.investment._gastosOperativosMes(mes);
   });
   var total = 0;
   Object.keys(porMes).forEach(function (mes) {
@@ -559,6 +617,29 @@ RN.investment.pctRecuperacionEfectiva = function (inv) {
   var monto = inv.monto || 0;
   if (monto <= 0) return 0;
   return +((RN.investment.recuperadoEfectivo(inv) / monto) * 100).toFixed(1);
+};
+
+/**
+ * v5.13.16 (LOG-1) — Total recuperado EFECTIVO de TODAS las inversiones
+ * (margen de clientes + aporte extra acumulado). Se usa para que el KPI global
+ * "% recuperación" sea consistente con el "% efectivo" que muestra cada card
+ * cuando pctGananciaMes > 0.
+ */
+RN.investment.totalRecuperadoEfectivo = function () {
+  return (RN.state.investments || []).reduce(function (s, i) {
+    return s + RN.investment.recuperadoEfectivo(i);
+  }, 0);
+};
+
+/**
+ * v5.13.16 (LOG-1) — % de recuperación EFECTIVO global (sobre el total
+ * invertido). Usa totalRecuperadoEfectivo (margen clientes + aporte extra).
+ * Cuando pctGananciaMes === 0, coincide con porcentajeRecuperacion().
+ */
+RN.investment.porcentajeRecuperacionEfectiva = function () {
+  const total = RN.investment.totalInvertido();
+  if (!total) return 0;
+  return +((RN.investment.totalRecuperadoEfectivo() / total) * 100).toFixed(1);
 };
 
 /**

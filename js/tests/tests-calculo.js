@@ -70,6 +70,8 @@ RN.tests.ejecutar = function () {
     RN.tests._testAUSD();                     // Bug #8
     RN.tests._testAporteRecuperacionFecha();  // Bug #11
     RN.tests._testCostoMegaConfigurado();     // Bug #17
+    RN.tests._testRestanteEfectivo();         // v5.13.16 BUG-1
+    RN.tests._testAporteExtraAcumuladoFiltro(); // v5.13.16 BUG-2
   } finally {
     // Restaurar siempre
     RN.state = stateReal;
@@ -461,4 +463,141 @@ RN.tests._testCostoMegaConfigurado = function () {
   RN.state.config.proveedorPrecioMega = 1.5;
   RN.tests._assertEq(RN.investment.costoMegaClienteMes(cli, '2025-06'), 15,
     'Bug #17: costoMegaClienteMes = 15 con 10 megas × 1.5 CUP/mega');
+};
+
+/**
+ * v5.13.16 (BUG-1): restanteEfectivo() debe usar recuperadoEfectivo()
+ * (margen de clientes + aporte extra acumulado) cuando pctGananciaMes > 0,
+ * y recuperadoRealInv() (solo margen) cuando pctGananciaMes === 0.
+ *
+ * Sin esta correccion, proyectarRecuperacion() y mesesParaRecuperar()
+ * mostraban una proyeccion pesimista (no contaban el aporte extra) que era
+ * inconsistente con el "% efectivo" de la card.
+ */
+RN.tests._testRestanteEfectivo = function () {
+  RN.state = RN.tests._mockState({
+    config: { graciaDias: 5, diasBaseMes: 30, proveedorPrecioMega: 0, pctPersonalInversion: 0, pctRecuperacionGananciaMes: 0 },
+    planes: [{ id: 'p1', nombre: 'Basico', megas: 10, precio: 500 }],
+    clients: [{
+      id: 'c1', nombre: 'Ana', precio: 500, planId: 'p1', megas: 10,
+      activo: true, diaPago: 5, mesInicio: '2025-01', descuentoRecurrente: 0
+    }],
+    investments: [{
+      id: 'inv1', clienteId: 'c1', clienteIds: ['c1'], monto: 3000, fechaCompra: '2025-06-15'
+    }],
+    history: [
+      { id: 'h1', clienteId: 'c1', tipo: 'servicio', mes: '2025-06', fecha: '2025-06-20', monto: 500 },
+      { id: 'h2', clienteId: 'c1', tipo: 'servicio', mes: '2025-07', fecha: '2025-07-05', monto: 500 }
+    ],
+    descuentos: []
+  });
+
+  var inv = RN.state.investments[0];
+
+  // pctGananciaMes === 0: restanteEfectivo = monto - recuperadoRealInv
+  // Sin costo de mega, sin % personal: recuperadoRealInv = 500 + 500 = 1000
+  // restante = 3000 - 1000 = 2000
+  RN.tests._assertEq(RN.investment.restanteEfectivo(inv), 2000,
+    'BUG-1: restanteEfectivo con pctGananciaMes=0 usa recuperadoRealInv (3000-1000=2000)');
+
+  // Con pctGananciaMes > 0: restanteEfectivo = monto - recuperadoEfectivo
+  // recuperadoEfectivo = recuperadoRealInv + aporteExtraAcumulado
+  // aporteExtraAcumulado: ingresos servicio por mes = 500 (jun) + 500 (jul) = 1000 c/u
+  // sin gastos operativos, ganancia neta = 1000/mes, pctGananciaMes=20%
+  // aporte extra = 1000*0.2 + 1000*0.2 = 400
+  // recuperadoEfectivo = 1000 + 400 = 1400
+  // restante = 3000 - 1400 = 1600
+  RN.state.config.pctRecuperacionGananciaMes = 20;
+  RN.tests._assertEq(RN.investment.aporteExtraAcumulado(inv), 200,
+    'BUG-1: aporteExtraAcumulado = 200 (500*20% + 500*20%, sin gastos)');
+  RN.tests._assertEq(RN.investment.recuperadoEfectivo(inv), 1200,
+    'BUG-1: recuperadoEfectivo = 1000 (margen) + 200 (extra) = 1200');
+  RN.tests._assertEq(RN.investment.restanteEfectivo(inv), 1800,
+    'BUG-1: restanteEfectivo con pctGananciaMes>0 usa recuperadoEfectivo (3000-1200=1800)');
+
+  // Verificar que restanteEfectivo NO da negativo (min 0) cuando se sobrepasa
+  RN.state.investments[0].monto = 500;
+  RN.tests._assertEq(RN.investment.restanteEfectivo(inv), 0,
+    'BUG-1: restanteEfectivo nunca es negativo (min 0)');
+
+  // mesesParaRecuperar debe usar restanteEfectivo (consistencia)
+  RN.state.investments[0].monto = 3000;
+  // aporteMensualNeto = margen mensual neto. Sin costo mega ni % personal:
+  // margen bruto mensual = 500 (precio Ana), aporte neto = 500
+  // meses = ceil(1600 / 500) = 4
+  RN.tests._assertEq(RN.investment.mesesParaRecuperar(inv), 4,
+    'BUG-1: mesesParaRecuperar usa restanteEfectivo (ceil(1800/500)=4)');
+};
+
+/**
+ * v5.13.16 (BUG-2): aporteExtraAcumulado() debe sumar SOLO cobros de servicio
+ * (h.tipo === 'servicio' o undefined), excluyendo 'equipo' y 'venta-inventario'.
+ * Ademas, NO debe sumar h.montoEquipo (es capital, no ingreso operativo).
+ *
+ * Antes, sumaba TODOS los cobros + h.montoEquipo, lo que inflaba el aporte
+ * extra al incluir ventas de equipo e inventario (movimientos de capital, no
+ * ingresos recurrentes).
+ */
+RN.tests._testAporteExtraAcumuladoFiltro = function () {
+  RN.state = RN.tests._mockState({
+    config: { graciaDias: 5, diasBaseMes: 30, proveedorPrecioMega: 0, pctPersonalInversion: 0, pctRecuperacionGananciaMes: 10 },
+    planes: [{ id: 'p1', nombre: 'Basico', megas: 10, precio: 500 }],
+    clients: [{
+      id: 'c1', nombre: 'Ana', precio: 500, planId: 'p1', megas: 10,
+      activo: true, diaPago: 5, mesInicio: '2025-01', descuentoRecurrente: 0
+    }],
+    investments: [{
+      id: 'inv1', clienteId: 'c1', clienteIds: ['c1'], monto: 3000, fechaCompra: '2025-06-15'
+    }],
+    history: [
+      // Cobro de servicio jun: 1000 -> cuenta
+      { id: 'h1', clienteId: 'c1', tipo: 'servicio', mes: '2025-06', fecha: '2025-06-20', monto: 1000 },
+      // Cobro de servicio jul: 1000 -> cuenta
+      { id: 'h2', clienteId: 'c1', tipo: 'servicio', mes: '2025-07', fecha: '2025-07-05', monto: 1000 },
+      // Cobro de EQUIPO jun: 500 -> NO cuenta (es capital)
+      { id: 'h3', clienteId: 'c1', tipo: 'equipo', mes: '2025-06', fecha: '2025-06-21', monto: 500 },
+      // Venta de inventario jul: 300 -> NO cuenta (ingreso no recurrente)
+      { id: 'h4', clienteId: 'c1', tipo: 'venta-inventario', mes: '2025-07', fecha: '2025-07-06', monto: 300 },
+      // Cobro de servicio con montoEquipo: el montoEquipo NO debe sumar
+      { id: 'h5', clienteId: 'c1', tipo: 'servicio', mes: '2025-06', fecha: '2025-06-22', monto: 200, montoEquipo: 800 }
+    ],
+    descuentos: []
+  });
+
+  var inv = RN.state.investments[0];
+
+  // Ingresos de servicio por mes:
+  //   jun: h1(1000) + h5(200, sin montoEquipo) = 1200
+  //   jul: h2(1000) = 1000
+  // Sin gastos operativos:
+  //   ganancia neta jun = 1200, aporte extra = 1200 * 10% = 120
+  //   ganancia neta jul = 1000, aporte extra = 1000 * 10% = 100
+  //   total aporteExtraAcumulado = 220
+  // Si el bug NO estuviera corregido, sumaria tambien h3(500), h4(300) y
+  // h5.montoEquipo(800) = 1600 extra, dando 380 en lugar de 220.
+  RN.tests._assertEq(RN.investment.aporteExtraAcumulado(inv), 220,
+    'BUG-2: aporteExtraAcumulado solo suma servicio (220), excluye equipo/inventario/montoEquipo');
+
+  // Verificar que el cobro de equipo (h3, 500) NO se conto
+  // Si lo contara: jun = 1200 + 500 = 1700, aporte = 170, total = 270
+  RN.tests._assert(RN.investment.aporteExtraAcumulado(inv) !== 270,
+    'BUG-2: el cobro de equipo (500) NO infla el aporte extra');
+
+  // Sin pctGananciaMes -> siempre 0
+  RN.state.config.pctRecuperacionGananciaMes = 0;
+  RN.tests._assertEq(RN.investment.aporteExtraAcumulado(inv), 0,
+    'BUG-2: aporteExtraAcumulado = 0 cuando pctGananciaMes = 0');
+
+  // Con gastos operativos: se restan (pero no devoluciones ni retiros)
+  RN.state.config.pctRecuperacionGananciaMes = 10;
+  RN.state.gastos = [
+    { id: 'g1', mes: '2025-06', monto: 200 },  // gasto operativo -> resta
+    { id: 'g2', mes: '2025-06', monto: 100, esDevolucionInversion: true },  // NO resta (capital)
+    { id: 'g3', mes: '2025-07', monto: 50, esRetiroCaja: true }  // NO resta (capital)
+  ];
+  // jun: 1200 - 200 (g1) = 1000, aporte = 100
+  // jul: 1000 - 0 (g3 es retiro, no operativo) = 1000, aporte = 100
+  // total = 200
+  RN.tests._assertEq(RN.investment.aporteExtraAcumulado(inv), 200,
+    'BUG-2/DUP-3: gastos operativos restan, pero devoluciones y retiros no (200)');
 };
