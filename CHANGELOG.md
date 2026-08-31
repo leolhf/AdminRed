@@ -157,3 +157,6 @@ Versión de corrección de errores detectados en la auditoría de v5.13.0. Se co
 
 ## v5.13.12 — Botón de versión para forzar actualización + FIX botones (31 ago 2025)
 El badge de versión del header ahora es clickeable: busca y aplica actualizaciones de la app (Service Worker) de forma manual. Indicador visual animado cuando hay una actualización pendiente. **FIX crítico:** `ReferenceError: abiertas is not defined` en `RN.render.clientes` (v5.13.7, latente) abortaba `arrancar()` antes de conectar los botones del header, dejándolos todos sin funcionar. Ver `CHANGELOG_v5.13.12.md`.
+
+## v5.13.14 — Fix del fondo de la cintilla de mes / tabla (estética) (31 ago 2025)
+La cintilla de mes del historial de cobros (vista Realizados) aparecía con fondo gris claro (#f5f5f5) sobre el tema oscuro, rompiendo la estética. Causa: la variable CSS `--bg-alt` se usaba en toda la app pero nunca se definía, cayendo en un fallback hardcoded claro. Ahora se define `--bg-alt` en ambos temas (#eef2f7 claro, #172033 oscuro), arreglando también desgloses, badges USD y avisos de capacidad. Ver `CHANGELOG_v5.13.14.md`.
