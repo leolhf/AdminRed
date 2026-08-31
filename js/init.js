@@ -117,6 +117,11 @@ RN.init.arrancar = async function () {
   const btnMenu = document.getElementById('btn-menu');
   if (btnMenu) btnMenu.addEventListener('click', RN.init.menuRapido);
 
+  // v5.13.12: Badge de versión clickeable para forzar la búsqueda/aplicación
+  // de actualizaciones de la app (Service Worker).
+  const btnVersion = document.getElementById('btn-version');
+  if (btnVersion) btnVersion.addEventListener('click', () => RN.pwa.forzarActualizacion());
+
   // FAB: botón flotante de acción rápida (móvil)
   const fab = document.getElementById('fab-action');
   if (fab) fab.addEventListener('click', () => {

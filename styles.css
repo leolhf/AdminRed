@@ -88,6 +88,22 @@ html, body {
   font-size: 11px; color: var(--text-muted); background: var(--surface-2);
   border: 1px solid var(--border); padding: 2px 7px; border-radius: 20px;
   white-space: nowrap;
+  /* v5.13.12: la versión es un botón para forzar la búsqueda de actualizaciones */
+  cursor: pointer; user-select: none;
+  transition: background .15s, border-color .15s, color .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.app-header .ver:hover { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+.app-header .ver:active { transform: scale(.95); }
+/* v5.13.12: badge animado cuando hay una actualización esperando */
+.app-header .ver.ver-update {
+  background: var(--primary-soft); border-color: var(--primary); color: var(--primary);
+  animation: ver-pulse 1.4s ease-in-out infinite;
+}
+.app-header .ver.ver-update::before { content: '↻ '; }
+@keyframes ver-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, .0); }
+  50%      { box-shadow: 0 0 0 4px rgba(37, 99, 235, .18); }
 }
 .app-header .header-actions { display: flex; gap: 6px; align-items: center; }
 .app-header .clock {

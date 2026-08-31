@@ -154,3 +154,6 @@ Versión de corrección de errores detectados en la auditoría de v5.13.0. Se co
 ### Service Worker fix
 - `sw.js` ahora usa `importScripts('js/version.js')` para que el cache key use la versión real
 - `version.js` y `sw.js` son network-first; el resto es cache-first
+
+## v5.13.12 — Botón de versión para forzar actualización (31 ago 2025)
+El badge de versión del header ahora es clickeable: busca y aplica actualizaciones de la app (Service Worker) de forma manual. Indicador visual animado cuando hay una actualización pendiente. Ver `CHANGELOG_v5.13.12.md`.

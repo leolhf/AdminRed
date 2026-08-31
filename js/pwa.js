@@ -72,8 +72,76 @@ RN.pwa._notificarActualizacion = function (reg) {
   if (reg.waiting) {
     reg.waiting.postMessage({ type: 'SKIP_WAITING' });
   }
+  // Marcar el badge de versión como "actualización pendiente"
+  RN.pwa._marcarPendiente(true);
   // Avisar al usuario con un toast de larga duración
   RN.notifyUI.toast('⬇️ Nueva versión disponible. Recargando para actualizar…', 'info', 6000);
+};
+
+/**
+ * v5.13.12: Marca/desmarca el badge de versión del header para indicar
+ * visualmente que hay una actualización pendiente de aplicar.
+ */
+RN.pwa._marcarPendiente = function (pendiente) {
+  const ver = document.getElementById('btn-version');
+  if (!ver) return;
+  if (pendiente) ver.classList.add('ver-update');
+  else ver.classList.remove('ver-update');
+};
+
+/**
+ * v5.13.12: Fuerza la búsqueda y aplicación de una actualización de la app.
+ * Al pulsar el badge de versión del header:
+ *  1. Pide al Service Worker que busque una nueva versión (reg.update()).
+ *  2. Si ya hay un SW esperando (waiting), lo activa (SKIP_WAITING) y recarga.
+ *  3. Si no hay nada esperando tras la búsqueda, avisa que está al día.
+ * Es la forma manual de disparar lo mismo que ocurre automáticamente cuando
+ * el navegador detecta que sw.js cambió.
+ */
+RN.pwa.forzarActualizacion = async function () {
+  if (!('serviceWorker' in navigator)) {
+    RN.notifyUI.toast('Este navegador no soporta actualizaciones automáticas', 'info');
+    return;
+  }
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) {
+      RN.notifyUI.toast('No hay service worker registrado. Recarga la página', 'info');
+      return;
+    }
+
+    // Si ya hay un SW esperando, aplicarlo de inmediato.
+    if (reg.waiting) {
+      RN.notifyUI.toast('⬇️ Aplicando nueva versión…', 'info', 4000);
+      reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      // El 'controllerchange' (gestionado en init) recarga la página solo.
+      // Salvaguarda: si por algo no recarga en 3 s, forzar recarga manual.
+      setTimeout(function () { if (RN.pwa._recargaPendiente) return; window.location.reload(); }, 3000);
+      return;
+    }
+
+    // No hay SW esperando: buscar nuevas versiones en la red.
+    RN.notifyUI.toast('🔍 Buscando actualizaciones…', 'info', 2500);
+    await reg.update();
+
+    // Tras update(), reevaluar si ahora hay un SW esperando.
+    if (reg.waiting) {
+      RN.notifyUI.toast('⬇️ Nueva versión encontrada. Aplicando…', 'success', 4000);
+      reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      setTimeout(function () { if (RN.pwa._recargaPendiente) return; window.location.reload(); }, 3000);
+    } else {
+      // Nada esperando: comprobar estado instalando por si acaso.
+      if (reg.installing) {
+        RN.notifyUI.toast('⬇️ Descargando nueva versión… se aplicará al terminar', 'info', 4000);
+      } else {
+        RN.pwa._marcarPendiente(false);
+        RN.notifyUI.toast('✅ Tienes la última versión (' + APP_VERSION + ')', 'success');
+      }
+    }
+  } catch (e) {
+    console.warn('forzarActualización falló:', e);
+    RN.notifyUI.toast('No se pudo buscar la actualización. Revisa tu conexión', 'info');
+  }
 };
 
 RN.pwa.instalar = async function () {
