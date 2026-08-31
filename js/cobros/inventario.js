@@ -305,6 +305,12 @@ RN.inventario.guardarAsignacion = function () {
       montoPagadoCUPDesdeUSD: pago.montoCUPDesdeUSD,
       totalPagadoCUP: pago.totalRecibidoCUP,
       totalCUP: precioTotal,
+      // v5.13.9 (BUG-2): Anadir tipoPago para que los KPIs de Realizados
+      // cuenten las ventas de inventario correctamente.
+      tipoPago: 'completo',
+      totalAPagar: precioTotal,
+      falta: 0,
+      excedente: 0,
       tasaUsd: pago.tasaUsd
     });
   }

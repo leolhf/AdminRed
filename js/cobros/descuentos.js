@@ -44,7 +44,7 @@ RN.descuentos.abrirNuevo = function (clienteId, mes) {
       <p class="muted" id="dc-preview"></p>
     </div>
     <div class="modal-footer"><button class="btn ghost" onclick="RN.uiComponents.cerrarModal()">Cancelar</button>
-      <button class="btn primary" onclick="RN.descuentos.guardar('${clienteId}', '${mes}')">Agregar</button></div>`;
+      <button class="btn primary" onclick="RN.descuentos.guardar('${RN.render.escAttr(clienteId)}', '${RN.render.escAttr(mes)}')">Agregar</button></div>`;
   RN.uiComponents.modal(html);
 
   const modoSel = document.getElementById('dc-modo');
@@ -106,8 +106,14 @@ RN.descuentos.guardar = function (clienteId, mes) {
   RN.storageLocal.guardar();
   RN.uiComponents.cerrarModal();
   RN.notifyUI.toast(soloPago ? 'Descuento de un solo pago agregado (se consumirá en el próximo cobro)' : 'Descuento puntual agregado', 'success');
-  // Reabrir el modal de cobro para ver el recálculo en vivo
-  RN.modalCobro.abrir(clienteId);
+  // v5.13.8 (CODE-5): Solo reabrir el modal de cobro si ya estaba abierto
+  // (evita abrir un modal completo cuando el usuario viene de otra vista).
+  if (document.querySelector('.modal-overlay .modal-header h3') &&
+      document.querySelector('.modal-overlay .modal-header h3').textContent.indexOf('Cobro') >= 0) {
+    RN.modalCobro.abrir(clienteId);
+  } else {
+    RN.render.todo();
+  }
 };
 
 /** Elimina un descuento puntual (o lo anula si ya fue aplicado). */
@@ -134,6 +140,24 @@ RN.descuentos.eliminar = function (id, reabrirCobro) {
           }
           if (typeof cobro.totalAPagar === 'number') {
             cobro.totalAPagar = +(cobro.totalAPagar + valorDesc).toFixed(2);
+          }
+          // v5.13.8 (BUG-2): Recalcular tipoPago/falta/excedente tras revertir.
+          // Sin esto, un cobro "completo" puede seguir marcado como completo
+          // aunque el monto del servicio aumentó y ya no cubre el total a pagar.
+          var _pagadoCUP = cobro.totalPagadoCUP || 0;
+          var _diferencia = +(_pagadoCUP - (cobro.totalAPagar || cobro.totalCUP || 0)).toFixed(2);
+          if (Math.abs(_diferencia) < 0.01) {
+            cobro.tipoPago = 'completo';
+            cobro.falta = 0;
+            cobro.excedente = 0;
+          } else if (_diferencia < 0) {
+            cobro.tipoPago = 'parcial';
+            cobro.falta = Math.abs(_diferencia);
+            cobro.excedente = 0;
+          } else {
+            cobro.tipoPago = 'excedente';
+            cobro.excedente = _diferencia;
+            cobro.falta = 0;
           }
         }
       }
@@ -195,6 +219,8 @@ RN.descuentos.guardarLote = function () {
   const valor = parseFloat(document.getElementById('lot-valor').value) || 0;
   const motivo = document.getElementById('lot-motivo').value.trim();
   if (!motivo) { RN.notifyUI.toast('El motivo es obligatorio', 'error'); return; }
+  // v5.13.8 (LOG-5): Validar que el valor sea > 0 (igual que guardar() individual)
+  if (valor <= 0) { RN.notifyUI.toast('El valor debe ser mayor que 0', 'error'); return; }
   const mes = RN.calc.mesActualStr();
   clientes.forEach(cid => {
     RN.state.descuentos.push({

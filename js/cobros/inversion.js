@@ -327,7 +327,7 @@ RN.inversion.devolucionPrestamo = function (inversionId) {
     '</div>' +
     '<div class="modal-footer">' +
       '<button class="btn ghost" onclick="RN.uiComponents.cerrarModal()">Cancelar</button>' +
-      '<button class="btn primary" onclick="RN.inversion.guardarDevolucion(\'' + inv.id + '\')" id="dev-btn-guardar">💨 Registrar devolución</button>' +
+      '<button class="btn primary" onclick="RN.inversion.guardarDevolucion(\'' + RN.render.escAttr(inv.id) + '\')" id="dev-btn-guardar">💨 Registrar devolución</button>' +
     '</div>';
   RN.uiComponents.modal(html);
   // Validación inicial
@@ -445,7 +445,7 @@ RN.inversion.historialDevoluciones = function (inversionId) {
           '<td>' + fecha + '</td>' +
           '<td>' + RN.render.esc(d.concepto) + '</td>' +
           '<td style="text-align:right;font-weight:bold;color:var(--red,#dc2626)">-' + RN.calc.formatCUP(d.monto) + '</td>' +
-          '<td style="text-align:center"><button class="btn sm ghost danger" onclick="RN.inversion.eliminarDevolucion(\'' + d.id + '\',\'' + inv.id + '\')">✕</button></td>' +
+          '<td style="text-align:center"><button class="btn sm ghost danger" onclick="RN.inversion.eliminarDevolucion(\'' + RN.render.escAttr(d.id) + '\',\'' + RN.render.escAttr(inv.id) + '\')">✕</button></td>' +
         '</tr>';
       }).join('');
 
@@ -467,7 +467,7 @@ RN.inversion.historialDevoluciones = function (inversionId) {
     '</div>' +
     '<div class="modal-footer">' +
       '<button class="btn ghost" onclick="RN.uiComponents.cerrarModal()">Cerrar</button>' +
-      '<button class="btn primary" onclick="RN.uiComponents.cerrarModal(); RN.inversion.devolucionPrestamo(\'' + inv.id + '\')">💨 Nueva devolución</button>' +
+      '<button class="btn primary" onclick="RN.uiComponents.cerrarModal(); RN.inversion.devolucionPrestamo(\'' + RN.render.escAttr(inv.id) + '\')">💨 Nueva devolución</button>' +
     '</div>';
   RN.uiComponents.modal(html);
 };
@@ -582,6 +582,35 @@ RN.inversion._renderDeudasConcluidas = function (concluidas) {
  * @param {object} inv — la inversión (préstamo externo)
  * @param {boolean} esConcluida — true si la deuda ya está liquidada
  */
+/**
+ * v5.13.8 (CODE-4) - Genera el HTML de la sección de recuperación de la inversión.
+ * Extraída de la IIFE anónima que estaba embebida en _cardDeuda().
+ */
+RN.inversion._htmlRecuperacion = function (inv) {
+
+        var _aportes = RN.investment.aportesPorCliente(inv);
+        var _recuperado = RN.investment.recuperadoRealInv(inv);
+        var _pctRec = inv.monto ? Math.round(_recuperado / inv.monto * 100) : 0;
+        var _margenMes = RN.investment.margenMensualBruto(inv);
+        var _aporteMes = RN.investment.aporteMensualNeto(inv);
+        var _proyeccion = RN.investment.proyectarRecuperacion(inv);
+        var _nClientes = (inv.clienteIds || []).length;
+        var _html = '<div class="acc-row" style="font-weight:600"><span class="acc-label">Recuperación de la inversión</span><span class="acc-value">' + _pctRec + '%</span></div>'
+          + '<div class="acc-row"><span class="acc-label">Clientes vinculados</span><span class="acc-value">' + _nClientes + '</span></div>'
+          + '<div class="acc-row"><span class="acc-label">Recuperado (neto, automático)</span><span class="acc-value"><strong>' + RN.calc.formatCUP(_recuperado) + '</strong></span></div>'
+          + '<div class="acc-row"><span class="acc-label">Margen neto mensual (bruto)</span><span class="acc-value">' + RN.calc.formatCUP(_margenMes) + '</span></div>'
+          + '<div class="acc-row"><span class="acc-label">Aporte neto mensual a recuperación</span><span class="acc-value">' + RN.calc.formatCUP(_aporteMes) + '</span></div>'
+          + '<div class="acc-row"><span class="acc-label">Tiempo restante para recuperar</span><span class="acc-value"><strong>' + RN.render.esc(_proyeccion) + '</strong></span></div>';
+        if (_aportes.length) {
+          _html += '<div class="acc-row" style="font-weight:600"><span class="acc-label">Ganancia por cliente</span><span class="acc-value">' + RN.calc.formatCUP(RN.investment.totalRecuperacionClientes(inv)) + '</span></div>';
+          _aportes.forEach(function (a) {
+            var _nom = a.cliente ? RN.render.esc(a.cliente.nombre) : '<span class="muted">— eliminado —</span>';
+            _html += '<div class="acc-row"><span class="acc-label">' + _nom + '</span><span class="acc-value"><strong>' + RN.calc.formatCUP(a.recuperacion) + '</strong></span></div>';
+          });
+        }
+  return _html;
+};
+
 RN.inversion._cardDeuda = function (inv, esConcluida) {
   var totalDevuelto = RN.investment.totalDevuelto(inv);
   var saldoDevolver = RN.investment.saldoADevolver(inv);
@@ -616,7 +645,7 @@ RN.inversion._cardDeuda = function (inv, esConcluida) {
   }
 
   return '<div class="acc-card" id="acc-deuda-' + inv.id + '">'
-    + '<div class="acc-summary" onclick="RN.render.toggleCard(\'acc-deuda-' + inv.id + '\')">'
+    + '<div class="acc-summary" onclick="RN.render.toggleCard(\'acc-deuda-' + RN.render.escAttr(inv.id) + '\')">'
     +   '<span class="acc-dot ' + dotCls + '"></span>'
     +   '<div class="acc-summary-main">'
     +     '<div class="acc-summary-name">' + RN.render.esc(inv.concepto) + '</div>'
@@ -643,38 +672,16 @@ RN.inversion._cardDeuda = function (inv, esConcluida) {
     +   (inv.monedaPago ? '<div class="acc-row"><span class="acc-label">Pago (' + inv.monedaPago + ')</span><span class="acc-value">' + RN.moneda.desglosePagoHTML({ moneda: inv.monedaPago, montoUSD: inv.montoPagoUSD, montoCUP: inv.montoPagoCUP, montoCUPDesdeUSD: inv.montoPagoCUPDesdeUSD, totalRecibidoCUP: inv.totalPagoCUP, tasaUsd: inv.tasaUsdCompra }) + '</span></div>' : '')
     +   devsHtml
     +   '<div class="divider" style="margin:8px 0"></div>'
-    // v5.13.3: información de recuperación de la inversión (clientes vinculados)
-    +   (function () {
-        var _aportes = RN.investment.aportesPorCliente(inv);
-        var _recuperado = RN.investment.recuperadoRealInv(inv);
-        var _pctRec = inv.monto ? Math.round(_recuperado / inv.monto * 100) : 0;
-        var _margenMes = RN.investment.margenMensualBruto(inv);
-        var _aporteMes = RN.investment.aporteMensualNeto(inv);
-        var _proyeccion = RN.investment.proyectarRecuperacion(inv);
-        var _nClientes = (inv.clienteIds || []).length;
-        var _html = '<div class="acc-row" style="font-weight:600"><span class="acc-label">Recuperación de la inversión</span><span class="acc-value">' + _pctRec + '%</span></div>'
-          + '<div class="acc-row"><span class="acc-label">Clientes vinculados</span><span class="acc-value">' + _nClientes + '</span></div>'
-          + '<div class="acc-row"><span class="acc-label">Recuperado (neto, automático)</span><span class="acc-value"><strong>' + RN.calc.formatCUP(_recuperado) + '</strong></span></div>'
-          + '<div class="acc-row"><span class="acc-label">Margen neto mensual (bruto)</span><span class="acc-value">' + RN.calc.formatCUP(_margenMes) + '</span></div>'
-          + '<div class="acc-row"><span class="acc-label">Aporte neto mensual a recuperación</span><span class="acc-value">' + RN.calc.formatCUP(_aporteMes) + '</span></div>'
-          + '<div class="acc-row"><span class="acc-label">Tiempo restante para recuperar</span><span class="acc-value"><strong>' + RN.render.esc(_proyeccion) + '</strong></span></div>';
-        if (_aportes.length) {
-          _html += '<div class="acc-row" style="font-weight:600"><span class="acc-label">Ganancia por cliente</span><span class="acc-value">' + RN.calc.formatCUP(RN.investment.totalRecuperacionClientes(inv)) + '</span></div>';
-          _aportes.forEach(function (a) {
-            var _nom = a.cliente ? RN.render.esc(a.cliente.nombre) : '<span class="muted">— eliminado —</span>';
-            _html += '<div class="acc-row"><span class="acc-label">' + _nom + '</span><span class="acc-value"><strong>' + RN.calc.formatCUP(a.recuperacion) + '</strong></span></div>';
-          });
-        }
-        return _html;
-      })()
+    // v5.13.8 (CODE-4): Extracción de IIFE a _htmlRecuperacion()
+    +   RN.inversion._htmlRecuperacion(inv)
     +   '<div class="divider" style="margin:8px 0"></div>'
     +   '<div class="acc-actions">'
     +     (esConcluida
-        ? '<button class="btn sm" onclick="RN.inversion.historialDevoluciones(\'' + inv.id + '\')">📋 Ver devoluciones</button>'
-        : '<button class="btn sm primary" onclick="RN.inversion.devolucionPrestamo(\'' + inv.id + '\')">💨 Devolver préstamo</button>'
-          + '<button class="btn sm" onclick="RN.inversion.historialDevoluciones(\'' + inv.id + '\')">📋 Devoluciones</button>')
-    +     '<button class="btn sm" onclick="RN.inversion.abrirEditar(\'' + inv.id + '\')">Editar</button>'
-    +     '<button class="btn sm danger" onclick="RN.inversion.eliminar(\'' + inv.id + '\')">🗑</button>'
+        ? '<button class="btn sm" onclick="RN.inversion.historialDevoluciones(\'' + RN.render.escAttr(inv.id) + '\')">📋 Ver devoluciones</button>'
+        : '<button class="btn sm primary" onclick="RN.inversion.devolucionPrestamo(\'' + RN.render.escAttr(inv.id) + '\')">💨 Devolver préstamo</button>'
+          + '<button class="btn sm" onclick="RN.inversion.historialDevoluciones(\'' + RN.render.escAttr(inv.id) + '\')">📋 Devoluciones</button>')
+    +     '<button class="btn sm" onclick="RN.inversion.abrirEditar(\'' + RN.render.escAttr(inv.id) + '\')">Editar</button>'
+    +     '<button class="btn sm danger" onclick="RN.inversion.eliminar(\'' + RN.render.escAttr(inv.id) + '\')">🗑</button>'
     +   '</div>'
     + '</div>'
     + '</div>';

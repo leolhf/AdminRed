@@ -1,5 +1,6 @@
 /**
  * reportes/historial-mensual.js — Historial mensual de cobros (agrupado por mes).
+ * v5.13.9 (DUP-1): Usa RN.calc.totalCobro(h). (CODE-4): Escapa output HTML.
  */
 RN.historialMensual = RN.historialMensual || {};
 
@@ -9,7 +10,7 @@ RN.historialMensual.agrupar = function () {
   RN.state.history.forEach(h => {
     const m = h.mes || (h.fecha || '').slice(0, 7);
     if (!map[m]) map[m] = { mes: m, ingresos: 0, count: 0 };
-    map[m].ingresos += (h.monto || 0) + (h.montoEquipo || 0);
+    map[m].ingresos += RN.calc.totalCobro(h);
     map[m].count++;
   });
   return Object.values(map).sort((a, b) => b.mes.localeCompare(a.mes));
@@ -18,7 +19,7 @@ RN.historialMensual.agrupar = function () {
 RN.historialMensual.ver = function () {
   const data = RN.historialMensual.agrupar();
   const rows = data.length ? data.map(m => `<tr>
-    <td><strong>${RN.calc.mesTexto(m.mes)}</strong></td>
+    <td><strong>${RN.render.esc(RN.calc.mesTexto(m.mes))}</strong></td>
     <td>${m.count}</td>
     <td>${RN.calc.formatCUP(m.ingresos)}</td>
   </tr>`).join('') : '<tr><td colspan="3"><div class="empty">Sin datos</div></td></tr>';

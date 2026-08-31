@@ -295,7 +295,12 @@ RN.modalCliente.guardar = function () {
     precio,
     diaPago: dia,
     descuentoRecurrente: parseFloat(document.getElementById('cl-desc-rec').value) || 0,
-    mesInicio: (document.getElementById('cl-mes-inicio') || {}).value || RN.calc.mesActualStr(),
+    mesInicio: (function () {
+      // v5.13.7 (LOG-3): solo sobrescribir mesInicio si el campo existe y tiene valor.
+      // Si el campo no esta en el DOM, devolver undefined para que Object.assign no lo toque.
+      var el = document.getElementById('cl-mes-inicio');
+      return el && el.value ? el.value : undefined;
+    })(),
 
     deudaEquipo: parseFloat(document.getElementById('cl-deuda-eq').value) || 0,
     deudaEquipoOriginal: parseFloat(document.getElementById('cl-deuda-orig').value) || 0,

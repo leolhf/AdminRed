@@ -30,7 +30,13 @@ RN.recibo._html = function (h) {
   if (h.tipo === 'venta-inventario') {
     lineas.push(`<div class="row"><span>${h.concepto || 'Venta inventario'}</span><span>${RN.calc.formatCUP(neto)}</span></div>`);
   } else if (h.tipo === 'servicio' || neto > 0) {
-    lineas.push(`<div class="row"><span>Servicio mensual ${h.mes || ''}</span><span>${RN.calc.formatCUP(neto)}</span></div>`);
+    // v5.13.9 (LOG-4): Mes legible (mesTexto) en lugar de ISO crudo
+    var mesTxt = h.mes ? RN.calc.mesTexto(h.mes) : '';
+    lineas.push(`<div class="row"><span>Servicio mensual ${RN.render.esc(mesTxt)}</span><span>${RN.calc.formatCUP(neto)}</span></div>`);
+    // v5.13.8: Mostrar mora (meses atrasados) si el cobro incluye mora
+    if (h.montoMora && h.montoMora > 0) {
+      lineas.push(`<div class="row" style="color:#c62828"><span>Mora (${h.mora || 0} mes${(h.mora || 0) !== 1 ? 'es' : ''} de atraso)</span><span>${RN.calc.formatCUP(h.montoMora)}</span></div>`);
+    }
     if (h.descuentoRecurrente) lineas.push(`<div class="row muted" style="font-size:12px"><span>Descuento recurrente</span><span>− ${RN.calc.formatCUP(h.descuentoRecurrente)}</span></div>`);
   }
   if (eq > 0) {
@@ -125,8 +131,8 @@ RN.recibo.ver = function (cobroId) {
     <div class="modal-header"><h3>Recibo ${h.reciboNum}</h3><button class="close" onclick="RN.uiComponents.cerrarModal()">×</button></div>
     <div class="modal-body" style="background:#f1f5f9">${RN.recibo._html(h)}</div>
     <div class="modal-footer">
-      <button class="btn" onclick="RN.whatsapp.enviarComprobante('${h.id}')">WhatsApp</button>
-      <button class="btn primary" onclick="RN.recibo.imprimir('${h.id}')">🖨️ Imprimir</button>
+      <button class="btn" onclick="RN.whatsapp.enviarComprobante('${RN.render.escAttr(h.id)}')">WhatsApp</button>
+      <button class="btn primary" onclick="RN.recibo.imprimir('${RN.render.escAttr(h.id)}')">🖨️ Imprimir</button>
     </div>`;
   RN.uiComponents.modal(html);
 };

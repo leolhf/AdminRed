@@ -14,7 +14,7 @@ RN.equiposRed.abrir = function (clienteId) {
   const rows = eqs.length ? eqs.map(e => `<tr>
     <td>${RN.render.esc(e.tipo)}</td><td>${RN.render.esc(e.modelo || '')}</td>
     <td>${RN.render.esc(e.serial || '')}</td><td>${RN.render.esc(e.ubicacion || '')}</td>
-    <td><button class="btn sm danger" onclick="RN.equiposRed.eliminar('${e.id}')">🗑</button></td>
+    <td><button class="btn sm danger" onclick="RN.equiposRed.eliminar('${RN.render.escAttr(e.id)}')">🗑</button></td>
   </tr>`).join('') : '<tr><td colspan="5" class="muted center">Sin equipos registrados</td></tr>';
 
   const html = `
@@ -33,20 +33,28 @@ RN.equiposRed.abrir = function (clienteId) {
     </div>
     <div class="modal-footer">
       <button class="btn ghost" onclick="RN.uiComponents.cerrarModal()">Cerrar</button>
-      <button class="btn primary" onclick="RN.equiposRed.guardar('${clienteId}')">Agregar equipo</button>
+      <button class="btn primary" onclick="RN.equiposRed.guardar('${RN.render.escAttr(clienteId)}')">Agregar equipo</button>
     </div>`;
   RN.uiComponents.modal(html, { lg: true });
 };
 
 RN.equiposRed.guardar = function (clienteId) {
   const tipo = document.getElementById('eq-tipo').value;
+  const modelo = document.getElementById('eq-modelo').value.trim();
+  const serial = document.getElementById('eq-serial').value.trim();
+  const ubicacion = document.getElementById('eq-ubicacion').value.trim();
+  // v5.13.7 (LOG-5): validar que al menos modelo o serial tenga contenido.
+  if (!modelo && !serial) {
+    RN.notifyUI.toast('Ingresa al menos el modelo o el serial del equipo', 'warn');
+    return;
+  }
   RN.state.equiposRed.push({
     id: RN.calc.uid('eq'),
     clienteId,
     tipo,
-    modelo: document.getElementById('eq-modelo').value.trim(),
-    serial: document.getElementById('eq-serial').value.trim(),
-    ubicacion: document.getElementById('eq-ubicacion').value.trim(),
+    modelo: modelo,
+    serial: serial,
+    ubicacion: ubicacion,
     fecha: new Date().toISOString()
   });
   RN.storageLocal.guardar();
@@ -55,7 +63,19 @@ RN.equiposRed.guardar = function (clienteId) {
 };
 
 RN.equiposRed.eliminar = function (id) {
-  RN.state.equiposRed = RN.state.equiposRed.filter(e => e.id !== id);
-  RN.storageLocal.guardar();
-  RN.notifyUI.toast('Equipo eliminado', 'warn');
+  var eq = RN.state.equiposRed.find(function (e) { return e.id === id; });
+  var clienteId = eq ? eq.clienteId : null;
+  // v5.13.7 (BUG-6): pedir confirmacion antes de eliminar (consistencia con borrado de cliente).
+  RN.uiComponents.confirm(
+    'Eliminar equipo',
+    '\u00bfEliminar este equipo de red? Esta acci\u00f3n no se puede deshacer.',
+    function () {
+      RN.state.equiposRed = RN.state.equiposRed.filter(function (e) { return e.id !== id; });
+      RN.storageLocal.guardar();
+      // v5.13.7 (BUG-7): re-abrir el modal para que la tabla se actualice.
+      if (clienteId) RN.equiposRed.abrir(clienteId);
+      RN.notifyUI.toast('Equipo eliminado', 'warn');
+    },
+    { danger: true }
+  );
 };

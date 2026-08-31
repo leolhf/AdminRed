@@ -97,7 +97,9 @@ RN.init.arrancar = async function () {
 
   // 12. Listeners de búsqueda/filtro
   const sc = document.getElementById('search-clientes');
-  if (sc) sc.addEventListener('input', () => RN.render.clientes());
+  // v5.13.7 (UI-5): debounce de 200ms en la busqueda para listas grandes.
+  var searchTimerCli;
+  if (sc) sc.addEventListener('input', () => { clearTimeout(searchTimerCli); searchTimerCli = setTimeout(() => RN.render.clientes(), 200); });
   const fe = document.getElementById('filter-estado');
   if (fe) fe.addEventListener('change', () => RN.render.clientes());
   const sCo = document.getElementById('search-cobros');

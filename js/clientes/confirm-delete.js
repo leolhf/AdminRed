@@ -9,7 +9,7 @@ RN.confirmDelete.cliente = function (id) {
   const cobros = RN.state.history.filter(h => h.clienteId === id).length;
   RN.uiComponents.confirm(
     'Eliminar cliente',
-    `¿Eliminar a "${c.nombre}"? Tiene ${cobros} registro(s) en el historial. Esta acción no se puede deshacer.`,
+    `¿Eliminar a "${RN.render.esc(c.nombre)}"? Tiene ${cobros} registro(s) en el historial. Esta acción no se puede deshacer.`,
     () => {
       RN.state.clients = RN.state.clients.filter(x => x.id !== id);
       // mantener historial (referencia histórica) pero quitar descuentos activos

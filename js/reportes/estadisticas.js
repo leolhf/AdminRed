@@ -16,12 +16,15 @@ RN.estadisticas.calcular = function () {
   var ticketPromedio = cobrosMes.length
     ? cobrosMes.reduce(function (s, h) { return s + (h.monto || 0); }, 0) / cobrosMes.length
     : 0;
+  // v5.13.9 (CODE-5): Cachear ingresos/gastos para evitar recalcular 2 veces
+  var ing = RN.calc.ingresosTotales();
+  var gas = RN.calc.gastosTotales();
   return {
     totalClientes,
     clientesActivos: clientes.length,
-    ingresosTotales: RN.calc.ingresosTotales(),
-    gastosTotales: RN.calc.gastosTotales(),
-    utilidadAcumulada: RN.calc.ingresosTotales() - RN.calc.gastosTotales(),
+    ingresosTotales: ing,
+    gastosTotales: gas,
+    utilidadAcumulada: ing - gas,
     cobrosRegistrados: RN.state.history.length,
     ticketPromedio,
     inversionRecuperada: RN.investment.porcentajeRecuperacion(),

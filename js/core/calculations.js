@@ -62,7 +62,6 @@ RN.calc.diasDesdePago = function (cliente) {
 };
 
 /**
-/**
  * Mes de inicio de cobro de un cliente: a partir de qué mes se le empieza a
  * esperar pago. v5.10.5. Orden de prioridad:
  *   1. cliente.mesInicio (campo explícito, "YYYY-MM")
@@ -91,7 +90,11 @@ RN.calc.mesInicioCliente = function (cliente) {
  *  - due: atrasado / mora real (getMora > 0) o se pasó del día de pago + gracia este mes
  */
 RN.calc.getStatus = function (cliente) {
-  if (!cliente || !cliente.activo) return 'ok';
+  // v5.13.6 (BUG-6): clientes inactivos (activo === false) devuelven 'inactivo'
+  // en vez de 'ok'. Antes devolvia 'ok' (al d\u00eda) para clientes dados de baja,
+  // lo que mostraba badge verde en clientes inactivos.
+  if (!cliente) return 'ok';
+  if (cliente.activo === false) return 'inactivo';
   const mes = RN.calc.mesActualStr();
 
   // v5.10.5: si el mes actual es anterior al mes de inicio de cobro, no debe todavía.
@@ -178,6 +181,23 @@ RN.calc.deudaTotalCliente = function (cliente, mes) {
   var servicioPendiente = netoMes * (mora + 1);
   var deudaEquipo = RN.investment.getDeudaEquipoCliente(cliente);
   return +(servicioPendiente + deudaEquipo).toFixed(2);
+};
+
+/**
+ * v5.13.7 (DUP-2): Resumen consolidado de un cliente para todas las vistas.
+ * Centraliza estado, neto, cuota, deuda, mora y totales en un solo objeto
+ * para evitar que cada vista recalcule por separado.
+ */
+RN.calc.resumenCliente = function (cliente, mes) {
+  mes = mes || RN.calc.mesActualStr();
+  var estado = RN.calc.getStatus(cliente);
+  var neto = RN.calc.getPrecioNeto(cliente, mes);
+  var cuotaEq = RN.investment.getCuotaEquipoCliente(cliente);
+  var deuda = RN.investment.getDeudaEquipoCliente(cliente);
+  var mora = RN.calc.getMora(cliente);
+  var totalMes = neto + cuotaEq;
+  var totalDeuda = RN.calc.deudaTotalCliente(cliente, mes);
+  return { estado: estado, neto: neto, cuotaEq: cuotaEq, deuda: deuda, mora: mora, totalMes: totalMes, totalDeuda: totalDeuda, mes: mes };
 };
 
 /** Mes anterior a un YYYY-MM. */
@@ -282,6 +302,20 @@ RN.calc.ingresosMes = function (mes) {
   return RN.state.history
     .filter(h => h.mes === mes)
     .reduce((s, h) => s + (h.monto || 0) + (h.montoEquipo || 0), 0);
+};
+
+/**
+ * v5.13.6 (BUG-5): Ingresos SOLO de servicio del mes (sin equipo ni mora de
+ * otros meses). Se usa para calcular la tasa de cobro real del mes, comparando
+ * lo cobrado en servicio contra lo esperado. Antes se usaba ingresosMes() que
+ * incluye h.montoEquipo y cobros de meses anteriores, lo que podía hacer que
+ * la tasa de cobro superara el 100% de forma engañosa.
+ */
+RN.calc.ingresosServicioMes = function (mes) {
+  mes = mes || RN.calc.mesActualStr();
+  return RN.state.history
+    .filter(h => h.mes === mes && h.tipo === 'servicio')
+    .reduce((s, h) => s + (h.monto || 0), 0);
 };
 
 /** Total ingresos históricos. */
@@ -457,4 +491,21 @@ RN.calc.prediccionIngresos = function () {
   var prediccion = a + b * n;
   if (prediccion < 0) prediccion = 0;
   return +prediccion.toFixed(2);
+};
+
+
+// v5.13.9 (DUP-1): Helper para obtener el total de un cobro del historial.
+// Centraliza el patron repetido ~8 veces: h.totalCUP || (h.monto + h.montoEquipo)
+RN.calc.totalCobro = function (h) {
+  return h.totalCUP || ((h.monto || 0) + (h.montoEquipo || 0));
+};
+
+// v5.13.9 (DUP-3): Helper para buscar un cliente por ID.
+// Centraliza el patron RN.state.clients.find(c => c.id === id) repetido decenas de veces.
+RN.calc.clientePorId = function (id) {
+  if (!id) return null;
+  for (var i = 0; i < RN.state.clients.length; i++) {
+    if (RN.state.clients[i].id === id) return RN.state.clients[i];
+  }
+  return null;
 };

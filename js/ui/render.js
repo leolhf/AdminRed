@@ -7,7 +7,7 @@ RN.render = RN.render || {};
 /** Escape HTML. */
 RN.render.esc = function (s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-};;
+};
 
 /** v5.13.5 (ISSUE #26): Escape de un string para atributos onclick="...('STR')".
  * Escapa comillas simples (contexto JS) y dobles (contexto HTML) para evitar
@@ -19,9 +19,23 @@ RN.render.escAttr = function (s) {
     .replace(/"/g, '"');
 }
 
+// v5.13.9 (DUP-2): Badge unificado de tipo de pago para cobros del historial.
+// Centraliza el patron repetido en render.realizados(), render.reportes() y recibo._html().
+// Devuelve HTML con badge consistente: Completo / Parcial (falta) / Con vuelto.
+RN.render.badgeTipoPago = function (h) {
+  var t = h.tipoPago || 'completo';
+  if (t === 'parcial') {
+    return '<span class="badge parcial">Parcial \u00b7 Falta ' + RN.calc.formatCUP(h.falta || 0) + '</span>';
+  }
+  if (t === 'excedente') {
+    return '<span class="badge paid">Con vuelto ' + RN.calc.formatCUP(h.excedente || 0) + '</span>';
+  }
+  return '<span class="badge paid">Completo</span>';
+};
+
 /** Badge de estado de cliente. */
 RN.render.badgeEstado = function (estado) {
-  const map = { ok: ['ok', 'Al día'], warn: ['warn', 'Por vencer'], due: ['due', 'Atrasado'], paid: ['paid', 'Pagado'], parcial: ['parcial', 'Pago parcial'], 'por-iniciar': ['por-iniciar', 'Por iniciar'] };
+  const map = { ok: ['ok', 'Al día'], warn: ['warn', 'Por vencer'], due: ['due', 'Atrasado'], paid: ['paid', 'Pagado'], parcial: ['parcial', 'Pago parcial'], 'por-iniciar': ['por-iniciar', 'Por iniciar'], inactivo: ['muted', 'Inactivo'] };
   const [cls, txt] = map[estado] || ['muted', estado];
   return `<span class="badge ${cls}">${txt}</span>`;
 };
@@ -114,6 +128,18 @@ RN.render.vista = function (view) {
 // ---------- DASHBOARD ----------
 
 /**
+ * v5.13.6 (CODE-6): Descripción reutilizable del paquete del proveedor
+ * en formato "Mm × P CUP/M". Evita duplicar esta construcción de string
+ * en el KPI "Costo del paquete" y en el widget del proveedor.
+ * @returns {string} Descripción del paquete o '' si no hay config.
+ */
+RN.render.descPaquete = function () {
+  var m = RN.state.config.proveedorMegas || 0;
+  var p = RN.state.config.proveedorPrecioMega || 0;
+  return m + 'M × ' + p + ' CUP/M';
+};
+
+/**
  * v5.12.6 — Construye el texto "sub" de una tarjeta KPI con el equivalente
  * en USD (en letras pequeñas) cuando hay tasa configurada. Si ya hay un sub
  * textual, lo antepone. Si no hay tasa, devuelve el sub original.
@@ -125,8 +151,9 @@ RN.render.subUSD = function (cup, subTxt) {
   var usd = RN.moneda.aUSD(cup);
   var parts = [];
   if (subTxt) parts.push(RN.render.esc(subTxt));
-  if (usd) parts.push(usd + ' USD');
-  return parts.join(' · ');
+  // v5.13.6 (UI-6): envolver el USD en un badge visual distintivo.
+  if (usd) parts.push('<span class="usd-badge">≈ ' + usd + ' USD</span>');
+  return parts.join(' ');
 };
 
 /**
@@ -135,10 +162,12 @@ RN.render.subUSD = function (cup, subTxt) {
  * Reutiliza los estilos .recup-* definidos en styles.css.
  * @returns {string} HTML del bloque
  */
-RN.render.barraRecuperacion = function () {
-  var invertido = RN.investment.totalInvertido();
-  var recuperado = RN.investment.totalRecuperado();
-  var pct = RN.investment.porcentajeRecuperacion();
+RN.render.barraRecuperacion = function (inv, rec, pctParam) {
+  // v5.13.6 (DUP-3): acepta valores pre-calculados para evitar recalcular.
+  // Si no se pasan, calcula aquí (compatibilidad con llamadas externas).
+  var invertido = (inv !== undefined) ? inv : RN.investment.totalInvertido();
+  var recuperado = (rec !== undefined) ? rec : RN.investment.totalRecuperado();
+  var pct = (pctParam !== undefined) ? pctParam : RN.investment.porcentajeRecuperacion();
   // Limitar el ancho visual a 100% aunque el % supere 100 (recuperada)
   var pctVisual = Math.min(100, Math.max(0, pct));
   var faltante = Math.max(0, +(invertido - recuperado).toFixed(2));
@@ -165,7 +194,7 @@ RN.render.barraRecuperacion = function () {
   var html = '';
   html += '<div class="recup-card">';
   html += '  <div class="recup-head">';
-  html += '    <div class="recup-titulo"><span class="recup-ico">������</span> <strong>Recuperación de la inversión</strong></div>';
+  html += '    <div class="recup-titulo"><span class="recup-ico">📈</span> <strong>Recuperación de la inversión</strong></div>';
   html += '    <div class="recup-pct"><strong>' + pct + '%</strong>' + (sinCosto ? ' <span class="muted" style="font-size:11px">(estimado)</span>' : '') + '</div>';
   html += '  </div>';
   html += '  <div class="recup-bar"><div class="recup-fill ' + cls + '" data-pct="' + pctVisual + '" style="width:0%"></div></div>';
@@ -212,14 +241,36 @@ RN.render.animarBarrasRecuperacion = function () {
 RN.render.dashboard = function () {
   const cont = document.getElementById('kpi-dashboard');
   if (!cont) return;
+  // v5.13.6 (UI-5): mostrar el mes operativo visible en el header del panel.
+  // Si el mes operativo (RN.state.mesActual) difiere del mes real del reloj,
+  // se senala con un aviso de "mes cerrado".
+  const mesOper = document.getElementById('dashboard-mes');
+  if (mesOper) {
+    const mesAct = RN.calc.mesActualStr();
+    const mesReal = RN.calc.mesRealStr();
+    if (mesAct !== mesReal) {
+      mesOper.innerHTML = '⚠ Mes operativo: <strong>' + RN.calc.mesTexto(mesAct) + '</strong>';
+      mesOper.className = 'mes-badge mes-cerrado';
+    } else {
+      mesOper.innerHTML = 'Mes: <strong>' + RN.calc.mesTexto(mesAct) + '</strong>';
+      mesOper.className = 'mes-badge muted';
+    }
+  }
   const cob = RN.calc.cobranzaMes();
   const ingresos = RN.calc.ingresosMes();
   const gastos = RN.calc.gastosMes();
   const utilidad = ingresos - gastos;
   const esperado = RN.calc.ingresoEsperadoMes();
-  const tasaCob = esperado ? Math.round(ingresos / esperado * 100) : 0;
+  // v5.13.6 (BUG-5): tasa de cobro basada en ingresos de SERVICIO del mes
+  // (sin equipo ni mora de otros meses) para que no supere 100% de forma
+  // enga\u00f1osa. Antes usaba ingresosMes() que incluye h.montoEquipo.
+  const ingresoServMes = RN.calc.ingresosServicioMes();
+  const tasaCob = esperado ? Math.round(ingresoServMes / esperado * 100) : 0;
+  // v5.13.6 (DUP-1): cachear clientesActivos() una sola vez.
+  // Antes se llamaba 2 veces (aquí y en el resumen) + 1 dentro de cobranzaMes.
+  const activos = RN.calc.clientesActivos();
   // v5.10.5: mora real = clientes con meses de atraso (getMora > 0).
-  const morosos = RN.calc.clientesActivos().filter(c => RN.calc.getMora(c) > 0).length;
+  const morosos = activos.filter(c => RN.calc.getMora(c) > 0).length;
 
   const parciales = cob.parciales || 0;
   const fondoCaja = RN.calc.fondoCaja();
@@ -238,12 +289,12 @@ RN.render.dashboard = function () {
   // (en letras pequeñas) cuando hay tasa configurada.
   const kpis = [
     { label: 'Ingresos del mes', value: RN.calc.formatCUP(ingresos), sub: RN.render.subUSD(ingresos), cls: 'green' },
-    { label: 'Costo del paquete', value: RN.calc.formatCUP(costoPaquete), sub: costoPaquete > 0 ? RN.render.subUSD(costoPaquete, (RN.state.config.proveedorMegas || 0) + 'M × ' + (RN.state.config.proveedorPrecioMega || 0) + ' CUP/M') : 'Sin paquete configurado', cls: 'amber' },
+    { label: 'Costo del paquete', value: RN.calc.formatCUP(costoPaquete), sub: costoPaquete > 0 ? RN.render.subUSD(costoPaquete, RN.render.descPaquete()) : 'Sin paquete configurado', cls: 'amber' },
     { label: 'Ganancia proyectada del mes', value: RN.calc.formatCUP(gananciaProyectada), sub: RN.render.subUSD(gananciaProyectada, 'Ingreso esperado − Costo del paquete'), cls: gananciaProyectada >= 0 ? 'green' : 'red' },
     { label: 'Ganancia del mes', value: RN.calc.formatCUP(gananciaBruta), sub: RN.render.subUSD(gananciaBruta, 'Cobrado − Costo del paquete'), cls: gananciaBruta >= 0 ? 'blue' : 'red' },
     { label: 'Utilidad neta', value: RN.calc.formatCUP(utilidad), sub: RN.render.subUSD(utilidad, 'Ingresos − Gastos'), cls: utilidad >= 0 ? 'blue' : 'red' },
     { label: 'Cobranza', value: cob.pagaron + '/' + cob.total, sub: 'Faltan ' + cob.faltan + ' clientes' + (parciales ? ' · ' + parciales + ' parcial' : '') + ' — toca para ver corte vigente', cls: 'blue', click: 'RN.cobranza.abrir()' },
-    { label: 'Tasa de cobro', value: tasaCob + '%', sub: 'Sobre lo esperado', cls: tasaCob >= 70 ? 'green' : (tasaCob >= 40 ? 'amber' : 'red') },
+    { label: 'Tasa de cobro', value: tasaCob + '%', sub: 'Servicio cobrado sobre lo esperado', cls: tasaCob >= 70 ? 'green' : (tasaCob >= 40 ? 'amber' : 'red') },
     { label: 'Clientes morosos', value: morosos, sub: morosos ? 'Atrasados — toca para ver detalles' : 'Ninguno atrasado', cls: morosos ? 'red' : 'green', click: 'RN.mora.abrir()' },
     { label: 'Fondo de caja', value: RN.calc.formatCUP(fondoCaja), sub: RN.render.subUSD(fondoCaja, 'Ganancia acumulada — toca para retirar'), cls: fondoCaja > 0 ? 'green' : (fondoCaja < 0 ? 'red' : 'muted'), click: 'RN.caja.extraer()' }
   ];
@@ -251,15 +302,19 @@ RN.render.dashboard = function () {
     const attr = k.click ? ` role="button" tabindex="0" onclick="${k.click}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${k.click}}" class="kpi ${k.cls} kpi-click"` : ` class="kpi ${k.cls}"`;
     return `<div${attr}><div class="label">${k.label}</div><div class="value">${k.value}</div><div class="sub">${k.sub}</div></div>`;
   }).join('');
+  // v5.13.6 (DUP-3): cachear funciones de inversión una sola vez.
+  // Antes totalInvertido() se llamaba 4x, totalRecuperado() 3x y
+  // porcentajeRecuperacion() 2x (cada una recalcula internamente).
+  const totalInv = RN.investment.totalInvertido();
+  const recInv = RN.investment.totalRecuperado();
+  const pctRecup = totalInv ? +(recInv / totalInv * 100).toFixed(1) : 0;
   const res = document.getElementById('dashboard-resumen');
   if (res) {
-    const totalInv = RN.investment.totalInvertido();
-    const recInv = RN.investment.totalRecuperado();
     res.innerHTML = `
       <div class="flex wrap" style="gap:24px">
-        <div><strong>Clientes activos:</strong> ${RN.calc.clientesActivos().length}</div>
+        <div><strong>Clientes activos:</strong> ${activos.length}</div>
         <div><strong>Planes:</strong> ${RN.state.planes.length}</div>
-        <div><strong>Inversión recuperada:</strong> ${RN.investment.porcentajeRecuperacion()}%${RN.investment.costoMegaConfigurado() ? '' : ' <span class="muted" style="font-size:12px">(estimado, sin costo de proveedor)</span>'}</div>
+        <div><strong>Inversión recuperada:</strong> ${pctRecup}%${RN.investment.costoMegaConfigurado() ? '' : ' <span class="muted" style="font-size:12px">(estimado, sin costo de proveedor)</span>'}</div>
         <div><strong>Predicción próximo mes:</strong> ${RN.calc.formatCUP(RN.calc.prediccionIngresos())}</div>
       </div>`;
   }
@@ -269,11 +324,13 @@ RN.render.dashboard = function () {
   const recupEl = document.getElementById('dashboard-recuperacion');
   const recupCard = document.getElementById('card-recuperacion');
   if (recupEl && recupCard) {
-    if (RN.investment.totalInvertido() > 0) {
+    if (totalInv > 0) {
       recupCard.style.display = '';
-      recupEl.innerHTML = RN.render.barraRecuperacion();
+      recupEl.innerHTML = RN.render.barraRecuperacion(totalInv, recInv, pctRecup);
     } else {
-      recupCard.style.display = 'none';
+      // v5.13.6 (UI-3): estado vacío en vez de ocultar la card completamente.
+      recupCard.style.display = '';
+      recupEl.innerHTML = '<div class="acc-empty"><div class="icon">💰</div>No hay inversiones registradas aún. <button class="btn sm primary" style="margin-top:8px" onclick="RN.investment.abrirModal()">Registrar inversión</button></div>';
     }
   }
 
@@ -281,7 +338,8 @@ RN.render.dashboard = function () {
   const prov = document.getElementById('dashboard-proveedor');
   if (prov) {
     const cfg = RN.state.config;
-    const montoPaquete = RN.calc.montoPaqueteProveedor();
+    // v5.13.6 (DUP-2): reutilizar costoPaquete ya calculado arriba.
+    const montoPaquete = costoPaquete;
     const pagoMes = RN.calc.pagoProveedorMes();
     const tieneConfig = montoPaquete > 0 || cfg.proveedorInternet;
     let html = '<div class="prov-widget-head">📡 <strong>Servicio de internet</strong> <span class="muted" style="font-size:11px;font-weight:400">(gestiona y paga aquí)</span></div>';
@@ -379,11 +437,14 @@ RN.render.clientes = function () {
   // v5.13.1: Bug #4 — mes explícito para descuentos puntuales.
   const mes = RN.calc.mesActualStr();
   cont.innerHTML = lista.map(c => {
-    const estado = RN.calc.getStatus(c);
-    const deuda = RN.investment.getDeudaEquipoCliente(c);
-    const neto = RN.calc.getPrecioNeto(c, mes);
-    const cuotaEq = RN.investment.getCuotaEquipoCliente(c);
-    const total = neto + cuotaEq;
+    // v5.13.7 (DUP-2): usar resumenCliente para centralizar todos los calculos.
+    const r = RN.calc.resumenCliente(c, mes);
+    const estado = r.estado;
+    const deuda = r.deuda;
+    const neto = r.neto;
+    const mora = r.mora;
+    // v5.13.7 (LOG-1): si hay mora, el total incluye los meses atrasados.
+    const total = mora > 0 ? r.totalDeuda : r.totalMes;
     const ipHtml = c.ip ? '<span class="acc-ip">' + RN.render.esc(c.ip) + '</span>' : '';
     const telHtml = c.telefono ? RN.render.esc(c.telefono) : '';
     const subParts = [];
@@ -395,12 +456,12 @@ RN.render.clientes = function () {
       '<div class="acc-summary" onclick="RN.render.toggleCard(\'acc-cli-' + c.id + '\')">' +
         '<span class="acc-dot ' + estado + '"></span>' +
         '<div class="acc-summary-main">' +
-          '<div class="acc-summary-name">' + RN.render.esc(c.nombre) + '</div>' +
+          '<div class="acc-summary-name">' + RN.render.esc(c.nombre) + (mora > 0 ? ' <span class="badge due" style="font-size:10px;vertical-align:middle">' + mora + ' mes' + (mora > 1 ? 'es' : '') + '</span>' : '') + '</div>' +
           '<div class="acc-summary-sub">' + subParts.join('') + '</div>' +
         '</div>' +
         '<div class="acc-summary-total">' +
-          '<div class="amt">' + RN.calc.formatCUP(total) + '</div>' +
-          '<div class="lbl">Total</div>' +
+          '<div class="amt ' + (estado === 'paid' ? 'paid' : '') + '">' + (estado === 'paid' ? 'Pagado' : RN.calc.formatCUP(total)) + '</div>' +
+          '<div class="lbl">' + (estado === 'paid' ? 'Este mes' : (mora > 0 ? 'Deuda total' : 'Total')) + '</div>' +
         '</div>' +
         '<span class="acc-chevron">▼</span>' +
       '</div>' +
@@ -413,7 +474,7 @@ RN.render.clientes = function () {
         '<div class="acc-row"><span class="acc-label">Estado</span><span class="acc-value">' + RN.render.badgeEstado(estado) + '</span></div>' +
         '<div class="acc-row"><span class="acc-label">Saldo equipo</span><span class="acc-value">' + (deuda > 0 ? '<span class="badge due">' + RN.calc.formatCUP(deuda) + '</span>' : '<span class="muted">—</span>') + '</span></div>' +
         '<div class="acc-actions">' +
-          '<button class="btn sm primary" onclick="RN.modalCobro.abrir(\'' + c.id + '\')">Cobrar</button>' +
+          '<button class="btn sm primary" onclick="RN.modalCobro.abrir(\'' + RN.render.escAttr(c.id) + '\')">Cobrar</button>' +
           '<button class="btn sm" onclick="RN.clientHistory.abrir(\'' + c.id + '\')">Historial</button>' +
           '<button class="btn sm" onclick="RN.whatsapp.enviarRecordatorio(\'' + c.id + '\')">WhatsApp</button>' +
           '<button class="btn sm" onclick="RN.equiposRed.abrir(\'' + c.id + '\')">Equipos</button>' +
@@ -423,6 +484,11 @@ RN.render.clientes = function () {
       '</div>' +
     '</div>';
   }).join('');
+  // v5.13.7 (CODE-4): restaurar tarjetas que estaban abiertas antes del re-render.
+  abiertas.forEach(function (cardId) {
+    var el = document.getElementById(cardId);
+    if (el) el.classList.add('open');
+  });
 };
 // ---------- COBROS ----------
 RN.render.cobros = function () {
@@ -446,11 +512,14 @@ RN.render.cobros = function () {
   // v5.13.1: Bug #4 — mes explícito para descuentos puntuales.
   const mes = RN.calc.mesActualStr();
   cont.innerHTML = lista.map(c => {
-    const estado = RN.calc.getStatus(c);
-    const neto = RN.calc.getPrecioNeto(c, mes);
-    const cuotaEq = RN.investment.getCuotaEquipoCliente(c);
-    const total = neto + cuotaEq;
-    const deuda = RN.investment.getDeudaEquipoCliente(c);
+    // v5.13.7 (DUP-2): usar resumenCliente para centralizar calculos.
+    const r = RN.calc.resumenCliente(c, mes);
+    const estado = r.estado;
+    const neto = r.neto;
+    const cuotaEq = r.cuotaEq;
+    const total = r.totalMes;
+    const deuda = r.deuda;
+    const mora = r.mora;
     const ipHtml = c.ip ? '<span class="acc-ip">' + RN.render.esc(c.ip) + '</span>' : '';
     const planSub = RN.render.nombrePlan(c) + ' · ' + RN.calc.formatCUP(RN.calc.getPrecioBase(c));
     const subParts = [planSub];
@@ -460,16 +529,16 @@ RN.render.cobros = function () {
     if (estado === 'paid') {
       accBtn = '<span class="badge paid">Pagado</span>';
     } else if (estado === 'parcial') {
-      accBtn = '<span class="badge parcial">Pago parcial</span> <button class="btn sm primary" onclick="RN.modalCobro.abrir(\'' + c.id + '\')">Completar pago</button>';
+      accBtn = '<span class="badge parcial">Pago parcial</span> <button class="btn sm primary" onclick="RN.modalCobro.abrir(\'' + RN.render.escAttr(c.id) + '\')">Completar pago</button>';
     } else {
-      accBtn = '<button class="btn sm primary" onclick="RN.modalCobro.abrir(\'' + c.id + '\')">Cobrar ' + RN.calc.formatCUP(total) + '</button>';
+      accBtn = '<button class="btn sm primary" onclick="RN.modalCobro.abrir(\'' + RN.render.escAttr(c.id) + '\')">Cobrar ' + RN.calc.formatCUP(total) + '</button>';
     }
 
-    return '<div class="acc-card" id="acc-cob-' + c.id + '">' +
-      '<div class="acc-summary" onclick="RN.render.toggleCard(\'acc-cob-' + c.id + '\')">' +
+    return '<div class="acc-card" id="acc-cob-' + RN.render.escAttr(c.id) + '">' +
+      '<div class="acc-summary" onclick="RN.render.toggleCard(\'acc-cob-' + RN.render.escAttr(c.id) + '\')">' +
         '<span class="acc-dot ' + estado + '"></span>' +
         '<div class="acc-summary-main">' +
-          '<div class="acc-summary-name">' + RN.render.esc(c.nombre) + '</div>' +
+          '<div class="acc-summary-name">' + RN.render.esc(c.nombre) + (mora > 0 ? ' <span class="badge due" style="font-size:10px;vertical-align:middle">Mora: ' + mora + 'm</span>' : '') + '</div>' +
           '<div class="acc-summary-sub">' + subParts.join('') + '</div>' +
         '</div>' +
         '<div class="acc-summary-total">' +
@@ -493,134 +562,214 @@ RN.render.cobros = function () {
 };
 // ---------- REALIZADOS (Historial de cobros) ----------
 // v5.12.3: Historial agrupado por mes en cintillas colapsables.
-RN.render.realizados = function () {
+// v5.13.9 (BUG-4): Formatear fecha de cobro en formato legible localizado
+RN.render._fmtFechaCobro = function (fecha, conHora) {
+  if (!fecha) return '—';
+  var d = new Date(fecha);
+  if (isNaN(d.getTime())) return String(fecha).slice(0, 10);
+  if (conHora) {
+    return d.toLocaleString('es-CU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+  return d.toLocaleDateString('es-CU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+
+// v5.13.9 (CODE-2/UI-3/UI-5/UI-6/UI-9/UI-10): Render de una card de cobro realizado.
+// Extraido de render.realizados() para reutilizacion y legibilidad.
+RN.render._cardCobroRealizado = function (h) {
+  var cli = RN.calc.clientePorId(h.clienteId);
+  // v5.13.9 (UI-4): Nombre clickeable para ver historial del cliente
+  var sq = String.fromCharCode(0x27);
+  var nombre = cli
+    ? '<a href="#" onclick="RN.clientHistory.abrir(' + String.fromCharCode(0x5c) + sq + RN.render.escAttr(cli.id) + sq + String.fromCharCode(0x5c) + sq + ');return false" style="color:inherit;text-decoration:none">' + RN.render.esc(cli.nombre) + '</a>'
+    : '<span class="muted">Cliente eliminado</span>';
+  var total = RN.calc.totalCobro(h);
+
+  // v5.13.9 (BUG-1): Concepto correcto segun tipo de cobro
+  var concepto;
+  if (h.tipo === 'venta-inventario') {
+    concepto = RN.render.esc(h.concepto || 'Venta inventario');
+  } else if (h.tipo === 'equipo') {
+    concepto = 'Pago de equipo';
+  } else {
+    concepto = 'Servicio mensual' + (h.mes ? ' ' + RN.render.esc(RN.calc.mesTexto(h.mes)) : '');
+  }
+  if (h.montoEquipo > 0 && h.tipo === 'servicio') concepto += ' + equipo';
+
+  // v5.13.9 (DUP-2): Badge unificado de tipo de pago
+  var tipoBadge = RN.render.badgeTipoPago(h);
+
+  // v5.13.9 (UI-10): Badge "Adelantado" si el mes de servicio es futuro
+  var mesActual = RN.calc.mesActualStr();
+  var esAdelantado = h.mes && h.mes > mesActual && h.tipo === 'servicio';
+  var adelantadoBadge = esAdelantado
+    ? ' <span class="badge" style="background:#e3f2fd;color:#1565c0;font-size:10px;vertical-align:middle">Adelantado</span>'
+    : '';
+
+  var monedaTxt = h.moneda || 'CUP';
+
+  // v5.13.9 (UI-6): Badge de pago combinado USD+CUP
+  var monedaBadge = '';
+  if (h.moneda === 'MIXTO' && (h.montoPagadoUSD || 0) > 0 && (h.montoPagadoCUP || 0) > 0) {
+    monedaBadge = ' <span class="pill" style="background:#e8f5e9;color:#2e7d32;font-size:10px">USD+CUP</span>';
+  } else if ((h.montoPagadoUSD || 0) > 0 && (h.montoPagadoCUP || 0) > 0) {
+    monedaBadge = ' <span class="pill" style="background:#e8f5e9;color:#2e7d32;font-size:10px">USD+CUP</span>';
+  }
+
+  // v5.13.9 (UI-9): Pill de recibo clickeable
+  var reciboHtml = h.reciboNum
+    ? '<button class="btn sm" style="padding:2px 8px" onclick="RN.recibo.ver(' + String.fromCharCode(0x5c) + sq + RN.render.escAttr(h.id) + sq + String.fromCharCode(0x5c) + sq + ')">#' + RN.render.esc(h.reciboNum) + '</button>'
+    : '<span class="muted">—</span>';
+
+  // v5.13.9 (BUG-4): Fecha localizada
+  var fechaTxt = RN.render._fmtFechaCobro(h.fecha, true);
+
+  // v5.13.9 (UI-3): data-estado segun tipo de pago
+  var estadoCard = h.tipoPago === 'parcial' ? 'parcial' : 'paid';
+
+  // v5.13.9 (UI-5): Filas de desglose servicio/equipo/mora
+  var desgloseHtml = '';
+  if (h.tipo === 'servicio') {
+    desgloseHtml += '<div class="acc-row"><span class="acc-label">Servicio</span><span class="acc-value">' + RN.calc.formatCUP(h.monto || 0) + '</span></div>';
+    if (h.montoMora && h.montoMora > 0) {
+      desgloseHtml += '<div class="acc-row"><span class="acc-label">Mora</span><span class="acc-value" style="color:#c62828">' + RN.calc.formatCUP(h.montoMora) + ' (' + (h.mora || 0) + 'm)</span></div>';
+    }
+    if (h.descuentoRecurrente) {
+      desgloseHtml += '<div class="acc-row"><span class="acc-label">Desc. recurrente</span><span class="acc-value muted">− ' + RN.calc.formatCUP(h.descuentoRecurrente) + '</span></div>';
+    }
+  }
+  if (h.montoEquipo > 0) {
+    desgloseHtml += '<div class="acc-row"><span class="acc-label">Equipo</span><span class="acc-value">' + RN.calc.formatCUP(h.montoEquipo) + '</span></div>';
+  }
+
+  return '<div class="acc-card" data-estado="' + estadoCard + '" id="acc-real-' + RN.render.escAttr(h.id) + '">' +
+    '<div class="acc-summary" onclick="RN.render.toggleCard(' + String.fromCharCode(0x5c) + sq + 'acc-real-' + RN.render.escAttr(h.id) + sq + String.fromCharCode(0x5c) + sq + ')">' +
+      '<span class="acc-dot ' + estadoCard + '"></span>' +
+      '<div class="acc-summary-main">' +
+        '<div class="acc-summary-name">' + nombre + adelantadoBadge + '</div>' +
+        '<div class="acc-summary-sub">' + RN.render.esc(fechaTxt) + ' · ' + concepto + '</div>' +
+      '</div>' +
+      '<div class="acc-summary-total">' +
+        '<div class="amt">' + RN.calc.formatCUP(total) + '</div>' +
+        '<div class="lbl">' + RN.render.esc(monedaTxt) + monedaBadge + '</div>' +
+      '</div>' +
+      '<span class="acc-chevron">▼</span>' +
+    '</div>' +
+    '<div class="acc-details">' +
+      '<div class="acc-row"><span class="acc-label">Fecha</span><span class="acc-value">' + RN.render.esc(fechaTxt) + '</span></div>' +
+      '<div class="acc-row"><span class="acc-label">Cliente</span><span class="acc-value">' + nombre + '</span></div>' +
+      '<div class="acc-row"><span class="acc-label">Concepto</span><span class="acc-value">' + concepto + '</span></div>' +
+      desgloseHtml +
+      '<div class="acc-row"><span class="acc-label">Total</span><span class="acc-value"><strong>' + RN.calc.formatCUP(total) + '</strong>' + (h.excedente ? ' <span class="muted" style="font-size:11px">(vuelto ' + RN.calc.formatCUP(h.excedente) + ')</span>' : '') + '</span></div>' +
+      '<div class="acc-row"><span class="acc-label">Moneda</span><span class="acc-value">' + RN.render.esc(monedaTxt) + monedaBadge + '</span></div>' +
+      '<div class="acc-row"><span class="acc-label">Tipo</span><span class="acc-value">' + tipoBadge + '</span></div>' +
+      '<div class="acc-row"><span class="acc-label">Recibo</span><span class="acc-value">' + reciboHtml + '</span></div>' +
+    '</div>' +
+  '</div>';
+};
+
+// v5.13.9 (CODE-7): Construye una cintilla de mes con sus cobros.
+RN.render._cintillaMes = function (mesKey, cobros, esPrimera) {
+  var totalMes = cobros.reduce(function (s, h) { return s + RN.calc.totalCobro(h); }, 0);
+  var nombreMes = mesKey === 'sin-fecha' ? 'Sin fecha' : RN.calc.mesTexto(mesKey);
+  var cintillaId = 'cintilla-mes-' + mesKey;
+  var abierta = esPrimera ? ' cintilla-mes-open' : '';
+  var chevron = esPrimera ? ' ▲' : ' ▼';
+  var sq = String.fromCharCode(0x27);
+
+  var cobrosHtml = cobros.map(RN.render._cardCobroRealizado).join('');
+
+  return '<div class="cintilla-mes' + abierta + '" id="' + cintillaId + '">' +
+    '<div class="cintilla-mes-head" onclick="RN.render.toggleCintillaMes(' + String.fromCharCode(0x5c) + sq + cintillaId + sq + String.fromCharCode(0x5c) + sq + ')">' +
+      '<span class="cintilla-mes-icon">📅</span>' +
+      '<div class="cintilla-mes-titulo">' +
+        '<div class="cintilla-mes-nombre">' + RN.render.esc(nombreMes) + '</div>' +
+        '<div class="cintilla-mes-sub">' + cobros.length + ' cobro' + (cobros.length !== 1 ? 's' : '') + ' · ' + RN.calc.formatCUP(totalMes) + '</div>' +
+      '</div>' +
+      '<span class="cintilla-mes-chevron">' + chevron + '</span>' +
+    '</div>' +
+    '<div class="cintilla-mes-body">' + cobrosHtml + '</div>' +
+  '</div>';
+};
+
+// v5.13.9 (CODE-7/LOG-1): KPIs calculados sobre la lista ya filtrada.
+RN.render._kpisRealizados = function (lista) {
   var cont = document.getElementById('kpi-realizados');
+  if (!cont) return;
+  var total = lista.reduce(function (s, h) { return s + RN.calc.totalCobro(h); }, 0);
+  var count = lista.length;
+  // v5.13.9 (BUG-2): Ventas de inventario (tipoPago 'completo' por defecto) cuentan como completos
+  var completos = lista.filter(function (h) { return (h.tipoPago || 'completo') === 'completo'; }).length;
+  var parciales = lista.filter(function (h) { return h.tipoPago === 'parcial'; }).length;
+  var excedentes = lista.filter(function (h) { return h.tipoPago === 'excedente'; }).length;
+  cont.innerHTML = [
+    { label: 'Total cobrado', value: RN.calc.formatCUP(total), cls: 'green' },
+    { label: 'Cobros realizados', value: count, cls: 'blue' },
+    { label: 'Completos', value: completos, cls: 'green' },
+    { label: 'Parciales', value: parciales, cls: 'amber' },
+    { label: 'Con excedente', value: excedentes, cls: 'blue' }
+  ].map(function (k) { return '<div class="kpi ' + k.cls + '"><div class="label">' + k.label + '</div><div class="value">' + k.value + '</div></div>'; }).join('');
+};
+
+// v5.13.9 (CODE-7/LOG-2): Llenar dropdown de meses, reconstruyendo cada vez.
+RN.render._fillFiltroMes = function () {
+  var selMes = document.getElementById('filtro-realizados-mes');
+  if (!selMes) return '';
+  // v5.13.9 (LOG-2): Preservar seleccion actual antes de reconstruir
+  var mesSelActual = selMes.value || '';
+  selMes.innerHTML = '<option value="">Todos los meses</option>';
+  var meses = {};
+  RN.state.history.forEach(function (h) {
+    // v5.13.9 (BUG-3): Usar h.mes (mes de servicio) con fallback a fecha
+    var m = h.mes || (h.fecha || '').slice(0, 7);
+    if (m) meses[m] = true;
+  });
+  Object.keys(meses).sort().reverse().forEach(function (m) {
+    var opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = RN.calc.mesTexto(m);
+    selMes.appendChild(opt);
+  });
+  // Restaurar seleccion si sigue existiendo
+  selMes.value = mesSelActual;
+  return selMes.value || '';
+};
+
+// v5.13.9 (CODE-7): Render principal de la vista Realizados.
+RN.render.realizados = function () {
   var listEl = document.getElementById('lista-realizados');
   if (!listEl) return;
 
-  if (cont) {
-    var total = RN.state.history.reduce(function (s, h) { return s + (h.totalCUP || ((h.monto || 0) + (h.montoEquipo || 0))); }, 0);
-    var count = RN.state.history.length;
-    var completos = RN.state.history.filter(function (h) { return h.tipoPago === 'completo'; }).length;
-    var parciales = RN.state.history.filter(function (h) { return h.tipoPago === 'parcial'; }).length;
-    var excedentes = RN.state.history.filter(function (h) { return h.tipoPago === 'excedente'; }).length;
-    cont.innerHTML = [
-      { label: 'Total cobrado', value: RN.calc.formatCUP(total), cls: 'green' },
-      { label: 'Cobros realizados', value: count, cls: 'blue' },
-      { label: 'Completos', value: completos, cls: 'green' },
-      { label: 'Parciales', value: parciales, cls: 'amber' },
-      { label: 'Con excedente', value: excedentes, cls: 'blue' }
-    ].map(function (k) { return '<div class="kpi ' + k.cls + '"><div class="label">' + k.label + '</div><div class="value">' + k.value + '</div></div>'; }).join('');
-  }
-
-  var selMes = document.getElementById('filtro-realizados-mes');
-  if (selMes && selMes.children.length <= 1) {
-    var meses = {};
-    RN.state.history.forEach(function (h) { var m = (h.fecha || '').slice(0, 7); if (m) meses[m] = true; });
-    Object.keys(meses).sort().reverse().forEach(function (m) {
-      var opt = document.createElement('option');
-      opt.value = m;
-      opt.textContent = RN.calc.mesTexto(m);
-      selMes.appendChild(opt);
-    });
-  }
+  // v5.13.9 (LOG-2/BUG-3): Dropdown se reconstruye cada vez, usa h.mes
+  var mesSel = RN.render._fillFiltroMes();
   var q = (document.getElementById('search-realizados') || {}).value || '';
-  var mesSel = selMes ? selMes.value : '';
+  // v5.13.9 (UI-2): Filtro por tipo de pago
+  var tipoSel = (document.getElementById('filtro-realizados-tipo') || {}).value || '';
 
-  var lista = RN.state.history.slice().sort(function (a, b) { return (b.fecha || '').localeCompare(a.fecha || ''); });
-  if (mesSel) lista = lista.filter(function (h) { return (h.fecha || '').slice(0, 7) === mesSel; });
-  if (q) {
-    var ql = q.toLowerCase();
-    lista = lista.filter(function (h) {
-      var cli = RN.state.clients.find(function (c) { return c.id === h.clienteId; });
-      var nombre = cli ? cli.nombre : '';
-      return nombre.toLowerCase().indexOf(ql) >= 0 || (h.recibo || '').toLowerCase().indexOf(ql) >= 0;
-    });
-  }
+  // v5.13.9 (CODE-1/BUG-6): Filtrado centralizado con historial.filtrar()
+  var lista = RN.historial.filtrar({ mes: mesSel, tipoPago: tipoSel, q: q });
+
+  // v5.13.9 (LOG-1): KPIs sobre la lista filtrada, no sobre todo el historial
+  RN.render._kpisRealizados(lista);
 
   if (!lista.length) {
-    listEl.innerHTML = '<div class="acc-empty"><div class="icon">\u{1F4B0}</div>No hay cobros registrados.</div>';
+    listEl.innerHTML = '<div class="acc-empty"><div class="icon">💰</div>No hay cobros que coincidan con el filtro.</div>';
     return;
   }
 
-  // v5.12.3: Agrupar por mes (YYYY-MM) en cintillas colapsables.
-  // Cada cintilla es un mes con su total; dentro van los cobros de ese mes.
+  // v5.13.9 (BUG-3): Agrupar por mes de servicio (h.mes), fallback a fecha
   var grupos = {};
   var ordenMeses = [];
   lista.forEach(function (h) {
-    var mesKey = (h.fecha || '').slice(0, 7) || 'sin-fecha';
+    var mesKey = h.mes || (h.fecha || '').slice(0, 7) || 'sin-fecha';
     if (!grupos[mesKey]) { grupos[mesKey] = []; ordenMeses.push(mesKey); }
     grupos[mesKey].push(h);
   });
   // ordenMeses ya viene ordenado descendente porque lista esta ordenada por fecha desc
-  // y solo anadimos la clave la primera vez que aparece.
   ordenMeses.sort().reverse();
 
-  // Helper para renderizar un cobro individual (acc-card dentro de la cintilla)
-  function renderCobro(h) {
-    var cli = RN.state.clients.find(function (c) { return c.id === h.clienteId; });
-    var nombre = cli ? RN.render.esc(cli.nombre) : '<span class="muted">Cliente eliminado</span>';
-    var total = h.totalCUP || ((h.monto || 0) + (h.montoEquipo || 0));
-    var concepto = h.tipo === 'equipo' ? 'Pago de equipo' : 'Servicio mensual';
-    if (h.montoEquipo > 0 && h.tipo === 'servicio') concepto += ' + equipo';
-
-    var tipoBadge;
-    if (h.tipoPago === 'completo') tipoBadge = '<span class="badge paid">Completo</span>';
-    else if (h.tipoPago === 'parcial') tipoBadge = '<span class="badge parcial">Parcial</span>';
-    else if (h.tipoPago === 'excedente') tipoBadge = '<span class="badge paid">Con vuelto</span>';
-    else tipoBadge = '<span class="badge paid">Completo</span>';
-
-    var monedaTxt = h.moneda || 'CUP';
-    var reciboTxt = h.recibo ? '<span class="pill">#' + RN.render.esc(h.recibo) + '</span>' : '<span class="muted">—</span>';
-
-    return '<div class="acc-card" id="acc-real-' + h.id + '">' +
-      '<div class="acc-summary" onclick="RN.render.toggleCard(\'acc-real-' + h.id + '\')">' +
-        '<span class="acc-dot paid"></span>' +
-        '<div class="acc-summary-main">' +
-          '<div class="acc-summary-name">' + nombre + '</div>' +
-          '<div class="acc-summary-sub">' + RN.render.esc((h.fecha || '').slice(0, 16)) + ' · ' + concepto + '</div>' +
-        '</div>' +
-        '<div class="acc-summary-total">' +
-          '<div class="amt">' + RN.calc.formatCUP(total) + '</div>' +
-          '<div class="lbl">' + monedaTxt + '</div>' +
-        '</div>' +
-        '<span class="acc-chevron">▼</span>' +
-      '</div>' +
-      '<div class="acc-details">' +
-        '<div class="acc-row"><span class="acc-label">Fecha</span><span class="acc-value">' + RN.render.esc((h.fecha || '').slice(0, 16)) + '</span></div>' +
-        '<div class="acc-row"><span class="acc-label">Cliente</span><span class="acc-value">' + nombre + '</span></div>' +
-        '<div class="acc-row"><span class="acc-label">Concepto</span><span class="acc-value">' + concepto + '</span></div>' +
-        '<div class="acc-row"><span class="acc-label">Monto</span><span class="acc-value">' + RN.calc.formatCUP(total) + (h.excedente ? ' <span class="muted" style="font-size:11px">(vuelto ' + RN.calc.formatCUP(h.excedente) + ')</span>' : '') + '</span></div>' +
-        '<div class="acc-row"><span class="acc-label">Moneda</span><span class="acc-value">' + monedaTxt + '</span></div>' +
-        '<div class="acc-row"><span class="acc-label">Tipo</span><span class="acc-value">' + tipoBadge + '</span></div>' +
-        '<div class="acc-row"><span class="acc-label">Recibo</span><span class="acc-value">' + reciboTxt + '</span></div>' +
-      '</div>' +
-    '</div>';
-  }
-
-  // Construir las cintillas (una por mes)
-  var htmlCintillas = ordenMeses.map(function (mesKey) {
-    var cobrosMes = grupos[mesKey];
-    var totalMes = cobrosMes.reduce(function (s, h) { return s + (h.totalCUP || ((h.monto || 0) + (h.montoEquipo || 0))); }, 0);
-    var nombreMes = mesKey === 'sin-fecha' ? 'Sin fecha' : RN.calc.mesTexto(mesKey);
-    var cintillaId = 'cintilla-mes-' + mesKey;
-    // La cintilla del mes mas reciente empieza abierta
-    var abierta = (mesKey === ordenMeses[0]) ? ' cintilla-mes-open' : '';
-    var chevron = abierta ? ' ▲' : ' ▼';
-
-    var cobrosHtml = cobrosMes.map(renderCobro).join('');
-
-    return '<div class="cintilla-mes' + abierta + '" id="' + cintillaId + '">' +
-      '<div class="cintilla-mes-head" onclick="RN.render.toggleCintillaMes(\'' + cintillaId + '\')">' +
-        '<span class="cintilla-mes-icon">\u{1F4C5}</span>' +
-        '<div class="cintilla-mes-titulo">' +
-          '<div class="cintilla-mes-nombre">' + RN.render.esc(nombreMes) + '</div>' +
-          '<div class="cintilla-mes-sub">' + cobrosMes.length + ' cobro' + (cobrosMes.length !== 1 ? 's' : '') + ' · ' + RN.calc.formatCUP(totalMes) + '</div>' +
-        '</div>' +
-        '<span class="cintilla-mes-chevron">' + chevron + '</span>' +
-      '</div>' +
-      '<div class="cintilla-mes-body">' + cobrosHtml + '</div>' +
-    '</div>';
+  // v5.13.9 (CODE-7): Construir cintillas usando _cintillaMes()
+  var htmlCintillas = ordenMeses.map(function (mesKey, idx) {
+    return RN.render._cintillaMes(mesKey, grupos[mesKey], idx === 0);
   }).join('');
 
   listEl.innerHTML = htmlCintillas;
@@ -705,7 +854,7 @@ RN.render.inversion = function () {
     return RN.investment.origenCapital(inv) !== 'prestado_externo';
   });
   if (!_inversionesPropias.length) {
-    cont.innerHTML = '<div class="acc-empty"><div class="icon">������</div>No hay inversiones con capital propio registradas.</div>';
+    cont.innerHTML = '<div class="acc-empty"><div class="icon">📈</div>No hay inversiones con capital propio registradas.</div>';
   } else {
   cont.innerHTML = _inversionesPropias.map(inv => {
     const recuperado = RN.investment.recuperadoRealInv(inv);
@@ -742,7 +891,7 @@ RN.render.inversion = function () {
       return '<div class="acc-row"><span class="acc-label">' + nom + '<br><span class="muted" style="font-size:11px">Bruto: ' + RN.calc.formatCUP(a.aporte) + ' · Margen neto: ' + signoMargen + RN.calc.formatCUP(a.margenNeto) + cierreSigno + '</span></span><span class="acc-value"><strong>' + RN.calc.formatCUP(a.recuperacion) + '</strong> <span class="muted" style="font-size:11px">(' + pctCli + '%)</span></span></div>';
     }).join('') : '<div class="acc-row"><span class="acc-value muted">Sin clientes vinculados</span></div>';
     return '<div class="acc-card" id="acc-inv-' + inv.id + '">' +
-      '<div class="acc-summary" onclick="RN.render.toggleCard(\'acc-inv-' + inv.id + '\')">' +
+      '<div class="acc-summary" onclick="RN.render.toggleCard(\'acc-inv-' + RN.render.escAttr(inv.id) + '\')">' +
         '<span class="acc-dot ' + dotCls + '"></span>' +
         '<div class="acc-summary-main">' +
           '<div class="acc-summary-name">' + RN.render.esc(inv.concepto) + '</div>' +
@@ -781,11 +930,11 @@ RN.render.inversion = function () {
         aportesHtml +
         '<div class="acc-actions">' +
           (esPrestamo
-            ? '<button class="btn sm primary" onclick="RN.inversion.devolucionPrestamo(\'' + inv.id + '\')">💨 Devolver préstamo</button>' +
-              '<button class="btn sm" onclick="RN.inversion.historialDevoluciones(\'' + inv.id + '\')">📋 Devoluciones</button>'
+            ? '<button class="btn sm primary" onclick="RN.inversion.devolucionPrestamo(\'' + RN.render.escAttr(inv.id) + '\')">💨 Devolver préstamo</button>' +
+              '<button class="btn sm" onclick="RN.inversion.historialDevoluciones(\'' + RN.render.escAttr(inv.id) + '\')">📋 Devoluciones</button>'
             : '') +
-          '<button class="btn sm" onclick="RN.inversion.abrirEditar(\'' + inv.id + '\')">Editar</button>' +
-          '<button class="btn sm danger" onclick="RN.inversion.eliminar(\'' + inv.id + '\')">🗑</button>' +
+          '<button class="btn sm" onclick="RN.inversion.abrirEditar(\'' + RN.render.escAttr(inv.id) + '\')">Editar</button>' +
+          '<button class="btn sm danger" onclick="RN.inversion.eliminar(\'' + RN.render.escAttr(inv.id) + '\')">🗑</button>' +
         '</div>' +
       '</div>' +
     '</div>';
@@ -870,7 +1019,7 @@ RN.render.inventario = function () {
         + '<div class="divider" style="margin:6px 0"></div>'
         + asigsHtml
         + '<div class="acc-actions" style="margin-top:8px">'
-        +   '<button class="btn sm" onclick="RN.inventario.eliminarLote(\'' + l.id + '\')">🗑 Eliminar lote</button>'
+        +   '<button class="btn sm" onclick="RN.inventario.eliminarLote(\'' + RN.render.escAttr(l.id) + '\')">🗑 Eliminar lote</button>'
         + '</div>'
         + '</div>';
     }).join('');
@@ -972,8 +1121,8 @@ RN.render.reportes = function () {
     } else {
       const hist = [...RN.state.history].sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '')).slice(0, 50);
       tbody.innerHTML = hist.map(h => {
-        const cli = RN.state.clients.find(c => c.id === h.clienteId);
-        const total = h.totalCUP || ((h.monto || 0) + (h.montoEquipo || 0));
+        const cli = RN.calc.clientePorId(h.clienteId);
+        const total = RN.calc.totalCobro(h);
         var monedaBadge = '';
         if (h.moneda === 'MIXTO' && h.montoPagadoUSD > 0 && h.montoPagadoCUP > 0) {
           monedaBadge = ` <span class="pill" style="background:#e8f5e9;color:#2e7d32">USD ${h.montoPagadoUSD} + CUP ${h.montoPagadoCUP}</span>`;
@@ -982,17 +1131,14 @@ RN.render.reportes = function () {
         } else if (h.montoPagadoUSD > 0 && h.montoPagadoCUP > 0) {
           monedaBadge = ` <span class="pill" style="background:#e8f5e9;color:#2e7d32">USD ${h.montoPagadoUSD} + CUP ${h.montoPagadoCUP}</span>`;
         }
-        const tipoBadge = h.tipoPago === 'parcial'
-          ? ` <span class="pill" style="background:#fff3cd;color:#856404">Parcial · Falta ${RN.calc.formatCUP(h.falta || 0)}</span>`
-          : h.tipoPago === 'excedente'
-          ? ` <span class="pill" style="background:#fee;color:#c62828">Vuelto ${RN.calc.formatCUP(h.excedente || 0)}</span>`
-          : '';
+        // v5.13.9 (DUP-2): Usar badge unificado
+        const tipoBadge = RN.render.badgeTipoPago(h);
         return `<tr>
           <td data-label="Fecha">${RN.render.esc((h.fecha || '').slice(0, 10))}</td>
           <td data-label="Cliente">${RN.render.esc(cli ? cli.nombre : (h.ventaInventario ? 'Venta inventario' : '—'))}</td>
-          <td data-label="Concepto">${h.tipo === 'servicio' ? 'Servicio ' + (h.mes || '') : (h.tipo === 'equipo' ? 'Cuota equipo' : RN.render.esc(h.concepto || h.tipo))}</td>
+          <td data-label="Concepto">${h.tipo === 'servicio' ? 'Servicio ' + (h.mes ? RN.calc.mesTexto(h.mes) : '') : (h.tipo === 'equipo' ? 'Cuota equipo' : RN.render.esc(h.concepto || h.tipo))}</td>
           <td data-label="Monto">${RN.calc.formatCUP(total)}${monedaBadge}${tipoBadge}</td>
-          <td data-label="Recibo">${h.reciboNum ? `<button class="btn sm" onclick="RN.recibo.ver('${h.id}')">${h.reciboNum}</button>` : '—'}</td>
+          <td data-label="Recibo">${h.reciboNum ? `<button class="btn sm" onclick="RN.recibo.ver('${RN.render.escAttr(h.id)}')">${h.reciboNum}</button>` : '—'}</td>
         </tr>`;
       }).join('');
     }

@@ -1,5 +1,35 @@
 # Changelog — AdminRed (RedNet)
 
+## v5.13.6 — Correcciones del Panel (Dashboard)
+
+### Resumen
+Revisión exhaustiva de la sección **Panel del negocio** que corrigió **5 bugs**,
+**4 casos de código duplicado/performance** y **3 mejoras de UI**.
+
+### Bugs corregidos
+- **BUG-1:** Comentario `/**` duplicado en `calculations.js` eliminado.
+- **BUG-2:** `;;` doble tras `esc()` en `render.js` eliminado.
+- **BUG-3:** Emoji 📈 corrupto (CESU-8) en `barraRecuperacion()` corregido a UTF-8.
+- **BUG-5:** `tasaCob` ahora usa nueva función `ingresosServicioMes()` (solo servicio del mes, sin equipo ni mora) para no superar 100% de forma engañosa.
+- **BUG-6:** `getStatus()` ahora devuelve `'inactivo'` para clientes con `activo: false` (antes devolvía `'ok'`). Badge "Inactivo" añadido.
+
+### Código duplicado / performance
+- **DUP-1:** `clientesActivos()` cacheado en `dashboard()` (antes 3 llamadas).
+- **DUP-2:** `montoPaqueteProveedor()` reutilizado vía `costoPaquete` (antes 2 llamadas).
+- **DUP-3:** `totalInvertido/totalRecuperado/porcentajeRecuperacion` cacheados (antes 4×/3×/2×). `barraRecuperacion()` acepta parámetros opcionales.
+- **CODE-6:** Nueva función `RN.render.descPaquete()` extrae el string "M × CUP/M".
+
+### Mejoras UI
+- **UI-3:** Estado vacío con botón "Registrar inversión" en card de recuperación (antes se ocultaba).
+- **UI-5:** Badge del mes operativo visible en el header del panel ("Mes: agosto 2026" o "⚠ Mes operativo" si difiere del real).
+- **UI-6:** Equivalencia USD con badge visual distintivo (`.usd-badge` con fondo y borde).
+
+### Verificación
+- `node --check` en los 61 archivos JS: 0 errores.
+- Screenshot del dashboard confirma todos los cambios visuales.
+
+---
+
 ## v5.13.5 — Corrección exhaustiva de 26 issues de auditoría
 
 ### Resumen

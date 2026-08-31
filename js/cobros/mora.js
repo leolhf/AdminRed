@@ -2,7 +2,7 @@
  * cobros/mora.js — Gestión de meses de atraso (mora).
  * v5.10.5: RN.mora.abrir() muestra SOLO clientes con mora REAL (getMora > 0,
  * deben meses anteriores sin pagar), agrupados por corte. No se abre si no hay
- * morosos. Mantiene RN.mora.listar() (legacy).
+ * morosos. v5.13.8: mora.listar() legacy eliminada (DUP-1/CODE-6).
  */
 RN.mora = RN.mora || {};
 
@@ -24,25 +24,34 @@ RN.mora.abrir = function () {
   var totalMorosos = RN.ciclos.totalMorosos();
   var totalDeuda = 0;
   grupos.forEach(function (g) {
-    g.clientes.forEach(function (c) { totalDeuda += RN.calc.getPrecioNeto(c, mes); });
+    g.clientes.forEach(function (c) {
+      // v5.13.8 (BUG-3/LOG-3/DUP-2): usar deudaTotalCliente que incluye mora + equipo
+      totalDeuda += RN.calc.deudaTotalCliente(c, mes);
+    });
   });
 
   var secciones = grupos.map(function (g) {
     var filas = g.clientes.map(function (c) {
-      var mora = RN.calc.getMora(c);
-      var neto = RN.calc.getPrecioNeto(c, mes);
-      var cuotaEq = RN.investment.getCuotaEquipoCliente(c);
-      var total = neto + cuotaEq;
+      // v5.13.8 (DUP-2/CODE-2): usar resumenCliente
+      var r = RN.calc.resumenCliente(c, mes);
+      var mora = r.mora;
+      var neto = r.neto;
+      var cuotaEq = r.cuotaEq;
+      // v5.13.8 (LOG-3): total incluye mora (deudaTotalCliente)
+      var total = r.totalDeuda;
       var tel = c.telefono ? RN.render.esc(c.telefono) : '<span class="muted">—</span>';
-      var totalTxt = RN.calc.formatCUP(total) + (cuotaEq > 0 ? ' <span class="pill">+equipo ' + RN.calc.formatCUP(cuotaEq) + '</span>' : '');
+      var moraDeuda = mora > 0 ? neto * mora : 0;
+      var totalTxt = RN.calc.formatCUP(total) + (moraDeuda > 0 ? ' <span class="pill" style="background:var(--danger);color:#fff">+' + mora + ' mes' + (mora !== 1 ? 'es' : '') + ' mora ' + RN.calc.formatCUP(moraDeuda) + '</span>' : '') + (cuotaEq > 0 ? ' <span class="pill">+equipo ' + RN.calc.formatCUP(cuotaEq) + '</span>' : '');
+      // v5.13.8 (BUG-6): escAttr en IDs de onclick
+      var cid = RN.render.escAttr(c.id);
       return '<tr>' +
         '<td><strong>' + RN.render.esc(c.nombre) + '</strong><br><span class="muted" style="font-size:12px">' + RN.render.esc(RN.render.nombrePlan(c)) + '</span></td>' +
         '<td>' + tel + '</td>' +
         '<td style="text-align:center"><span class="badge due">' + mora + ' mes' + (mora !== 1 ? '(es)' : '') + ' de atraso</span></td>' +
         '<td style="text-align:right">' + totalTxt + '</td>' +
         '<td style="text-align:center;white-space:nowrap">' +
-          '<button class="btn sm primary" onclick="RN.mora._cobrar(\'' + c.id + '\')">Cobrar</button> ' +
-          '<button class="btn sm" onclick="RN.mora._recordar(\'' + c.id + '\')">WhatsApp</button>' +
+          '<button class="btn sm primary" onclick="RN.mora._cobrar(\'' + cid + '\')">Cobrar</button> ' +
+          '<button class="btn sm" onclick="RN.mora._recordar(\'' + cid + '\')">WhatsApp</button>' +
         '</td>' +
       '</tr>';
     }).join('');
@@ -93,30 +102,4 @@ RN.mora._recordarMasivo = function () {
   }
   RN.uiComponents.cerrarModal();
   RN.whatsapp.enviarMasivo();
-};
-
-/** Lista clientes con mora y permite enviar recordatorios masivos. (legacy) */
-RN.mora.listar = function () {
-  // v5.13.1: Bug #4 — mes explícito para descuentos puntuales.
-  const mes = RN.calc.mesActualStr();
-  const morosos = RN.calc.clientesActivos()
-    .map(c => ({ c, mora: RN.calc.getMora(c), estado: RN.calc.getStatus(c) }))
-    .filter(x => x.mora > 0 || x.estado === 'due');
-
-  const rows = morosos.length ? morosos.map(x => `<tr>
-    <td><strong>${RN.render.esc(x.c.nombre)}</strong></td>
-    <td>${x.c.diaPago || 1}</td>
-    <td><span class="badge due">${x.mora} mes(es)</span></td>
-    <td>${RN.calc.formatCUP(RN.calc.getPrecioNeto(x.c, mes))}</td>
-    <td><button class="btn sm primary" onclick="RN.modalCobro.abrir('${x.c.id}')">Cobrar</button>
-        <button class="btn sm" onclick="RN.whatsapp.enviarRecordatorio('${x.c.id}')">WhatsApp</button></td>
-  </tr>`).join('') : '<tr><td colspan="5"><div class="empty">No hay clientes morosos</div></td></tr>';
-
-  const html = `
-    <div class="modal-header"><h3>Clientes con mora</h3><button class="close" onclick="RN.uiComponents.cerrarModal()">×</button></div>
-    <div class="modal-body">
-      <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Día pago</th><th>Mora</th><th>Neto</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>
-    </div>
-    <div class="modal-footer"><button class="btn ghost" onclick="RN.uiComponents.cerrarModal()">Cerrar</button></div>`;
-  RN.uiComponents.modal(html, { lg: true });
 };

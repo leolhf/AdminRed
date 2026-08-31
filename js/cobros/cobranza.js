@@ -29,8 +29,9 @@ RN.cobranza.abrir = function () {
   var totalACobrar = 0;
   grupos.forEach(function (g) {
     g.clientes.forEach(function (c) {
-      // v5.13.1: Bug #4 — pasar mes explícito para descuentos puntuales.
-      totalACobrar += RN.calc.getPrecioNeto(c, mes) + RN.investment.getCuotaEquipoCliente(c);
+      // v5.13.8 (LOG-2/DUP-2): usar resumenCliente que incluye mora
+      var r = RN.calc.resumenCliente(c, mes);
+      totalACobrar += r.totalMes + (r.mora > 0 ? r.neto * r.mora : 0);
     });
   });
 
@@ -40,21 +41,28 @@ RN.cobranza.abrir = function () {
   var secciones = grupos.map(function (g) {
     var filas = g.clientes.map(function (c) {
       var estado = RN.calc.getStatus(c);
-      var neto = RN.calc.getPrecioNeto(c, mes);
-      var cuotaEq = RN.investment.getCuotaEquipoCliente(c);
-      var total = neto + cuotaEq;
-      var tel = c.telefono ? RN.render.esc(c.telefono) : '<span class="muted">—</span>';
+      // v5.13.8 (DUP-2): usar resumenCliente
+      var r = RN.calc.resumenCliente(c, mes);
+      var neto = r.neto;
+      var cuotaEq = r.cuotaEq;
+      var mora = r.mora;
+      var total = r.totalMes + (mora > 0 ? neto * mora : 0);
+      var tel = c.telefono ? RN.render.esc(c.telefono) : '<span class="muted">\u2014</span>';
       var planTxt = RN.render.esc(RN.render.nombrePlan(c));
       var estadoBadge = RN.render.badgeEstado(estado);
-      var totalTxt = RN.calc.formatCUP(total) + (cuotaEq > 0 ? ' <span class="pill">+equipo ' + RN.calc.formatCUP(cuotaEq) + '</span>' : '');
+      // v5.13.8 (UI-4): mostrar badge de mora si aplica
+      var moraBadge = mora > 0 ? ' <span class="badge due">' + mora + ' mes' + (mora !== 1 ? 'es' : '') + ' mora</span>' : '';
+      var totalTxt = RN.calc.formatCUP(total) + (cuotaEq > 0 ? ' <span class="pill">+equipo ' + RN.calc.formatCUP(cuotaEq) + '</span>' : '') + moraBadge;
+      // v5.13.8 (BUG-6): escAttr en IDs de onclick
+      var cid = RN.render.escAttr(c.id);
       return '<tr>' +
         '<td><strong>' + RN.render.esc(c.nombre) + '</strong><br><span class="muted" style="font-size:12px">' + planTxt + '</span></td>' +
         '<td style="text-align:center">' + estadoBadge + '</td>' +
         '<td>' + tel + '</td>' +
         '<td style="text-align:right">' + totalTxt + '</td>' +
         '<td style="text-align:center;white-space:nowrap">' +
-          '<button class="btn sm primary" onclick="RN.cobranza._cobrar(\'' + c.id + '\')">Cobrar</button> ' +
-          '<button class="btn sm" onclick="RN.cobranza._recordar(\'' + c.id + '\')">WhatsApp</button>' +
+          '<button class="btn sm primary" onclick="RN.cobranza._cobrar(\'' + cid + '\')">Cobrar</button> ' +
+          '<button class="btn sm" onclick="RN.cobranza._recordar(\'' + cid + '\')">WhatsApp</button>' +
         '</td>' +
       '</tr>';
     }).join('');

@@ -45,6 +45,11 @@ RN.caja.extraer = function () {
         <div class="label">Fondo de caja disponible</div>
         <div class="value">${fondoFormateado}</div>
         <div class="sub">${puedeRetirar ? 'Saldo disponible para retirar' : 'No hay saldo disponible'}</div>
+        <div class="sub" style="font-size:11px;margin-top:4px;color:#666">
+          Saldo inicial: ${RN.calc.formatCUP(RN.state.config.fondoInicial || 0)} ·
+          Ingresos: ${RN.calc.formatCUP(RN.calc.ingresosTotales())} ·
+          Gastos: ${RN.calc.formatCUP(RN.calc.gastosTotales())}
+        </div>
       </div>
       <div class="form-row">
         <div>
@@ -134,8 +139,9 @@ RN.caja.guardar = function () {
 
   RN.storageLocal.guardar();
   RN.uiComponents.cerrarModal();
-  RN.render.dashboard();
-  RN.render.gastos();
+  // v5.13.8 (LOG-6/CODE-7): Usar render.todo() para refrescar todas las vistas
+  // que dependen del fondo de caja (dashboard, gastos, inversion, etc.)
+  RN.render.todo();
   RN.notifyUI.toast('Retiro de caja registrado: ' + RN.calc.formatCUP(monto), 'success');
 };
 
@@ -157,7 +163,7 @@ RN.caja.listar = function () {
           '<td>' + fecha + '</td>' +
           '<td>' + RN.render.esc(r.concepto) + '</td>' +
           '<td style="text-align:right;font-weight:bold;color:var(--red,#dc2626)">-' + RN.calc.formatCUP(r.monto) + '</td>' +
-          '<td style="text-align:center"><button class="btn sm ghost danger" onclick="RN.caja.eliminar(\'' + r.id + '\')">✕</button></td>' +
+          '<td style="text-align:center"><button class="btn sm ghost danger" onclick="RN.caja.eliminar(\'' + RN.render.escAttr(r.id) + '\')">✕</button></td>' +
         '</tr>';
       }).join('');
 
@@ -199,8 +205,8 @@ RN.caja.eliminar = function (id) {
     RN.state.gastos = RN.state.gastos.filter(function (g) { return g.id !== id; });
     RN.storageLocal.guardar();
     RN.caja.listar();
-    RN.render.dashboard();
-    RN.render.gastos();
+    // v5.13.8 (LOG-6/CODE-7): Usar render.todo() para refrescar todas las vistas
+    RN.render.todo();
     RN.notifyUI.toast('Retiro eliminado. Fondo de caja actualizado.', 'success');
   }, { danger: true });
 };
