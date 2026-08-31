@@ -418,6 +418,12 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .cal-day.due .dot { background: var(--danger); }
 .cal-day.paid .dot { background: var(--primary); }
 .cal-day.parcial .dot { background: var(--warn); }
+/* v5.13.10 (BUG-4): estado 'por-iniciar' con color propio (gris), distinto de 'ok'. */
+.cal-day.por-iniciar .dot { background: var(--text-muted); }
+.cal-day.por-iniciar { border-style: dotted; opacity: .82; }
+/* v5.13.10 (UI-4): contenedor de puntos (uno por estado presente). */
+.cal-dots { display: flex; gap: 3px; flex-wrap: wrap; align-items: center; }
+.cal-dots .dot { display: inline-block; }
 
 /* v5.12.9 — Días de corte (5, 15, 25) destacados */
 .cal-day.corte {
@@ -463,6 +469,18 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
   border-color: var(--primary);
 }
 .cal-count { font-size: 10px; color: var(--text-muted); }
+
+/* v5.13.10 (UI-6): clases semánticas para el modal del día (sustituyen estilos inline). */
+.cal-col-right { text-align: right; white-space: nowrap; }
+.cal-col-center { text-align: center; white-space: nowrap; }
+.cal-modal-plan { font-size: 12px; }
+.cal-modal-ip { font-size: 11px; }
+.cal-modal-note { font-size: 12px; }
+.cal-modal-desglose { font-size: 12px; margin-bottom: 12px; }
+.cal-modal-actions { margin-top: 14px; text-align: right; }
+.cal-deuda-total { font-size: 11px; }
+/* v5.13.10 (UI-7): aviso de mes sin cobros programados. */
+#cal-empty-aviso { display: none; margin-top: 12px; text-align: center; color: var(--text-muted); font-size: 13px; }
 
 @media (min-width: 600px) {
   .cal-day { font-size: 12px; padding: 6px; min-height: 48px; }

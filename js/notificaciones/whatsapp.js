@@ -80,3 +80,33 @@ RN.whatsapp.enviarMasivo = function () {
     }
   );
 };
+
+/**
+ * v5.13.10 (BUG-1): Envía recordatorios masivos a una lista EXPLÍCITA de IDs.
+ * Antes _recordarTodosDia del calendario llamaba a enviarMasivo() (global),
+ * que enviaba a TODOS los pendientes de la red en vez del día abierto.
+ * Esta versión recibe la lista ya filtrada por el llamador.
+ */
+RN.whatsapp.enviarMasivoLista = function (clienteIds) {
+  var ids = Array.isArray(clienteIds) ? clienteIds : [];
+  var clientes = ids
+    .map(function (id) { return RN.state.clients.find(function (c) { return c.id === id; }); })
+    .filter(function (c) { return c && c.telefono; });
+  if (!clientes.length) {
+    RN.notifyUI.toast('Ningún cliente de la lista tiene teléfono', 'warn');
+    return;
+  }
+  var self = this;
+  RN.uiComponents.confirm(
+    'Recordatorio masivo',
+    'Se abrirán ' + clientes.length + ' pestaña' + (clientes.length !== 1 ? 's' : '') +
+      ' de WhatsApp. ¿Continuar?',
+    function () {
+      clientes.forEach(function (c, i) {
+        setTimeout(function () { RN.whatsapp.enviarRecordatorio(c.id); }, i * 800);
+      });
+      RN.notifyUI.toast('Enviando ' + clientes.length + ' recordatorio' +
+        (clientes.length !== 1 ? 's' : '') + '...', 'info');
+    }
+  );
+};

@@ -35,6 +35,20 @@ RN.ciclos.gracia = function () {
   return (typeof g === 'number' && g >= 0) ? g : 5;
 };
 
+/**
+ * v5.13.10 (DUP-1): Cortes de pago oficiales del negocio, centralizados.
+ * Antes el array [5, 15, 25] estaba hardcodeado en calendario.js,
+ * modal-cliente.js (x2) y styles/leyenda. Ahora una sola fuente de verdad.
+ * Orden: 1) config.cortesPago si está definido y no vacío; 2) default [5,15,25].
+ * Devuelve una copia ordenada asc para no mutar la config.
+ */
+RN.ciclos.cortesOficiales = function () {
+  var cfg = RN.state && RN.state.config && RN.state.config.cortesPago;
+  var arr = (Array.isArray(cfg) && cfg.length) ? cfg.slice() : [5, 15, 25];
+  arr.sort(function (a, b) { return a - b; });
+  return arr;
+};
+
 /** Día de inicio del ciclo de un corte (mínimo 1, no retrocede al mes anterior). */
 RN.ciclos.inicioCiclo = function (diaPago) {
   var d = diaPago || 1;

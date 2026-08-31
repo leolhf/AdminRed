@@ -216,17 +216,21 @@
         <button class="btn" onclick="RN.calendario.mesAnterior()">‹</button>
         <span id="cal-mes-label" style="min-width:160px;text-align:center;font-weight:700"></span>
         <button class="btn" onclick="RN.calendario.mesSiguiente()">›</button>
+        <button class="btn sm" onclick="RN.calendario.irHoy()" title="Volver al mes en curso">Hoy</button>
       </div>
       <div class="card">
         <div class="cal-grid" id="cal-grid"></div>
+        <p id="cal-empty-aviso">Sin cobros programados para este mes.</p>
         <div class="flex mt-16" style="gap:16px;flex-wrap:wrap;font-size:12px;align-items:center">
           <span class="flex" style="gap:6px"><span class="badge ok">●</span> Al día</span>
           <span class="flex" style="gap:6px"><span class="badge warn">●</span> Por vencer</span>
           <span class="flex" style="gap:6px"><span class="badge due">●</span> Atrasado</span>
+          <span class="flex" style="gap:6px"><span class="badge parcial">●</span> Pago parcial</span>
           <span class="flex" style="gap:6px"><span class="badge paid">●</span> Pagado</span>
+          <span class="flex" style="gap:6px"><span class="badge por-iniciar">⏭</span> Por iniciar</span>
           <span class="flex" style="gap:6px"><span class="cal-corte-tag">✂ Corte</span> Día de corte</span>
         </div>
-        <p class="muted mt-8" style="font-size:12px">Toca un día con clientes para ver el detalle, el total a cobrar y cobrar o enviar recordatorios.</p>
+        <p class="muted mt-8" style="font-size:12px">Toca un día con clientes (o usa Enter/Espacio con el teclado) para ver el detalle, el total a cobrar y cobrar o enviar recordatorios.</p>
       </div>
     </section>
 

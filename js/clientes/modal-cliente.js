@@ -186,8 +186,9 @@ RN.modalCliente.abrir = function (id) {
       <div class="form-row cols-2">
         <div><label>D\u00eda de pago (corte) *</label><select id="cl-dia">${
           (function () {
-            var cortes = [5, 15, 25];
-            var actual = c ? (c.diaPago || 5) : 5;
+            // v5.13.10 (DUP-1): cortes desde la fuente única de verdad.
+            var cortes = RN.ciclos.cortesOficiales();
+            var actual = c ? (c.diaPago || cortes[0]) : cortes[0];
             if (cortes.indexOf(actual) === -1) {
               // Redondear al corte más cercano; en empate, al corte mayor
               actual = cortes.reduce(function (best, cut) {
@@ -261,8 +262,9 @@ RN.modalCliente.guardar = function () {
   const planId = document.getElementById('cl-plan').value || null;
   const precio = parseFloat(document.getElementById('cl-precio').value) || 0;
   const diaRaw = parseInt(document.getElementById('cl-dia').value, 10) || 5;
-  const CORTES_PAGO = [5, 15, 25];
-  const dia = (CORTES_PAGO.indexOf(diaRaw) !== -1) ? diaRaw : 5;
+  // v5.13.10 (DUP-1): validar contra la fuente única de verdad.
+  const CORTES_PAGO = RN.ciclos.cortesOficiales();
+  const dia = (CORTES_PAGO.indexOf(diaRaw) !== -1) ? diaRaw : CORTES_PAGO[0];
 
   // Datos personalizados (solo relevantes si no hay plan)
   const megas = parseFloat((document.getElementById('cl-megas') || {}).value) || 0;
