@@ -1,5 +1,22 @@
 # Changelog — AdminRed (RedNet)
 
+## v5.13.15 — Arreglos en Realizados (cintilla expandible + separación KPIs)
+
+### Resumen
+Dos arreglos en la sección **Cobros realizados**:
+- **BUG-1 (crítico):** Las agrupaciones por mes (cintillas) no se expandían ni
+  contraían al tocarlas. La causa era un patrón de escaping de `onclick`
+  (`String.fromCharCode(0x5c)`) que generaba JavaScript inválido
+  (`SyntaxError: Invalid or unexpected token`), por lo que el handler nunca
+  disparaba. El mismo bug afectaba a 4 handlers de la vista (toggleCintillaMes,
+  toggleCard de cobro, ver recibo y abrir historial del cliente). Corregido con
+  el patrón inline `'\\''` consistente con el resto de la app.
+- **UI-1:** La barra de búsqueda estaba pegada a la cuadrícula de KPIs de arriba.
+  Se añadió `margin-bottom: 14px` a `.kpi-grid` para separar visualmente el
+  widget del contenido inferior en todas las vistas.
+
+Detalle completo en `CHANGELOG_v5.13.15.md`.
+
 ## v5.13.6 — Correcciones del Panel (Dashboard)
 
 ### Resumen

@@ -586,9 +586,10 @@ RN.render._fmtFechaCobro = function (fecha, conHora) {
 RN.render._cardCobroRealizado = function (h) {
   var cli = RN.calc.clientePorId(h.clienteId);
   // v5.13.9 (UI-4): Nombre clickeable para ver historial del cliente
-  var sq = String.fromCharCode(0x27);
+  // v5.13.15 (BUG-1): Escaping de onclick corregido (antes usaba String.fromCharCode(0x5c)
+  // que generaba JS invalido y el handler nunca disparaba).
   var nombre = cli
-    ? '<a href="#" onclick="RN.clientHistory.abrir(' + String.fromCharCode(0x5c) + sq + RN.render.escAttr(cli.id) + sq + String.fromCharCode(0x5c) + sq + ');return false" style="color:inherit;text-decoration:none">' + RN.render.esc(cli.nombre) + '</a>'
+    ? '<a href="#" onclick="RN.clientHistory.abrir(\'' + RN.render.escAttr(cli.id) + '\');return false" style="color:inherit;text-decoration:none">' + RN.render.esc(cli.nombre) + '</a>'
     : '<span class="muted">Cliente eliminado</span>';
   var total = RN.calc.totalCobro(h);
 
@@ -624,8 +625,9 @@ RN.render._cardCobroRealizado = function (h) {
   }
 
   // v5.13.9 (UI-9): Pill de recibo clickeable
+  // v5.13.15 (BUG-1): Escaping de onclick corregido (ver nota arriba).
   var reciboHtml = h.reciboNum
-    ? '<button class="btn sm" style="padding:2px 8px" onclick="RN.recibo.ver(' + String.fromCharCode(0x5c) + sq + RN.render.escAttr(h.id) + sq + String.fromCharCode(0x5c) + sq + ')">#' + RN.render.esc(h.reciboNum) + '</button>'
+    ? '<button class="btn sm" style="padding:2px 8px" onclick="RN.recibo.ver(\'' + RN.render.escAttr(h.id) + '\')">#' + RN.render.esc(h.reciboNum) + '</button>'
     : '<span class="muted">—</span>';
 
   // v5.13.9 (BUG-4): Fecha localizada
@@ -650,7 +652,7 @@ RN.render._cardCobroRealizado = function (h) {
   }
 
   return '<div class="acc-card" data-estado="' + estadoCard + '" id="acc-real-' + RN.render.escAttr(h.id) + '">' +
-    '<div class="acc-summary" onclick="RN.render.toggleCard(' + String.fromCharCode(0x5c) + sq + 'acc-real-' + RN.render.escAttr(h.id) + sq + String.fromCharCode(0x5c) + sq + ')">' +
+    '<div class="acc-summary" onclick="RN.render.toggleCard(\'acc-real-' + RN.render.escAttr(h.id) + '\')">' +
       '<span class="acc-dot ' + estadoCard + '"></span>' +
       '<div class="acc-summary-main">' +
         '<div class="acc-summary-name">' + nombre + adelantadoBadge + '</div>' +
@@ -682,12 +684,10 @@ RN.render._cintillaMes = function (mesKey, cobros, esPrimera) {
   var cintillaId = 'cintilla-mes-' + mesKey;
   var abierta = esPrimera ? ' cintilla-mes-open' : '';
   var chevron = esPrimera ? ' ▲' : ' ▼';
-  var sq = String.fromCharCode(0x27);
-
   var cobrosHtml = cobros.map(RN.render._cardCobroRealizado).join('');
 
   return '<div class="cintilla-mes' + abierta + '" id="' + cintillaId + '">' +
-    '<div class="cintilla-mes-head" onclick="RN.render.toggleCintillaMes(' + String.fromCharCode(0x5c) + sq + cintillaId + sq + String.fromCharCode(0x5c) + sq + ')">' +
+    '<div class="cintilla-mes-head" onclick="RN.render.toggleCintillaMes(\'' + cintillaId + '\')">' +
       '<span class="cintilla-mes-icon">📅</span>' +
       '<div class="cintilla-mes-titulo">' +
         '<div class="cintilla-mes-nombre">' + RN.render.esc(nombreMes) + '</div>' +
