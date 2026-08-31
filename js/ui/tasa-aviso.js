@@ -12,7 +12,7 @@
  * El botón flotante abre un modal con 3 opciones:
  *   1. Posponer 24 h  — guarda fechaPosponerTasa; el aviso reaparece pasadas 24 h
  *   2. Ingresar tasa  — prompt numérico; al guardar registra fechaTasaUsd y persiste
- *   3. Visitar elToque — abre https://eltoque.com/ (con aviso si no hay conexión)
+ *   3. Visitar elToque — abre https://eltoque.com/tasas-de-cambio-cuba (con aviso si no hay conexión)
  *
  * Además, RN.tasaAviso.estadoTasa() devuelve 'ok'|'aviso'|'urgente'|'sintasa'
  * y RN.tasaAviso.indicadorHTML() devuelve el punto de color para mostrar en Ajustes.
@@ -204,7 +204,7 @@ RN.tasaAviso.ingresarTasa = function () {
  */
 RN.tasaAviso.visitarElToque = function () {
   if (navigator.onLine) {
-    window.open('https://eltoque.com/', '_blank', 'noopener');
+    window.open('https://eltoque.com/tasas-de-cambio-cuba', '_blank', 'noopener');
     RN.notifyUI.toast('Abriendo elToque.com — vuelve e ingresa la tasa', 'info', 5000);
   } else {
     RN.notifyUI.toast('Sin conexión a internet. Conéctate y vuelve a intentarlo', 'warn', 5000);

@@ -208,6 +208,17 @@ contenía `"`.
 simples (contexto JS) como dobles (contexto HTML). Se reemplazaron los 2 patrones
 de escapado manual con `RN.render.escAttr(p.nombre)`.
 
+### ISSUE EXTRA — URL de elToque devuelve 404
+**Archivo:** `js/ui/tasa-aviso.js`
+
+**Problema:** El botón “Visitar elToque” abría `https://eltoque.com/` (la raíz
+del sitio), que devuelve error 404 “No encontrado” en el servidor nginx. El
+usuario veía una página de error en lugar de la página de tasas de cambio.
+
+**Corrección:** Se actualizó la URL a `https://eltoque.com/tasas-de-cambio-cuba`,
+la página específica donde se muestran las tasas de cambio del mercado informal
+cubano (USD, EUR, MLC, etc.).
+
 ---
 
 ## 🟢 Problemas de Severidad Baja
