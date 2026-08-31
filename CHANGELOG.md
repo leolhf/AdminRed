@@ -155,5 +155,5 @@ Versión de corrección de errores detectados en la auditoría de v5.13.0. Se co
 - `sw.js` ahora usa `importScripts('js/version.js')` para que el cache key use la versión real
 - `version.js` y `sw.js` son network-first; el resto es cache-first
 
-## v5.13.12 — Botón de versión para forzar actualización (31 ago 2025)
-El badge de versión del header ahora es clickeable: busca y aplica actualizaciones de la app (Service Worker) de forma manual. Indicador visual animado cuando hay una actualización pendiente. Ver `CHANGELOG_v5.13.12.md`.
+## v5.13.12 — Botón de versión para forzar actualización + FIX botones (31 ago 2025)
+El badge de versión del header ahora es clickeable: busca y aplica actualizaciones de la app (Service Worker) de forma manual. Indicador visual animado cuando hay una actualización pendiente. **FIX crítico:** `ReferenceError: abiertas is not defined` en `RN.render.clientes` (v5.13.7, latente) abortaba `arrancar()` antes de conectar los botones del header, dejándolos todos sin funcionar. Ver `CHANGELOG_v5.13.12.md`.

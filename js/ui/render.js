@@ -414,6 +414,14 @@ RN.render.dashboard = function () {
 RN.render.clientes = function () {
   const cont = document.getElementById('lista-clientes');
   if (!cont) return;
+  // v5.13.7 (CODE-4) / FIX v5.13.12: capturar qué tarjetas estaban abiertas
+  // ANTES de sobreescribir el innerHTML, para poder reabrirlas tras el
+  // re-render. Sin esto, la línea `abiertas.forEach(...)` del final lanzaba
+  // un ReferenceError ("abiertas is not defined") que abortaba arrancar()
+  // antes de conectar los botones del header (pasos 11 vs 13 de init.js),
+  // dejando todos los botones de la app sin funcionar.
+  const abiertas = Array.prototype.slice.call(cont.querySelectorAll('.acc-card.open'))
+    .map(function (el) { return el.id; });
   const q = (document.getElementById('search-clientes') || {}).value || '';
   const fe = (document.getElementById('filter-estado') || {}).value || '';
   let lista = RN.state.clients.filter(c => {

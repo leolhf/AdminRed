@@ -1,9 +1,35 @@
-# Changelog AdminRed v5.13.12 — Botón de versión para forzar actualización
+# Changelog AdminRed v5.13.12 — Botón de versión + FIX crítico de botones
 
 **Fecha:** 31 ago 2025  
 **Versión:** 5.13.11 → 5.13.12  
-**Sección:** Header / PWA  
-**Archivos modificados:** 4 (`index.html`, `styles.css`, `js/pwa.js`, `js/init.js`) + `js/version.js`
+**Sección:** Header / PWA / render  
+**Archivos modificados:** 5 (`index.html`, `styles.css`, `js/pwa.js`, `js/init.js`, `js/ui/render.js`) + `js/version.js`
+
+---
+
+## FIX CRÍTICO — Los botones de la app dejaron de funcionar
+
+### BUG: `ReferenceError: abiertas is not defined` abortaba `arrancar()` antes de conectar los botones
+**Archivo:** `js/ui/render.js` (`RN.render.clientes`, línea 488)  
+**Origen:** v5.13.7 (CODE-4) — bug latente desde hace varias versiones.  
+**Síntoma:** ningún botón del header (Guardar, Deshacer, Tema, Instalar, Menú) ni el FAB respondía al clic; la app cargaba el dashboard pero quedaba "muerta" interactivamente.
+
+**Causa raíz:** la función `RN.render.clientes` terminaba con un bloque para **restaurar las tarjetas abiertas** tras un re-render:
+```js
+abiertas.forEach(function (cardId) { ... });  // línea 488
+```
+Pero la variable `abiertas` **nunca se declaraba** dentro de la función. La intención del comentario "v5.13.7 (CODE-4): restaurar tarjetas que estaban abiertas antes del re-render" era capturarlas ANTES de sobreescribir `cont.innerHTML`, pero esa captura faltaba. Al no haber `const abiertas = [...]`, el nombre `abiertas` resolvía a una variable global inexistente → `ReferenceError`.
+
+**Por qué mataba todos los botones:** `RN.render.clientes` se ejecuta en el **paso 11** de `RN.init.arrancar()` (durante `RN.render.todo()`), mientras que los `addEventListener` de los botones del header se registran en el **paso 13**. El `ReferenceError` abortaba `arrancar()` en el paso 11, así que el paso 13 nunca corría y los botones quedaban sin listener.
+
+**Fix:** declarar `abiertas` al inicio de la función, capturando las tarjetas con clase `.open` antes de reescribir el HTML:
+```js
+const abiertas = Array.prototype.slice.call(cont.querySelectorAll('.acc-card.open'))
+  .map(function (el) { return el.id; });
+```
+Ahora el bloque final `abiertas.forEach(...)` reabre correctamente las tarjetas que el usuario había expandido, cumpliendo la intención original de CODE-4, y `arrancar()` completa hasta el paso 17 conectando todos los botones.
+
+**Verificación:** cargada la app en Chromium (modo claro y oscuro), el `ReferenceError` desaparece, el dashboard renderiza completo y los botones Menú (⋮), Tema (🌙) y el nuevo badge de versión responden al clic.
 
 ---
 
@@ -51,6 +77,7 @@ Se añade `addEventListener('click')` sobre `#btn-version` → `RN.pwa.forzarAct
 
 | Archivo | Cambios |
 |---|---|
+| `js/ui/render.js` | **FIX crítico:** declarar `abiertas` en `RN.render.clientes` (captura de `.acc-card.open` antes del re-render). Resuelve `ReferenceError` que mataba todos los botones. |
 | `index.html` | Span `.ver` con `id="btn-version"` y `title`. |
 | `styles.css` | `.ver` ahora clickeable (cursor, hover, active); clase nueva `.ver.ver-update` + `@keyframes ver-pulse`. |
 | `js/pwa.js` | Nuevo `forzarActualizacion()`, `_marcarPendiente()`; `_notificarActualizacion` ahora marca el badge. |
