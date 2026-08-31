@@ -208,16 +208,23 @@ contenía `"`.
 simples (contexto JS) como dobles (contexto HTML). Se reemplazaron los 2 patrones
 de escapado manual con `RN.render.escAttr(p.nombre)`.
 
-### ISSUE EXTRA — URL de elToque devuelve 404
+### ISSUE EXTRA — elToque.com bloqueado por Cloudflare (403/404)
 **Archivo:** `js/ui/tasa-aviso.js`
 
-**Problema:** El botón “Visitar elToque” abría `https://eltoque.com/` (la raíz
-del sitio), que devuelve error 404 “No encontrado” en el servidor nginx. El
-usuario veía una página de error en lugar de la página de tasas de cambio.
+**Problema:** El botón “Visitar elToque” abría `https://eltoque.com/` que
+devuelve error 404. Al cambiar la URL a `https://eltoque.com/tasas-de-cambio-cuba`
+se descubrió que **todas las páginas de eltoque.com están protegidas por
+Cloudflare con verificación anti-bot** que bloquea el acceso cuando se abre
+vía `window.open()` desde otro sitio (github.io), devolviendo status 403.
+En el celular del usuario, esto se manifestaba como error 404 o página de
+verificación interminable.
 
-**Corrección:** Se actualizó la URL a `https://eltoque.com/tasas-de-cambio-cuba`,
-la página específica donde se muestran las tasas de cambio del mercado informal
-cubano (USD, EUR, MLC, etc.).
+**Corrección:** Se cambió la URL a `https://tasa-cambio-cuba.vercel.app`,
+un proxy público que muestra las mismas tasas del TRMI (Tasa Representativa del
+Mercado Informal) de elToque, pero sin el bloqueo de Cloudflare. Verificado que
+responde correctamente (status 200) y muestra las tasas en tiempo real
+(USD, EUR, MLC). También se actualizó el texto del botón a
+“Ver tasa de cambio en elToque (TRMI)”.
 
 ---
 

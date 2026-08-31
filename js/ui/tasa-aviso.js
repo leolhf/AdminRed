@@ -12,7 +12,7 @@
  * El botón flotante abre un modal con 3 opciones:
  *   1. Posponer 24 h  — guarda fechaPosponerTasa; el aviso reaparece pasadas 24 h
  *   2. Ingresar tasa  — prompt numérico; al guardar registra fechaTasaUsd y persiste
- *   3. Visitar elToque — abre https://eltoque.com/tasas-de-cambio-cuba (con aviso si no hay conexión)
+ *   3. Visitar elToque — abre https://tasa-cambio-cuba.vercel.app (proxy sin Cloudflare, con aviso si no hay conexión)
  *
  * Además, RN.tasaAviso.estadoTasa() devuelve 'ok'|'aviso'|'urgente'|'sintasa'
  * y RN.tasaAviso.indicadorHTML() devuelve el punto de color para mostrar en Ajustes.
@@ -157,7 +157,7 @@ RN.tasaAviso.abrirModal = function () {
       '<button class="btn primary" onclick="RN.tasaAviso.ingresarTasa()">' +
         '✏️ Ingresar tasa nueva</button>' +
       '<button class="btn" onclick="RN.tasaAviso.visitarElToque()">' +
-        '🌐 Visitar elToque.com para ver la tasa</button>' +
+        '🌐 Ver tasa de cambio en elToque (TRMI)</button>' +
       '<button class="btn ghost" onclick="RN.tasaAviso.posponer24h()">' +
         '⏰ Recordar más tarde (en 24 h)</button>' +
     '</div>' +
@@ -201,11 +201,16 @@ RN.tasaAviso.ingresarTasa = function () {
 /**
  * Opción 2: Visitar elToque.com. Abre en pestaña nueva.
  * Si no hay conexión, avisa en lugar de fallar silenciosamente.
+ *
+ * NOTA: eltoque.com está protegido por Cloudflare con verificación anti-bot
+ * que bloquea el acceso cuando se abre vía window.open() desde otro sitio
+ * (status 403/404). Se usa un proxy alternativo (tasa-cambio-cuba.vercel.app)
+ * que muestra las mismas tasas del TRMI de elToque sin bloqueo.
  */
 RN.tasaAviso.visitarElToque = function () {
   if (navigator.onLine) {
-    window.open('https://eltoque.com/tasas-de-cambio-cuba', '_blank', 'noopener');
-    RN.notifyUI.toast('Abriendo elToque.com — vuelve e ingresa la tasa', 'info', 5000);
+    window.open('https://tasa-cambio-cuba.vercel.app', '_blank', 'noopener');
+    RN.notifyUI.toast('Abriendo tasas de cambio — vuelve e ingresa la tasa', 'info', 5000);
   } else {
     RN.notifyUI.toast('Sin conexión a internet. Conéctate y vuelve a intentarlo', 'warn', 5000);
   }
