@@ -117,7 +117,11 @@ RN.calendario.render = function () {
     if (estadoDom) cls.push(estadoDom);
     if (hayClientes) cls.push('clickable');
 
-    const corteTag = esCorteDia ? '<span class="cal-corte-tag">✂ Corte</span>' : '';
+    // v5.13.11 (UI-movil): tag compacto con capa oculta ".cut-word"
+    // que se oculta en pantallas muy estrechas (ver CSS @media max-width:599px).
+    const corteTag = esCorteDia
+      ? '<span class="cal-corte-tag">✂<span class="cut-word"> Corte</span></span>'
+      : '';
     const dots = RN.calendario._dotsPorEstado(items); // v5.13.10 (UI-4)
     const attrAria = hayClientes
       ? ' aria-label="Día ' + d + ': ' + items.length + ' cliente(s) para cobro"'

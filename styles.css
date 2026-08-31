@@ -479,8 +479,75 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .cal-modal-desglose { font-size: 12px; margin-bottom: 12px; }
 .cal-modal-actions { margin-top: 14px; text-align: right; }
 .cal-deuda-total { font-size: 11px; }
+/* v5.13.11 (UI-movil): leyenda del calendario responsive.
+   Cada item es un chip compacto; la grilla se acomoda a 2-4 columnas
+   segun el ancho, evitando el desbordamiento horizontal en telefono. */
+.cal-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 6px 10px;
+  font-size: 12px;
+  align-items: center;
+  margin-top: 14px;
+}
+.cal-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cal-legend-item .badge { flex-shrink: 0; }
+@media (max-width: 379px) {
+  .cal-legend { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 5px 8px; font-size: 11px; }
+}
+
+/* v5.13.11 (UI-movil): etiqueta de mes del header del calendario.
+   Antes tenia min-width:160px inline que forzaba overflow en telefonos. */
+.cal-mes-label { min-width: 160px; text-align: center; font-weight: 700; }
+@media (max-width: 599px) {
+  .cal-mes-label { min-width: 0; flex: 1 1 auto; text-align: center; font-size: 15px; }
+}
+
 /* v5.13.10 (UI-7): aviso de mes sin cobros programados. */
 #cal-empty-aviso { display: none; margin-top: 12px; text-align: center; color: var(--text-muted); font-size: 13px; }
+
+/* v5.13.11 (UI-movil): grid del calendario legible en telefono.
+   En pantallas < 600px las celdas usan minmax(52px,1fr) y la grilla
+   permite scroll horizontal suave si el telefono es muy estrecho (<372px),
+   en vez de aplastar el contenido. Se quita aspect-ratio:1 para que la
+   celda crezca verticalmente con num + tag + puntos + cuenta. */
+@media (max-width: 599px) {
+  .cal-grid {
+    grid-template-columns: repeat(7, minmax(50px, 1fr));
+    gap: 2px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+  .cal-day {
+    aspect-ratio: auto;
+    min-height: 52px;
+    padding: 3px;
+    gap: 1px;
+    font-size: 10px;
+  }
+  .cal-day .num { font-size: 11px; }
+  .cal-corte-tag { font-size: 8px; line-height: 13px; padding: 0 2px; }
+  .cal-count { font-size: 9px; }
+  .cal-head { font-size: 10px; padding: 3px 0; }
+}
+
+/* v5.13.11 (UI-movil): en telefonos muy estrechos (<380px) ocultamos la
+   palabra "Corte" del tag (queda solo el icono ✂) para que quepa, y
+   reducimos el min de las columnas para evitar scroll excesivo. */
+@media (max-width: 379px) {
+  .cal-grid { grid-template-columns: repeat(7, minmax(44px, 1fr)); }
+  .cal-day { min-height: 46px; }
+  .cal-corte-tag .cut-word { display: none; }
+  .cal-corte-tag { font-size: 9px; padding: 0 1px; }
+}
 
 @media (min-width: 600px) {
   .cal-day { font-size: 12px; padding: 6px; min-height: 48px; }
@@ -654,6 +721,11 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
   .modal-body { padding: 14px; }
   .modal-header h3 { font-size: 16px; }
   .recibo { padding: 16px; }
+  /* v5.13.11 (UI-movil): toolbar (filtros Realizados/Cobros) ocupa 2 filas
+     en pantallas estrechas: search a fila completa, selects+btn debajo. */
+  .toolbar .search { flex: 1 1 100%; min-width: 0; }
+  .toolbar select { flex: 1 1 40%; max-width: none; }
+  .toolbar .btn { flex: 1 1 100%; }
 }
 
 @media (max-width: 380px) {
@@ -933,12 +1005,34 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 }
 .acc-empty .icon { font-size: 32px; margin-bottom: 8px; }
 
-/* En móvil: el resumen es aún más compacto */
+/* v5.13.11 (UI-movil): resumen accordion en 2 filas en pantallas estrechas.
+   Fila 1: [dot] nombre + badge   ....   monto
+   Fila 2:               fecha . concepto (full width, truncable)
+   Asi evitamos que el monto y el sub-texto se solapen en ~360px. */
 @media (max-width: 640px) {
-  .acc-summary { padding: 11px 12px; gap: 8px; }
-  .acc-summary-name { font-size: 14px; }
-  .acc-summary-total .amt { font-size: 14px; }
-  .acc-row { padding: 8px 12px; font-size: 13px; }
+  .acc-summary { padding: 10px 11px; gap: 7px; flex-wrap: wrap; }
+  .acc-summary-main { flex: 1 1 55%; min-width: 0; }
+  .acc-summary-total { flex: 0 0 auto; max-width: 40%; }
+  .acc-summary-name {
+    font-size: 13.5px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .acc-summary-name .badge { font-size: 9px !important; padding: 1px 5px; }
+  .acc-summary-name .pill  { font-size: 9px !important; padding: 1px 5px; }
+  .acc-summary-sub {
+    font-size: 11px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    flex-basis: 100%;
+    order: 3;
+    width: 100%;
+  }
+  .acc-summary-total .amt { font-size: 13.5px; }
+  .acc-summary-total .lbl { font-size: 9px; }
+  .acc-summary-total .pill { font-size: 9px !important; }
+  .acc-chevron { font-size: 11px; order: 2; }
+  .acc-row { padding: 8px 12px; font-size: 13px; gap: 8px; }
+  .acc-row .acc-label { font-size: 10px; }
 }
 
 /* v5.12.3 — Cintillas de mes para el historial de cobros (agrupacion por mes) */
@@ -1008,10 +1102,12 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .cintilla-mes-body .acc-card {
   box-shadow: none;
 }
+/* v5.13.11 (UI-movil): cintilla de mes mas compacta en telefono */
 @media (max-width: 640px) {
-  .cintilla-mes-head { padding: 11px 12px; gap: 8px; }
-  .cintilla-mes-nombre { font-size: 14px; }
-  .cintilla-mes-body { padding: 8px 8px; }
+  .cintilla-mes-head { padding: 10px 11px; gap: 7px; }
+  .cintilla-mes-nombre { font-size: 13.5px; }
+  .cintilla-mes-sub { font-size: 11px; }
+  .cintilla-mes-body { padding: 7px 7px; gap: 7px; }
 }
 
 /* v5.11.2 — Animación del punto rojo de "cambios sin guardar" */
