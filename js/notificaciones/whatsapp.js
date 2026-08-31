@@ -10,7 +10,11 @@ RN.whatsapp.normalizarTel = function (tel) {
   let t = tel.replace(/[^\d]/g, '');
   // Si empieza con 0, quitarlo; si no tiene código de país asumir 53 (Cuba)
   if (t.startsWith('0')) t = t.slice(1);
-  if (t.length === 8) t = '53' + t;
+  // v5.13.5 (ISSUE #20): Aceptar 7 u 8 dígitos (sin código de país) para añadir
+  // el prefijo 53. Antes solo se verificaba t.length === 8, pero tras quitar un
+  // 0 inicial de un número de 8 dígitos quedaban 7 y NO se añadía el prefijo,
+  // produciendo un número inválido para WhatsApp.
+  if ((t.length === 7 || t.length === 8) && !t.startsWith('53')) t = '53' + t;
   return t;
 };
 

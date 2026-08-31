@@ -7,7 +7,17 @@ RN.render = RN.render || {};
 /** Escape HTML. */
 RN.render.esc = function (s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-};
+};;
+
+/** v5.13.5 (ISSUE #26): Escape de un string para atributos onclick="...('STR')".
+ * Escapa comillas simples (contexto JS) y dobles (contexto HTML) para evitar
+ * que nombres con " o ' rompan el HTML. */
+RN.render.escAttr = function (s) {
+  return String(s == null ? '' : s)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '"');
+}
 
 /** Badge de estado de cliente. */
 RN.render.badgeEstado = function (estado) {
@@ -888,8 +898,8 @@ RN.render.inventario = function () {
       +   '<div class="acc-row" style="font-weight:600"><span class="acc-label">Lotes (' + p.lotes.length + ') — FIFO (más antiguo primero)</span></div>'
       +   lotesHtml
       +   '<div class="acc-actions">'
-      +     '<button class="btn sm primary" onclick="RN.inventario.asignar(\'' + p.nombre.replace(/'/g, "\\'") + '\')">Asignar / vender</button>'
-      +     '<button class="btn sm" onclick="RN.inventario.abrirNuevoLote(\'' + p.nombre.replace(/'/g, "\\'") + '\')">📋 Comprar más</button>'
+      +     '<button class="btn sm primary" onclick="RN.inventario.asignar(\'' + RN.render.escAttr(p.nombre) + '\')">Asignar / vender</button>'
+      +     '<button class="btn sm" onclick="RN.inventario.abrirNuevoLote(\'' + RN.render.escAttr(p.nombre) + '\')">📋 Comprar más</button>'
       +   '</div>'
       + '</div>'
       + '</div>';

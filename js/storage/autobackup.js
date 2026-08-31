@@ -139,12 +139,16 @@ RN.autoBackup.restaurarUltimo = async function () {
   var confirmar = function () {
     return new Promise(function (resolve) {
       if (RN.uiComponents && RN.uiComponents.confirm) {
+        // v5.13.5 (ISSUE #16): Antes se llamaba confirm() con 5 argumentos:
+        // el callback de cancelación se pasaba como 4to arg (interpretado como
+        // opts) y {danger:true} como 5to arg (ignorado). Resultado: el botón no
+        // se mostraba en rojo y al cancelar la Promise quedaba colgada para
+        // siempre. Ahora usamos opts.onCancel correctamente.
         RN.uiComponents.confirm(
           'Restaurar respaldo automático',
           'Esto reemplazará TODOS los datos actuales por la última copia automática guardada. ¿Continuar?',
           function () { resolve(true); },
-          function () { resolve(false); },
-          { danger: true }
+          { danger: true, onCancel: function () { resolve(false); } }
         );
       } else {
         resolve(confirm('Esto reemplazará TODOS los datos actuales por la última copia automática. ¿Continuar?'));

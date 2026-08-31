@@ -21,7 +21,9 @@ RN.checkpoint.serializar = function () {
     descuentos: RN.state.descuentos,
     snapshots: RN.state.snapshots,
     config: RN.state.config,
-    reciboCounter: RN.state.reciboCounter,
+    // v5.13.5 (ISSUE #2): Excluir reciboCounter de los snapshots. Antes se
+    // incluía y al deshacer un cobro el contador retrocedía, pudiendo reutilizar
+    // un número de recibo ya emitido. Ahora reciboCounter es monótono creciente.
     mesActual: RN.state.mesActual,
     esquema: RN.migration.VERSION_ESQUEMA
   });
@@ -74,7 +76,13 @@ RN.checkpoint.restaurar = function (idx) {
     RN.state.config.tasaUsd = tasaSnap;
     RN.state.config.fechaTasaUsd = fechaTasaSnap;
   }
-  RN.state.reciboCounter = data.reciboCounter || 0;
+  // v5.13.5 (ISSUE #2): reciboCounter ya no se serializa en los snapshots.
+  // Mantener el valor actual (monótono creciente) para evitar reutilizar
+  // números de recibo al deshacer. Se toma el máximo entre el actual y el del
+  // snapshot (por compatibilidad con checkpoints antiguos que sí lo incluían).
+  var reciboActual = RN.state.reciboCounter || 0;
+  var reciboSnap = data.reciboCounter || 0;
+  RN.state.reciboCounter = Math.max(reciboActual, reciboSnap);
   RN.state.mesActual = data.mesActual || RN.calc.mesActualStr();
   RN.state.undoIndex = idx;
   return true;

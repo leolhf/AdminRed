@@ -1,5 +1,27 @@
 # Changelog — AdminRed (RedNet)
 
+## v5.13.5 — Corrección exhaustiva de 26 issues de auditoría
+
+### Resumen
+Se implementaron las **26 correcciones** identificadas en la auditoría exhaustiva
+del código v5.13.4: 1 crítica (pérdida de datos), 2 altas (lógica financiera),
+13 medias y 10 bajas.
+
+### Destacados
+- **ISSUE #14 (crítico):** Se evita la pérdida de datos al guardar sin PIN — la
+  verificación ahora ocurre antes de `createWritable()`.
+- **ISSUE #6/#7:** El pago parcial respeta el monto de equipo ingresado por el
+  usuario.
+- **ISSUE #11:** Las ventas de inventario usan `monto` (no `montoEquipo`) con
+  tipo `venta-inventario`; recibo ajustado.
+- **Patrón timezone (4 archivos):** `new Date(fecha).toISOString()` →
+  `fecha + 'T00:00:00'` en caja, inversión, gastos y paquete proveedor.
+- **Patrón doble guardado (3 archivos):** Eliminados `persistir()` redundantes.
+- **Patrón confirm/prompt nativos (3 archivos):** Migrados a
+  `RN.uiComponents.confirm()`/`prompt()` con soporte de `onCancel`.
+
+Ver detalles completos en `CHANGELOG_v5.13.5.md`.
+
 ## v5.13.3 — Fusión visual Inversión + Deudas
 
 ### Interfaz unificada (fusión visual del Paso 5)

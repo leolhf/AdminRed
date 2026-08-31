@@ -116,7 +116,8 @@ RN.gastos.guardar = function () {
     concepto,
     monto: totalCUP,
     categoria: document.getElementById('g-cat').value,
-    fecha: new Date(fecha).toISOString(),
+    // v5.13.5 (ISSUE #23): Construir fecha ISO sin conversión de timezone.
+    fecha: fecha + 'T00:00:00',
     mes: fecha.slice(0, 7),
     moneda: moneda,
     montoPagadoUSD: usd,

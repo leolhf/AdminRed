@@ -49,10 +49,13 @@ RN.modalCliente.importarDeContactos = async function () {
         // Solo llenar si está vacío (no sobreescribir si ya tiene datos)
         nombreInput.value = contacto.name[0];
       } else if (nombreInput) {
-        // Si ya tiene nombre, preguntar si quiere reemplazar
-        if (confirm('¿Reemplazar el nombre actual ("' + nombreInput.value + '") por "' + contacto.name[0] + '"?')) {
-          nombreInput.value = contacto.name[0];
-        }
+        // v5.13.5 (ISSUE #19): Usar RN.uiComponents.confirm() en lugar del
+        // confirm() nativo para mantener consistencia visual con el tema.
+        RN.uiComponents.confirm(
+          'Reemplazar nombre',
+          '¿Reemplazar el nombre actual ("' + nombreInput.value + '") por "' + contacto.name[0] + '"?',
+          function () { nombreInput.value = contacto.name[0]; }
+        );
       }
     }
 
@@ -63,15 +66,24 @@ RN.modalCliente.importarDeContactos = async function () {
         if (contacto.tel.length === 1) {
           telInput.value = contacto.tel[0];
         } else {
-          // Múltiples números: mostrar opciones
+          // v5.13.5 (ISSUE #19): Múltiples números — usar RN.uiComponents con
+          // selección. Antes se usaba prompt() nativo. Como el prompt estilizado
+          // es de texto libre, lo mantenemos pero con el componente de la app.
           const opciones = contacto.tel.map((t, i) => (i + 1) + '. ' + t).join('\n');
-          const idx = prompt('El contacto tiene varios números:\n' + opciones + '\n\nEscribe el número de la opción (1-' + contacto.tel.length + '):', '1');
-          const i = parseInt(idx, 10) - 1;
-          if (i >= 0 && i < contacto.tel.length) {
-            telInput.value = contacto.tel[i];
-          } else {
-            telInput.value = contacto.tel[0]; // fallback al primero
-          }
+          RN.uiComponents.prompt(
+            'Varios números',
+            'El contacto tiene varios números:\n' + opciones + '\n\nEscribe el número de la opción (1-' + contacto.tel.length + '):',
+            '1',
+            function (valor) {
+              var i = parseInt(valor, 10) - 1;
+              if (i >= 0 && i < contacto.tel.length) {
+                telInput.value = contacto.tel[i];
+              } else {
+                telInput.value = contacto.tel[0]; // fallback al primero
+              }
+            },
+            { type: 'number', step: '1' }
+          );
         }
       }
     } else {

@@ -279,8 +279,15 @@ RN.inventario.guardarAsignacion = function () {
       clienteId: cliId,
       tipo: 'venta-inventario',
       concepto: conceptoVenta,
-      monto: 0,
-      montoEquipo: precioTotal,
+      // v5.13.5 (ISSUE #11): El ingreso de la venta va en `monto` (precio de
+      // venta), no en `montoEquipo`. Semánticamente `montoEquipo` significa
+      // "pago de deuda de equipo (inversión/recuperación)", no "venta de
+      // inventario". Usar `monto` evita inflar la recuperación de inversión y
+      // clasifica correctamente los ingresos. ingresosMes() y todos los
+      // reportes usan (h.monto + h.montoEquipo), así que el total numérico se
+      // preserva.
+      monto: precioTotal,
+      montoEquipo: 0,
       mes: RN.calc.mesActualStr(),
       fecha: new Date().toISOString(),
       reciboNum: RN.calc.proxReciboNum(),

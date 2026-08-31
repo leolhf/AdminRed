@@ -20,21 +20,30 @@ RN.uiComponents.cerrarModal = function () {
   document.getElementById('modal-overlay').classList.remove('open');
 };
 
-/** Diálogo de confirmación reutilizable. */
+/** Diálogo de confirmación reutilizable.
+ * v5.13.5 (ISSUE #16): Añadido parámetro opcional onCancel para poder manejar
+ * la cancelación (antes la Promise quedaba colgada si se cancelaba).
+ * Firma: confirm(titulo, mensaje, onConfirm, opts)  — onConfirm puede ser opts
+ * Para usar onCancel: confirm(titulo, mensaje, onConfirm, { onCancel, danger })
+ */
 RN.uiComponents.confirm = function (titulo, mensaje, onConfirm, opts) {
   opts = opts || {};
   const html = `
     <div class="modal-header"><h3>${RN.render.esc(titulo)}</h3><button class="close" onclick="RN.uiComponents.cerrarModal()">×</button></div>
     <div class="modal-body"><p>${RN.render.esc(mensaje)}</p></div>
     <div class="modal-footer">
-      <button class="btn ghost" onclick="RN.uiComponents.cerrarModal()">Cancelar</button>
+      <button class="btn ghost" id="confirm-cancel">Cancelar</button>
       <button class="btn ${opts.danger ? 'danger' : 'primary'}" id="confirm-ok">Confirmar</button>
     </div>`;
   RN.uiComponents.modal(html);
-  document.getElementById('confirm-ok').onclick = () => { RN.uiComponents.cerrarModal(); onConfirm(); };
+  document.getElementById('confirm-ok').onclick = () => { RN.uiComponents.cerrarModal(); if (onConfirm) onConfirm(); };
+  // v5.13.5 (ISSUE #16): invocar onCancel al cancelar (si se proporcionó)
+  document.getElementById('confirm-cancel').onclick = () => { RN.uiComponents.cerrarModal(); if (opts.onCancel) opts.onCancel(); };
 };
 
-/** Prompt reutilizable (input de texto/numero). */
+/** Prompt reutilizable (input de texto/numero).
+ * v5.13.5: Añadido opts.onCancel para manejar la cancelación.
+ */
 RN.uiComponents.prompt = function (titulo, label, defaultValue, onOk, opts) {
   opts = opts || {};
   const html = `
@@ -43,7 +52,7 @@ RN.uiComponents.prompt = function (titulo, label, defaultValue, onOk, opts) {
       <input id="prompt-input" type="${opts.type || 'text'}" value="${RN.render.esc(defaultValue || '')}" ${opts.step ? 'step="' + opts.step + '"' : ''}>
     </div>
     <div class="modal-footer">
-      <button class="btn ghost" onclick="RN.uiComponents.cerrarModal()">Cancelar</button>
+      <button class="btn ghost" id="prompt-cancel">Cancelar</button>
       <button class="btn primary" id="prompt-ok">Aceptar</button>
     </div>`;
   RN.uiComponents.modal(html);
@@ -51,5 +60,6 @@ RN.uiComponents.prompt = function (titulo, label, defaultValue, onOk, opts) {
   inp.focus(); inp.select();
   const ok = () => { const v = inp.value; RN.uiComponents.cerrarModal(); onOk(opts.type === 'number' ? parseFloat(v) : v); };
   document.getElementById('prompt-ok').onclick = ok;
+  document.getElementById('prompt-cancel').onclick = () => { RN.uiComponents.cerrarModal(); if (opts.onCancel) opts.onCancel(); };
   inp.addEventListener('keydown', e => { if (e.key === 'Enter') ok(); });
 };

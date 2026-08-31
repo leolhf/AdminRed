@@ -68,6 +68,9 @@ RN.config.persistir = function () {
 RN.config.guardar = function () {
   const tasa = parseFloat(document.getElementById('cfg-tasa-usd').value) || 0;
   const dias = parseInt(document.getElementById('cfg-dias-base').value, 10) || 30;
+  // v5.13.5 (ISSUE #3): Días de gracia antes de mora (default 5, mínimo 0)
+  const graciaEl = document.getElementById('cfg-gracia-dias');
+  const graciaDias = graciaEl ? Math.max(0, parseInt(graciaEl.value, 10) || 5) : 5;
   const mencion = document.getElementById('cfg-mencion-desc').value === 'true';
   const auto = document.getElementById('cfg-tasa-auto').value === 'true';
   const fondo = parseFloat(document.getElementById('cfg-fondo-caja').value) || 0;
@@ -75,6 +78,8 @@ RN.config.guardar = function () {
   // v5.12.7: Registrar la fecha de actualización de la tasa (aviso de vencimiento 24h/72h)
   if (tasa > 0) RN.state.config.fechaTasaUsd = new Date().toISOString();
   RN.state.config.diasBaseMes = dias;
+  // v5.13.5 (ISSUE #3): Persistir días de gracia
+  RN.state.config.graciaDias = graciaDias;
   RN.state.config.mencionarDescuentoRecurrente = mencion;
   RN.state.config.tasaAuto = auto;
   RN.state.config.fondoInicial = fondo;
@@ -87,7 +92,11 @@ RN.config.guardar = function () {
   // v5.12.9: % de ganancia del mes real destinado a recuperación de préstamos externos
   const pctGanMes = parseFloat((document.getElementById('cfg-pct-ganancia-mes') || {}).value) || 0;
   RN.state.config.pctRecuperacionGananciaMes = Math.max(0, Math.min(100, pctGanMes));
-  RN.config.persistir();
+  // v5.13.5 (ISSUE #4): Eliminar persistir() redundante. RN.storageLocal.guardar()
+  // serializa TODO el estado (que incluye config) en localStorage[DATA].
+  // persistir() duplicaba la escritura de config en localStorage[CONFIG].
+  // Se conserva persistir() solo como API pública para guardado síncrono
+  // inmediato de config en casos puntuales, pero no se llama dos veces aquí.
   RN.storageLocal.guardar();
   RN.notifyUI.toast('Configuración guardada', 'success');
   RN.render.todo();
@@ -102,6 +111,8 @@ RN.config.rellenarForm = function () {
   const t = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
   t('cfg-tasa-usd', c.tasaUsd || 0);
   t('cfg-dias-base', c.diasBaseMes || 30);
+  // v5.13.5 (ISSUE #3): Días de gracia (mora) configurable
+  t('cfg-gracia-dias', c.graciaDias === undefined || c.graciaDias === null ? 5 : c.graciaDias);
   t('cfg-mencion-desc', String(c.mencionarDescuentoRecurrente));
   t('cfg-tasa-auto', String(c.tasaAuto));
   t('cfg-fondo-caja', c.fondoInicial || 0);

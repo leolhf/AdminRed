@@ -186,7 +186,8 @@ RN.tasaAviso.ingresarTasa = function () {
       RN.state.config.tasaUsd = tasa;
       RN.state.config.fechaTasaUsd = new Date().toISOString();
       RN.state.config.fechaPosponerTasa = null; // reset posposición
-      RN.config.persistir();
+      // v5.13.5 (ISSUE #18): Eliminar persistir() redundante; storageLocal.guardar()
+      // serializa el estado completo (incluye config).
       RN.storageLocal.guardar && RN.storageLocal.guardar();
       RN.render.todo();
       RN.tasaAviso.ocultarFab();
@@ -217,7 +218,11 @@ RN.tasaAviso.visitarElToque = function () {
  */
 RN.tasaAviso.posponer24h = function () {
   RN.state.config.fechaPosponerTasa = new Date().toISOString();
-  RN.config.persistir();
+  // v5.13.5 (ISSUE #18): Llamar storageLocal.guardar() para que la posposición
+  // se refleje en el estado completo (localStorage[DATA]), no solo en config.
+  // Antes solo persistir() guardaba config, y restaurar desde DATA podía perder
+  // la posposición.
+  RN.storageLocal.guardar && RN.storageLocal.guardar();
   RN.tasaAviso.ocultarFab();
   RN.uiComponents.cerrarModal();
   RN.notifyUI.toast('Aviso pospuesto. Volverá a aparecer en 24 h', 'info', 4000);

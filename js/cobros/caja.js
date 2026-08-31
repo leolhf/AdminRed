@@ -115,7 +115,10 @@ RN.caja.guardar = function () {
 
   var concepto = document.getElementById('retiro-concepto').value.trim() || 'Retiro de caja';
   var fecha = document.getElementById('retiro-fecha').value || new Date().toISOString().slice(0, 10);
-  var fechaISO = new Date(fecha).toISOString();
+  // v5.13.5 (ISSUE #9): Construir fecha ISO sin conversión de timezone.
+  // new Date('YYYY-MM-DD').toISOString() interpreta la fecha como medianoche
+  // UTC, desplazándola un día atrás para usuarios en UTC-5 (Cuba).
+  var fechaISO = fecha + 'T00:00:00';
   var mes = fecha.slice(0, 7);
 
   // Registrar como gasto con categoria especial

@@ -325,17 +325,21 @@ RN.storageFile.guardarAhora = async function () {
         }
       }
     }
+    // v5.13.5 (ISSUE #14): Verificar el PIN ANTES de createWritable().
+    // createWritable() trunca el archivo a 0 bytes inmediatamente. Si el PIN
+    // no está en memoria y el archivo está marcado como cifrado, el flujo
+    // anterior cerraba el writable sin escribir → archivo quedaba VACÍO (pérdida
+    // total de datos). Ahora abortamos antes de tocar el archivo.
+    if (RN.state.pinHash && RN.state.fileIsEncrypted && !RN.pin._pinActual) {
+      RN.notifyUI.toast('Se necesita el PIN para cifrar. Desbloquea la app primero.', 'warn');
+      RN.storageLocal.persistir();  // respaldo en localStorage
+      return;                        // NO se llama createWritable() → archivo intacto
+    }
+
     const w = await RN.state.fileHandle.createWritable();
     const json = RN.storageLocal.serializar();
     let data;
     if (RN.state.pinHash && RN.state.fileIsEncrypted) {
-      // cifrado requiere PIN; se asume que esta en memoria tras desbloqueo
-      if (!RN.pin._pinActual) {
-        RN.notifyUI.toast('Se necesita el PIN para cifrar. Desbloquea la app primero.', 'warn');
-        await w.close();
-        RN.storageLocal.persistir();
-        return;
-      }
       data = await RN.crypto.cifrar(json, RN.pin._pinActual);
     } else {
       data = new TextEncoder().encode(json);

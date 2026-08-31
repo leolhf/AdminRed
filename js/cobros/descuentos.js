@@ -115,13 +115,33 @@ RN.descuentos.eliminar = function (id, reabrirCobro) {
   const d = RN.state.descuentos.find(x => x.id === id);
   if (!d) return;
   if (d.estado === 'aplicado') {
-    // revertir: marcar anulado y recalcular no es trivial; anulamos
-    RN.uiComponents.confirm('Anular descuento aplicado', 'Este descuento ya fue aplicado en un cobro. ¿Anularlo de todos modos?', () => {
+    // v5.13.5 (ISSUE #10): Al anular un descuento ya aplicado, revertir el
+    // efecto financiero en el cobro donde se aplicó. Antes solo se cambiaba
+    // d.estado = 'anulado' y el descuento se "evaporaba": el cobro seguía con
+    // el monto reducido pero el descuento no contaba como activo ni se recuperó.
+    // Ahora buscamos el cobro (d.cobroHid), calculamos el valor del descuento y
+    // lo sumamos de vuelta a h.monto (restaurando el monto original del cobro).
+    RN.uiComponents.confirm('Anular descuento aplicado', 'Este descuento ya fue aplicado en un cobro. ¿Anularlo y revertir su efecto en el cobro?', () => {
+      var valorDesc = RN.calc.valorDescuento(d, d.clienteId);
+      if (d.cobroHid && valorDesc > 0) {
+        var cobro = RN.state.history.find(h => h.id === d.cobroHid);
+        if (cobro && typeof cobro.monto === 'number') {
+          // Sumar el descuento de vuelta al monto del servicio del cobro
+          cobro.monto = +(cobro.monto + valorDesc).toFixed(2);
+          // Actualizar totalCUP si existe para mantener consistencia
+          if (typeof cobro.totalCUP === 'number') {
+            cobro.totalCUP = +(cobro.totalCUP + valorDesc).toFixed(2);
+          }
+          if (typeof cobro.totalAPagar === 'number') {
+            cobro.totalAPagar = +(cobro.totalAPagar + valorDesc).toFixed(2);
+          }
+        }
+      }
       d.estado = 'anulado';
       RN.storageLocal.guardar();
       RN.render.todo();
       if (reabrirCobro) RN.modalCobro.abrir(d.clienteId);
-      RN.notifyUI.toast('Descuento anulado', 'warn');
+      RN.notifyUI.toast('Descuento anulado y efecto revertido en el cobro (+' + RN.calc.formatCUP(valorDesc) + ')', 'warn');
     }, { danger: true });
   } else {
     RN.state.descuentos = RN.state.descuentos.filter(x => x.id !== id);

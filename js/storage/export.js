@@ -121,43 +121,38 @@ RN.export.importarBackup = function () {
       return;
     }
     // Paso 2: Mostrar resumen y pedir confirmación (modo seguro)
+    // v5.13.5 (ISSUE #15): Usar RN.uiComponents.confirm() en lugar del
+    // confirm() nativo del navegador, para mantener consistencia visual con
+    // el tema (dark/light) de la app.
     var resumen = RN.export._resumenBackup(data);
-    var confirmar = confirm(
-      'Respaldo detectado:\n\n' + resumen +
-      '\n\n¿Desea importar y SOBREESCRIBIR los datos actuales?\n' +
-      '(Se creará un snapshot automático de los datos actuales antes de sobreescribir)'
-    );
-    if (!confirmar) {
-      RN.notifyUI.toast('Importación cancelada', 'warn');
-      return;
-    }
-    // Paso 3: Aplicar migración y sobreescribir
-    try {
-      // Crear snapshot de los datos actuales ANTES de sobreescribir (modo seguro)
-      if (RN.checkpoint && RN.checkpoint.crear) {
-        RN.checkpoint.crear();
+    var aplicarImport = function () {
+      // Paso 3: Aplicar migración y sobreescribir
+      try {
+        // Crear snapshot de los datos actuales ANTES de sobreescribir (modo seguro)
+        if (RN.checkpoint && RN.checkpoint.crear) {
+          RN.checkpoint.crear();
+        }
+        data = RN.migration.migrar(data);
+        RN.storageLocal._aplicarData(data);
+        RN.storageLocal.persistir();
+        RN.render.todo();
+      } catch (e) {
+        RN.notifyUI.toast('Error al aplicar el respaldo: ' + e.message, 'error');
+        console.error('[AdminRed import] Error al aplicar:', e);
+        return;
       }
-      data = RN.migration.migrar(data);
-      RN.storageLocal._aplicarData(data);
-      RN.storageLocal.persistir();
-      RN.render.todo();
-    } catch (e) {
-      RN.notifyUI.toast('Error al aplicar el respaldo: ' + e.message, 'error');
-      console.error('[AdminRed import] Error al aplicar:', e);
-      return;
-    }
-    // Paso 4: Validar coherencia financiera después de importar
-    var val = RN.validacion.validar();
-    if (val.ok) {
-      RN.notifyUI.toast('Respaldo importado correctamente. Integridad OK.', 'success');
-    } else {
-      RN.notifyUI.toast('Importado con ' + val.errores.length + ' advertencias de integridad', 'warn');
-      console.warn('[AdminRed import] Advertencias de integridad:', val.errores);
-      // Mostrar los errores en un modal para que el usuario pueda revisarlos
-      var esc = function (s) {
-        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      };
-      var html =
+      // Paso 4: Validar coherencia financiera después de importar
+      var val = RN.validacion.validar();
+      if (val.ok) {
+        RN.notifyUI.toast('Respaldo importado correctamente. Integridad OK.', 'success');
+      } else {
+        RN.notifyUI.toast('Importado con ' + val.errores.length + ' advertencias de integridad', 'warn');
+        console.warn('[AdminRed import] Advertencias de integridad:', val.errores);
+        // Mostrar los errores en un modal para que el usuario pueda revisarlos
+        var esc = function (s) {
+          return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        };
+        var html =
         '<div class="modal-header"><h3>⚠️ Advertencias de integridad</h3>' +
         '<button class="close" onclick="RN.uiComponents.cerrarModal()">×</button></div>' +
         '<div class="modal-body"><div style="max-width:500px;text-align:left">' +
@@ -171,6 +166,17 @@ RN.export.importarBackup = function () {
         RN.uiComponents.modal(html, { lg: true });
       }
     }
+    }; // fin aplicarImport
+
+    // v5.13.5 (ISSUE #15): confirmación con modal estilizado (danger)
+    RN.uiComponents.confirm(
+      'Importar respaldo',
+      'Respaldo detectado:\n\n' + resumen +
+      '\n\n¿Desea importar y SOBREESCRIBIR los datos actuales?\n' +
+      '(Se creará un snapshot automático de los datos actuales antes de sobreescribir)',
+      aplicarImport,
+      { danger: true, onCancel: function () { RN.notifyUI.toast('Importación cancelada', 'warn'); } }
+    );
   };
   input.click();
 };

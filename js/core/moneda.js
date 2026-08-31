@@ -82,7 +82,8 @@ RN.moneda.formatUSD = function (usd) {
 RN.moneda.mostrar = function (cup) {
   let s = RN.calc.formatCUP(cup);
   const usd = RN.moneda.aUSD(cup);
-  if (usd > 0) s += ' <span class="muted" style="font-size:12px">(' + RN.moneda.formatUSD(usd) + '</span>';
+  // v5.13.5 (ISSUE #1): Cerrar el paréntesis antes de </span>.
+  if (usd > 0) s += ' <span class="muted" style="font-size:12px">(' + RN.moneda.formatUSD(usd) + ')</span>';
   return s;
 };
 

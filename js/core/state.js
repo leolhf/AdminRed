@@ -37,6 +37,9 @@ RN.state = {
      */
     fechaTasaUsd: null,
     diasBaseMes: 30,
+    // v5.13.5 (ISSUE #3): Días de gracia antes de aplicar mora (default 5).
+    // Antes solo existía como fallback implícito en calculations.js/ciclos.js.
+    graciaDias: 5,
     mencionarDescuentoRecurrente: true,
     tasaAuto: false,
     nombreNegocio: 'AdminRed',

@@ -270,6 +270,8 @@
             <div class="tasa-indicator" id="tasa-indicator"></div>
           </div>
           <div><label>Días base del mes</label><input type="number" id="cfg-dias-base" value="30"></div>
+          <!-- v5.13.5 (ISSUE #3): Días de gracia antes de mora, configurable -->
+          <div><label>Días de gracia (mora)</label><input type="number" id="cfg-gracia-dias" value="5" min="0" title="Días de tolerancia después del día de pago antes de cobrar mora"></div>
         </div>
         <div class="form-row cols-2">
           <div><label>Mencionar descuento recurrente en recibo</label>

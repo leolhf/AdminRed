@@ -25,12 +25,16 @@ RN.recibo._html = function (h) {
   const moneda = h.moneda || 'CUP';
 
   const lineas = [];
-  if (h.tipo === 'servicio' || neto > 0) {
+  // v5.13.5 (ISSUE #11): Las ventas de inventario ahora guardan el precio en
+  // h.monto (no en h.montoEquipo). Mostrar el concepto de venta correctamente.
+  if (h.tipo === 'venta-inventario') {
+    lineas.push(`<div class="row"><span>${h.concepto || 'Venta inventario'}</span><span>${RN.calc.formatCUP(neto)}</span></div>`);
+  } else if (h.tipo === 'servicio' || neto > 0) {
     lineas.push(`<div class="row"><span>Servicio mensual ${h.mes || ''}</span><span>${RN.calc.formatCUP(neto)}</span></div>`);
     if (h.descuentoRecurrente) lineas.push(`<div class="row muted" style="font-size:12px"><span>Descuento recurrente</span><span>− ${RN.calc.formatCUP(h.descuentoRecurrente)}</span></div>`);
   }
   if (eq > 0) {
-    lineas.push(`<div class="row"><span>${h.tipo === 'venta-inventario' ? (h.concepto || 'Venta inventario') : 'Cuota de equipo'}</span><span>${RN.calc.formatCUP(eq)}</span></div>`);
+    lineas.push(`<div class="row"><span>Cuota de equipo</span><span>${RN.calc.formatCUP(eq)}</span></div>`);
   }
 
   // ====== Sección de moneda y desglose del pago ======

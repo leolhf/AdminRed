@@ -38,6 +38,8 @@ RN.validateFields.ip = function (valor) {
 
 /**
  * Normaliza y valida un número de teléfono (orientado a Cuba: +53).
+ * v5.13.5 (ISSUE #5): Lógica simplificada con retornos tempranos en lugar de
+ * la variable acumulativa `ok` que era difícil de seguir.
  * - Quita espacios, guiones y paréntesis.
  * - Si viene como 8 dígitos sin prefijo, asume Cuba y añade +53.
  * - Si viene con +53 y 8 dígitos, lo deja.
@@ -51,31 +53,27 @@ RN.validateFields.telefono = function (valor) {
   // Conservar solo dígitos y el signo + inicial.
   var tienePlus = v.charAt(0) === '+';
   var digitos = v.replace(/[^\d]/g, '');
-  var resultado;
-  var mensaje = '';
 
+  // Caso 1: 8 dígitos sin prefijo → asumir Cuba (+53)
   if (digitos.length === 8 && !tienePlus) {
-    // 8 dígitos sin prefijo: asumir Cuba (+53)
-    resultado = '+53' + digitos;
-    mensaje = 'Se agregó el prefijo +53 al teléfono.';
-  } else if (digitos.length === 10 && tienePlus) {
-    // +53 + 8 dígitos
-    resultado = '+53' + digitos.slice(2);
-  } else if (digitos.length === 10 && !tienePlus) {
-    // 53 + 8 dígitos sin +
-    resultado = '+53' + digitos.slice(2);
-  } else {
-    // Caso raro: dejar como venía pero limpio
-    resultado = (tienePlus ? '+' : '') + digitos;
-    if (digitos.length < 6) {
-      mensaje = 'El teléfono parece demasiado corto. Revisa el número.';
-    } else if (digitos.length > 15) {
-      mensaje = 'El teléfono parece demasiado largo. Revisa el número.';
-    }
+    return { ok: true, valorNormalizado: '+53' + digitos, mensaje: 'Se agregó el prefijo +53 al teléfono.' };
+  }
+  // Caso 2: +53 + 8 dígitos (10 dígitos con +)
+  if (digitos.length === 10 && tienePlus) {
+    return { ok: true, valorNormalizado: '+53' + digitos.slice(2), mensaje: '' };
+  }
+  // Caso 3: 53 + 8 dígitos sin + (10 dígitos sin +)
+  if (digitos.length === 10 && !tienePlus) {
+    return { ok: true, valorNormalizado: '+53' + digitos.slice(2), mensaje: '' };
   }
 
-  var ok = !mensaje || mensaje.indexOf('demasiado') === -1 ? true : false;
-  // Nota: devolvemos ok=true salvo que sea claramente inválido (muy corto/largo).
-  // El aviso es informativo; no bloquea el guardado.
-  return { ok: ok, valorNormalizado: resultado, mensaje: mensaje };
+  // Caso raro: dejar como venía pero limpio, con aviso informativo si es anómalo
+  var resultado = (tienePlus ? '+' : '') + digitos;
+  if (digitos.length < 6) {
+    return { ok: false, valorNormalizado: resultado, mensaje: 'El teléfono parece demasiado corto. Revisa el número.' };
+  }
+  if (digitos.length > 15) {
+    return { ok: false, valorNormalizado: resultado, mensaje: 'El teléfono parece demasiado largo. Revisa el número.' };
+  }
+  return { ok: true, valorNormalizado: resultado, mensaje: '' };
 };

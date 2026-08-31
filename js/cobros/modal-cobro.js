@@ -435,17 +435,28 @@ RN.modalCobro.recalcular = function () {
 /** Abre el modal de cobro eligiendo cliente (desde la vista de cobros / dashboard). */
 RN.modalCobro.abrirDesdeCobros = function () {
   if (!RN.state.clients.length) { RN.notifyUI.toast('No hay clientes', 'warn'); return; }
-  const opts = RN.calc.clientesActivos().map(c => `<option value="${c.id}">${RN.render.esc(c.nombre)}</option>`).join('');
-  RN.uiComponents.prompt('Registrar cobro', 'Selecciona cliente', '', () => {}, {});
-  // reemplazar por select
-  const inp = document.getElementById('prompt-input');
-  if (inp) {
-    const sel = document.createElement('select');
-    sel.id = 'prompt-input';
-    sel.innerHTML = opts;
-    inp.replaceWith(sel);
-    document.getElementById('prompt-ok').onclick = () => { const v = sel.value; RN.uiComponents.cerrarModal(); if (v) RN.modalCobro.abrir(v); };
-  }
+  // v5.13.5 (ISSUE #8): Usar un modal estilizado con select de clientes en
+  // lugar del enfoque hacky anterior (prompt + reemplazo de input por select).
+  var activos = RN.calc.clientesActivos();
+  if (!activos.length) { RN.notifyUI.toast('No hay clientes activos', 'warn'); return; }
+  var opts = activos.map(function (c) {
+    return '<option value="' + c.id + '">' + RN.render.esc(c.nombre) + '</option>';
+  }).join('');
+  var html =
+    '<div class="modal-header"><h3>Registrar cobro</h3><button class="close" onclick="RN.uiComponents.cerrarModal()">×</button></div>' +
+    '<div class="modal-body"><label>Selecciona cliente</label>' +
+    '<select id="cobro-select-cliente">' + opts + '</select></div>' +
+    '<div class="modal-footer"><button class="btn ghost" id="cobro-select-cancel">Cancelar</button>' +
+    '<button class="btn primary" id="cobro-select-ok">Continuar</button></div>';
+  RN.uiComponents.modal(html);
+  document.getElementById('cobro-select-ok').onclick = function () {
+    var v = document.getElementById('cobro-select-cliente').value;
+    RN.uiComponents.cerrarModal();
+    if (v) RN.modalCobro.abrir(v);
+  };
+  document.getElementById('cobro-select-cancel').onclick = function () {
+    RN.uiComponents.cerrarModal();
+  };
 };
 
 /**
@@ -545,9 +556,20 @@ RN.modalCobro.confirmar = function () {
   var montoServicioRegistrado = neto;
   var montoEquipoPagado = montoEq;
   if (tipoPago === 'parcial') {
-    // En pago parcial, el pago se asigna primero al servicio, luego al equipo
-    montoServicioRegistrado = Math.min(pagadoCUP, neto);
-    montoEquipoPagado = Math.max(0, pagadoCUP - neto);
+    // v5.13.5 (ISSUE #6/#7): Respetar el montoEquipo ingresado por el usuario
+    // cuando lo especificó explícitamente. Antes el código siempre recalculaba
+    // montoEquipoPagado = max(0, pagadoCUP - neto), ignorando la intención del
+    // usuario (ej: pagar solo el equipo este mes) y no reduciendo la deuda de
+    // equipo como esperaba.
+    if (montoEq > 0) {
+      // El usuario especificó cuánto va al equipo — respetarlo
+      montoEquipoPagado = Math.min(montoEq, pagadoCUP);
+      montoServicioRegistrado = Math.max(0, pagadoCUP - montoEquipoPagado);
+    } else {
+      // Sin especificación: aplicar al servicio primero, remanente al equipo
+      montoServicioRegistrado = Math.min(pagadoCUP, neto);
+      montoEquipoPagado = Math.max(0, pagadoCUP - neto);
+    }
   }
 
   // Recibo

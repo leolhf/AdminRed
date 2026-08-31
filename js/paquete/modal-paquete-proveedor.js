@@ -261,7 +261,7 @@ RN.paqueteProveedor.guardarCambios = function () {
     RN.state.config.sobreventaMegas = sobreventa;
     // Limpiar cualquier pendiente anterior (ya se aplicó)
     RN.state.config.paquetePendiente = null;
-    RN.config.persistir();
+    // v5.13.5 (ISSUE #22): Eliminar persistir() redundante.
     RN.storageLocal.guardar();
     RN.uiComponents.cerrarModal();
     RN.notifyUI.toast('Paquete actualizado para este mes: ' + c.megas + 'M \u00d7 ' + c.precioMega + ' CUP/M', 'success');
@@ -275,7 +275,7 @@ RN.paqueteProveedor.guardarCambios = function () {
       precioMega: c.precioMega,
       sobreventa: sobreventa
     };
-    RN.config.persistir();
+    // v5.13.5 (ISSUE #22): Eliminar persistir() redundante.
     RN.storageLocal.guardar();
     var mesProx = RN.calc.mesSiguiente(RN.calc.mesActualStr());
     RN.uiComponents.cerrarModal();
@@ -314,12 +314,13 @@ RN.paqueteProveedor.confirmar = function () {
   RN.state.config.proveedorMonto = c.monto;
   RN.state.config.proveedorMegas = c.megas;
   RN.state.config.proveedorPrecioMega = c.precioMega;
-  RN.config.persistir();
-  RN.storageLocal.guardar();
+  // v5.13.5 (ISSUE #22): Eliminar persistir() y guardar() aquí; se consolidará
+  // en un solo guardar() tras agregar el gasto (evita triple escritura).
 
   var gasto = {
     id: RN.calc.uid('gasto'),
-    fecha: new Date(fecha).toISOString(),
+    // v5.13.5 (ISSUE #21): Construir fecha ISO sin conversión de timezone.
+    fecha: fecha + 'T00:00:00',
     mes: fecha.slice(0, 7),
     concepto: 'Pago servicio internet' + (c.proveedor ? ' \u2014 ' + c.proveedor : ''),
     monto: totalCUP,

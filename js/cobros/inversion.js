@@ -388,7 +388,8 @@ RN.inversion.guardarDevolucion = function (inversionId) {
   }
   var concepto = document.getElementById('dev-concepto').value.trim();
   var fecha = document.getElementById('dev-fecha').value || new Date().toISOString().slice(0, 10);
-  var fechaISO = new Date(fecha).toISOString();
+  // v5.13.5 (ISSUE #12): Construir fecha ISO sin conversión de timezone.
+  var fechaISO = fecha + 'T00:00:00';
   var mes = fecha.slice(0, 7);
 
   if (!concepto) {
@@ -415,10 +416,14 @@ RN.inversion.guardarDevolucion = function (inversionId) {
   RN.render.inversion();
   RN.render.gastos();
   RN.inversion.renderDeudas();
+  // v5.13.5 (ISSUE #13): Consolidar los dos toasts consecutivos en uno solo.
+  // Antes se mostraba "¡Deuda liquidada!" y luego "Devolución registrada: X",
+  // lo que podía confundir o solaparse visualmente.
+  var msg = 'Devolución registrada: ' + RN.calc.formatCUP(monto);
   if (concluida) {
-    RN.notifyUI.toast('¡Deuda liquidada! Trasladada al historial de deudas concluidas.', 'success');
+    msg = '¡Deuda liquidada! (' + RN.calc.formatCUP(monto) + ') · Trasladada al historial de deudas concluidas.';
   }
-  RN.notifyUI.toast('Devolución registrada: ' + RN.calc.formatCUP(monto), 'success');
+  RN.notifyUI.toast(msg, 'success');
 };
 
 /**

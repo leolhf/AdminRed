@@ -4,8 +4,10 @@
  */
 RN.inlineEdit = RN.inlineEdit || {};
 
-RN.inlineEdit.activar = function (clienteId, campo, valorActual, callback) {
-  const cell = event.target;
+// v5.13.5 (ISSUE #17): Recibir el evento como parámetro en lugar de usar la
+// variable global `event` (deprecada, no funciona en modo estricto).
+RN.inlineEdit.activar = function (clienteId, campo, valorActual, callback, ev) {
+  const cell = (ev && ev.target) || (window.event && window.event.target);
   const input = document.createElement('input');
   input.type = 'number';
   input.value = valorActual;

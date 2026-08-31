@@ -53,8 +53,23 @@ RN.pin.desbloquear = async function () {
     RN.pin._pinActual = pin;
     RN.state.fileIsEncrypted = true;
     localStorage.setItem(STORAGE_KEYS.FILE_ENCRYPTED, 'true');
+    // v5.13.5 (ISSUE #24): Cifrar y re-guardar el archivo existente inmediatamente.
+    // Antes el archivo quedaba en texto plano hasta el próximo guardarAhora(),
+    // pero fileIsEncrypted = true, causando error de descifrado al reabrir la app
+    // si el usuario cerraba sin realizar ninguna operación que disparara guardado.
+    if (RN.state.fileHandle && RN.storageFile && RN.storageFile.guardarAhora) {
+      try {
+        await RN.storageFile.guardarAhora();
+      } catch (e) {
+        // Si falla el cifrado del archivo, al menos el respaldo local queda OK
+        RN.storageLocal.persistir();
+        RN.notifyUI.toast('PIN configurado. El archivo se cifrará al próximo guardado: ' + e.message, 'warn');
+      }
+    } else {
+      RN.storageLocal.persistir();
+    }
     RN.pin.ocultarLock();
-    RN.notifyUI.toast('PIN configurado. El archivo se cifrará al guardar.', 'success');
+    RN.notifyUI.toast('PIN configurado. Archivo cifrado.', 'success');
     return;
   }
 
