@@ -1,5 +1,18 @@
 # Changelog — AdminRed (RedNet)
 
+## v5.14.1 — Cuadre de caja
+
+### Resumen
+Nueva funcionalidad de **Cuadre de caja**: permite introducir el saldo real contado físicamente; la diferencia contra el saldo calculado por la app se registra automáticamente con la categoría dedicada **"Descuadre de caja"** (nunca mezclada con "Gasto personal" ni "Retiro de caja"), siguiendo la recomendación evaluada en `recomendacion_cuadre_caja.txt`.
+
+- **Faltante** (real < calculado): se registra como gasto (categoría "Descuadre de caja").
+- **Sobrante** (real > calculado): se registra como ajuste de ingreso (mismo módulo, monto negativo internamente) que suma al fondo.
+- Nuevos botones "🧮 Cuadre de caja" e "Historial de cuadres" en la vista de Gastos.
+- Los cuadres se muestran en el listado de gastos con su propio ícono y badge (Faltante/Sobrante), en vez de aparecer como un "Gasto" genérico.
+- Permite eliminar un cuadre si el usuario se equivocó al contar.
+
+Detalle completo en `CHANGELOG_v5.14.1.md`.
+
 ## v5.13.20 — El mes operativo SIEMPRE es el mes real del reloj
 
 ### Resumen

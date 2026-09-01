@@ -58,6 +58,7 @@ const CORE_ASSETS = [
   './js/cobros/descuentos.js',
   './js/cobros/month-reset.js',
   './js/cobros/caja.js',
+  './js/cobros/cuadre.js',
   './js/reportes/historial.js',
   './js/reportes/historial-mensual.js',
   './js/reportes/tendencia.js',

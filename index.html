@@ -186,6 +186,8 @@
       <div class="view-header"><h2>Gastos del negocio</h2><div class="spacer"></div>
         <button class="btn primary" onclick="RN.gastos.abrirNuevo()">+ Nuevo gasto</button>
         <button class="btn" onclick="RN.paqueteProveedor.abrir()">📡 Pagar mi servicio</button>
+        <button class="btn" onclick="RN.cuadre.abrir()">🧮 Cuadre de caja</button>
+        <button class="btn ghost" onclick="RN.cuadre.listar()">Historial de cuadres</button>
       </div>
       <div class="kpi-grid" id="kpi-gastos"></div>
       <div class="accordion-list" id="lista-gastos"></div>
@@ -402,6 +404,7 @@
   <script src="js/cobros/descuentos.js"></script>
   <script src="js/cobros/month-reset.js"></script>
   <script src="js/cobros/caja.js"></script>
+  <script src="js/cobros/cuadre.js"></script>
 
   <!-- 6. REPORTES -->
   <script src="js/reportes/historial.js"></script>

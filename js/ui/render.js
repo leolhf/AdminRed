@@ -1029,24 +1029,35 @@ RN.render.gastos = function () {
     var provIcon = g.esPagoProveedor ? ' 📡' : '';
     var retiroIcon = g.esRetiroCaja ? ' 💵' : '';
     var retiroBadge = g.esRetiroCaja ? '<span class="badge warn" style="margin-left:4px">Retiro de caja</span>' : '';
+    // v5.14.0: los cuadres de caja se guardan en RN.state.gastos igual que
+    // los gastos normales, pero con esCuadreCaja=true. El sobrante se guarda
+    // con monto NEGATIVO (ver cuadre.js), así que aquí se muestra con su
+    // propio ícono/etiqueta y el signo/color correctos en vez de "Gasto".
+    var esCuadre = !!g.esCuadreCaja;
+    var esSobrante = esCuadre && g.tipoCuadre === 'sobrante';
+    var cuadreIcon = esCuadre ? ' 🧮' : '';
+    var cuadreBadge = esCuadre ? '<span class="badge ' + (esSobrante ? 'ok' : 'due') + '" style="margin-left:4px">' + (esSobrante ? 'Sobrante de caja' : 'Faltante de caja') + '</span>' : '';
+    var montoAbs = esCuadre ? Math.abs(g.monto) : g.monto;
+    var montoLabel = esCuadre ? (esSobrante ? 'Sobrante' : 'Faltante') : 'Gasto';
+    var montoColor = esSobrante ? 'style="color:var(--green,#16a34a)"' : '';
     return '<div class="acc-card" id="acc-gas-' + g.id + '">' +
       '<div class="acc-summary" onclick="RN.render.toggleCard(\'acc-gas-' + g.id + '\')">' +
         '<span class="acc-dot due"></span>' +
         '<div class="acc-summary-main">' +
-          '<div class="acc-summary-name">' + RN.render.esc(g.concepto) + provIcon + retiroIcon + '</div>' +
+          '<div class="acc-summary-name">' + RN.render.esc(g.concepto) + provIcon + retiroIcon + cuadreIcon + '</div>' +
           '<div class="acc-summary-sub">' + RN.render.esc((g.fecha || '').slice(0, 10)) + ' · ' + RN.render.esc(g.categoria || 'General') + '</div>' +
         '</div>' +
         '<div class="acc-summary-total">' +
-          '<div class="amt">' + RN.calc.formatCUP(g.monto) + '</div>' +
-          '<div class="lbl">Gasto</div>' +
+          '<div class="amt" ' + montoColor + '>' + (esSobrante ? '+' : '') + RN.calc.formatCUP(montoAbs) + '</div>' +
+          '<div class="lbl">' + montoLabel + '</div>' +
         '</div>' +
         '<span class="acc-chevron">▼</span>' +
       '</div>' +
       '<div class="acc-details">' +
         '<div class="acc-row"><span class="acc-label">Fecha</span><span class="acc-value">' + RN.render.esc((g.fecha || '').slice(0, 10)) + '</span></div>' +
         '<div class="acc-row"><span class="acc-label">Concepto</span><span class="acc-value">' + RN.render.esc(g.concepto) + provIcon + '</span></div>' +
-        '<div class="acc-row"><span class="acc-label">Categoría</span><span class="acc-value">' + catBadge + retiroBadge + '</span></div>' +
-        '<div class="acc-row"><span class="acc-label">Monto</span><span class="acc-value">' + RN.calc.formatCUP(g.monto) + '</span></div>' +
+        '<div class="acc-row"><span class="acc-label">Categoría</span><span class="acc-value">' + catBadge + retiroBadge + cuadreBadge + '</span></div>' +
+        '<div class="acc-row"><span class="acc-label">Monto</span><span class="acc-value" ' + montoColor + '>' + (esSobrante ? '+' : '') + RN.calc.formatCUP(montoAbs) + '</span></div>' +
         '<div class="acc-actions">' +
           '<button class="btn sm danger" onclick="RN.gastos.eliminar(\'' + g.id + '\')">🗑</button>' +
         '</div>' +
