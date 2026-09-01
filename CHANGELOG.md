@@ -1,5 +1,16 @@
 # Changelog — AdminRed (RedNet)
 
+## v5.13.19 — Sincronización automática de mes operativo
+
+### Resumen
+El mes operativo no cambiaba automáticamente al avanzar el mes calendario real. Era 100% manual (botón "Cerrar mes"). Ahora la app **detecta al arrancar** si el mes real está por delante del mes operativo y ofrece sincronizar, generando **snapshots automáticos** para cada mes intermedio.
+
+- **Mejora UX:** Aviso modal al arrancar con resumen de KPIs por mes a cerrar. Opciones: sincronizar (con snapshot automático) o mantener el mes operativo actual.
+- **Multi-mes:** Si hay varios meses de diferencia (ej: operativo=Julio, real=Septiembre), se cierran todos los meses intermedios en una sola acción, generando un snapshot por cada mes.
+- **Paquete pendiente:** Se aplica correctamente al sincronizar, igual que el cierre manual.
+
+Detalle completo en `CHANGELOG_v5.13.19.md`.
+
 ## v5.13.18 — Bug crítico: importar contactos del teléfono cerraba el modal de cliente
 
 ### Resumen
