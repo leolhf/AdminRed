@@ -1066,6 +1066,70 @@ RN.render.gastos = function () {
   }).join('');
 };
 // ---------- REPORTES ----------
+// v5.14.3: Render del "Historial de cobros" de la vista Reportes, agrupado por
+// mes en cintillas colapsables (cada mes contraído por defecto; al hacer clic
+// se expande). Dentro de cada mes, cada cobro es una acc-card colapsable cuyo
+// detalle solo aparece al hacer clic. Reutiliza _cintillaMes() y
+// _cardCobroRealizado() de la vista Realizados para consistencia visual.
+// Nota: el primer mes (más reciente) se muestra abierto por defecto para dar
+// contexto inmediato; el resto queda contraído.
+RN.render._renderHistorialReportes = function () {
+  var listEl = document.getElementById('lista-historial-reportes');
+  if (!listEl) return;
+
+  // v5.14.3: llenar el dropdown de meses (reconstruido cada render).
+  var selMes = document.getElementById('filtro-historial-rep-mes');
+  var mesSel = '';
+  if (selMes) {
+    var mesSelActual = selMes.value || '';
+    selMes.innerHTML = '<option value="">Todos los meses</option>';
+    var meses = {};
+    RN.state.history.forEach(function (h) {
+      var m = h.mes || (h.fecha || '').slice(0, 7);
+      if (m) meses[m] = true;
+    });
+    Object.keys(meses).sort().reverse().forEach(function (m) {
+      var opt = document.createElement('option');
+      opt.value = m;
+      opt.textContent = RN.calc.mesTexto(m);
+      selMes.appendChild(opt);
+    });
+    selMes.value = mesSelActual;
+    mesSel = selMes.value || '';
+  }
+
+  var q = (document.getElementById('search-historial-rep') || {}).value || '';
+  // v5.14.3: filtrado centralizado (mismo criterio que la vista Realizados).
+  var lista = RN.historial.filtrar({ mes: mesSel, q: q });
+
+  // Aviso de límite (informativo; ya no se trunca a 50 porque el render
+  // agrupado colapsado escala bien en el DOM).
+  var aviso = document.getElementById('historial-limite-aviso');
+  if (aviso) aviso.style.display = 'none';
+
+  if (!lista.length) {
+    listEl.innerHTML = '<div class="acc-empty"><div class="icon">💰</div>No hay cobros que coincidan con el filtro.</div>';
+    return;
+  }
+
+  // v5.14.3: agrupar por mes de servicio (h.mes), fallback a fecha.
+  var grupos = {};
+  var ordenMeses = [];
+  lista.forEach(function (h) {
+    var mesKey = h.mes || (h.fecha || '').slice(0, 7) || 'sin-fecha';
+    if (!grupos[mesKey]) { grupos[mesKey] = []; ordenMeses.push(mesKey); }
+    grupos[mesKey].push(h);
+  });
+  ordenMeses.sort().reverse();
+
+  // Construir cintillas: solo el primer mes abierto por defecto.
+  var htmlCintillas = ordenMeses.map(function (mesKey, idx) {
+    return RN.render._cintillaMes(mesKey, grupos[mesKey], idx === 0);
+  }).join('');
+
+  listEl.innerHTML = htmlCintillas;
+};
+
 RN.render.reportes = function () {
   const kpi = document.getElementById('kpi-reportes');
   if (kpi) {
@@ -1077,48 +1141,11 @@ RN.render.reportes = function () {
     ].map(k => `<div class="kpi ${k.cls}"><div class="label">${k.label}</div><div class="value">${k.value}</div></div>`).join('');
   }
 
-  // Historial
-  const tbody = document.querySelector('#tabla-historial tbody');
-  if (tbody) {
-    if (!RN.state.history.length) {
-      tbody.innerHTML = `<tr><td colspan="5"><div class="empty">Sin cobros registrados todavía.</div></td></tr>`;
-    } else {
-      // v5.14.2 (Auditoría Reportes — UI-2): la tabla se limita a los 50 más
-      // recientes para no sobrecargar el DOM, pero ahora se avisa cuántos hay
-      // en total y se ofrece un botón para ver el historial completo.
-      const totalCobros = RN.state.history.length;
-      const hist = [...RN.state.history].sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '')).slice(0, 50);
-      const aviso = document.getElementById('historial-limite-aviso');
-      if (aviso) {
-        if (totalCobros > 50) {
-          aviso.style.display = '';
-          aviso.innerHTML = 'Mostrando 50 de ' + totalCobros + ' cobros. <button class="btn sm ghost" onclick="RN.historial.verTodos()">Ver todos</button>';
-        } else {
-          aviso.style.display = 'none';
-        }
-      }
-      tbody.innerHTML = hist.map(h => {
-        const cli = RN.calc.clientePorId(h.clienteId);
-        const total = RN.calc.totalCobro(h);
-        var monedaBadge = '';
-        if (h.moneda === 'MIXTO' && h.montoPagadoUSD > 0 && h.montoPagadoCUP > 0) {
-          monedaBadge = ` <span class="pill" style="background:#e8f5e9;color:#2e7d32">USD ${h.montoPagadoUSD} + CUP ${h.montoPagadoCUP}</span>`;
-        } else if (h.moneda === 'USD' && h.montoPagadoUSD > 0) {
-          monedaBadge = ` <span class="pill" style="background:#e8f5e9;color:#2e7d32">USD ${h.montoPagadoUSD}</span>`;
-        } else if (h.montoPagadoUSD > 0 && h.montoPagadoCUP > 0) {
-          monedaBadge = ` <span class="pill" style="background:#e8f5e9;color:#2e7d32">USD ${h.montoPagadoUSD} + CUP ${h.montoPagadoCUP}</span>`;
-        }
-        // v5.13.9 (DUP-2): Usar badge unificado
-        const tipoBadge = RN.render.badgeTipoPago(h);
-        return `<tr>
-          <td data-label="Fecha">${RN.render.esc((h.fecha || '').slice(0, 10))}</td>
-          <td data-label="Cliente">${RN.render.esc(cli ? cli.nombre : (h.ventaInventario ? 'Venta inventario' : '—'))}</td>
-          <td data-label="Concepto">${h.tipo === 'servicio' ? 'Servicio ' + (h.mes ? RN.calc.mesTexto(h.mes) : '') : (h.tipo === 'equipo' ? 'Cuota equipo' : RN.render.esc(h.concepto || h.tipo))}</td>
-          <td data-label="Monto">${RN.calc.formatCUP(total)}${monedaBadge}${tipoBadge}</td>
-          <td data-label="Recibo">${h.reciboNum ? `<button class="btn sm" onclick="RN.recibo.ver('${RN.render.escAttr(h.id)}')">${h.reciboNum}</button>` : '—'}</td>
-        </tr>`;
-      }).join('');
-    }
+  // Historial (v5.14.3): agrupado por mes en cintillas colapsables,
+  // cada cobro es una acc-card colapsable (reutiliza _cintillaMes / _cardCobroRealizado).
+  const histList = document.getElementById('lista-historial-reportes');
+  if (histList) {
+    RN.render._renderHistorialReportes();
   }
 
   // Tendencia (chart simple con barras div)

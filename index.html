@@ -198,9 +198,12 @@
       <div class="view-header"><h2>Reportes y estadísticas</h2></div>
       <div class="kpi-grid" id="kpi-reportes"></div>
       <div class="card"><h3>Historial de cobros</h3>
-        <div class="table-wrap responsive"><table id="tabla-historial"><thead><tr>
-          <th>Fecha</th><th>Cliente</th><th>Concepto</th><th>Monto</th><th>Recibo</th>
-        </tr></thead><tbody></tbody></table></div>
+        <div class="flex mb-16" style="gap:8px;flex-wrap:wrap;align-items:center">
+          <input class="search" type="search" id="search-historial-rep" placeholder="Buscar por cliente, recibo, concepto o mes..." oninput="RN.render.reportes()">
+          <select id="filtro-historial-rep-mes" onchange="RN.render.reportes()"></select>
+          <button class="btn sm" onclick="RN.historial.exportCSV({ mes: (document.getElementById('filtro-historial-rep-mes')||{}).value||'', q: (document.getElementById('search-historial-rep')||{}).value||'' })">⬇️ Exportar CSV</button>
+        </div>
+        <div class="accordion-list" id="lista-historial-reportes"></div>
         <p class="muted" id="historial-limite-aviso" style="font-size:12px;margin-top:8px;display:none"></p>
       </div>
       <div class="card"><h3>Tendencia mensual de ingresos</h3><div id="tendencia-chart"></div></div>

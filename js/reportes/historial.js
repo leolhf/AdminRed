@@ -65,30 +65,37 @@ RN.historial.exportCSV = function (filtro) {
 
 /**
  * v5.14.2 (Auditoría Reportes — UI-2): muestra el historial completo de
- * cobros en un modal (la tabla de la vista Reportes se limita a 50 filas).
+ * cobros en un modal (la tabla de la vista Reportes se limitaba a 50 filas).
+ * v5.14.3: ahora el modal agrupa por mes en cintillas colapsables (cada mes
+ * contraído; el primero abierto) y cada cobro es una acc-card colapsable,
+ * reutilizando RN.render._cintillaMes() / _cardCobroRealizado().
  */
 RN.historial.verTodos = function () {
   var lista = RN.historial.filtrar();
-  var filas = lista.length
-    ? lista.map(function (h) {
-        var cli = RN.calc.clientePorId(h.clienteId);
-        var total = RN.calc.totalCobro(h);
-        var concepto = h.tipo === 'servicio' ? 'Servicio ' + (h.mes ? RN.calc.mesTexto(h.mes) : '') : (h.tipo === 'equipo' ? 'Cuota equipo' : (h.concepto || h.tipo));
-        return '<tr>' +
-          '<td>' + RN.render.esc((h.fecha || '').slice(0, 10)) + '</td>' +
-          '<td>' + RN.render.esc(cli ? cli.nombre : (h.ventaInventario ? 'Venta inventario' : '—')) + '</td>' +
-          '<td>' + RN.render.esc(concepto) + '</td>' +
-          '<td>' + RN.calc.formatCUP(total) + '</td>' +
-          '<td>' + (h.reciboNum ? '<button class="btn sm" onclick="RN.recibo.ver(\'' + RN.render.escAttr(h.id) + '\')">' + RN.render.esc(h.reciboNum) + '</button>' : '—') + '</td>' +
-        '</tr>';
-      }).join('')
-    : '<tr><td colspan="5"><div class="empty">Sin cobros registrados todavía.</div></td></tr>';
+
+  var bodyHtml;
+  if (!lista.length) {
+    bodyHtml = '<div class="acc-empty"><div class="icon">💰</div>Sin cobros registrados todavía.</div>';
+  } else {
+    // Agrupar por mes de servicio (h.mes), fallback a fecha.
+    var grupos = {};
+    var ordenMeses = [];
+    lista.forEach(function (h) {
+      var mesKey = h.mes || (h.fecha || '').slice(0, 7) || 'sin-fecha';
+      if (!grupos[mesKey]) { grupos[mesKey] = []; ordenMeses.push(mesKey); }
+      grupos[mesKey].push(h);
+    });
+    ordenMeses.sort().reverse();
+
+    var htmlCintillas = ordenMeses.map(function (mesKey, idx) {
+      return RN.render._cintillaMes(mesKey, grupos[mesKey], idx === 0);
+    }).join('');
+    bodyHtml = '<div class="accordion-list">' + htmlCintillas + '</div>';
+  }
 
   var html = '<div class="modal-header"><h3>Historial completo de cobros (' + lista.length + ')</h3>' +
     '<button class="close" onclick="RN.uiComponents.cerrarModal()">×</button></div>' +
-    '<div class="modal-body"><div class="table-wrap responsive"><table><thead><tr>' +
-    '<th>Fecha</th><th>Cliente</th><th>Concepto</th><th>Monto</th><th>Recibo</th>' +
-    '</tr></thead><tbody>' + filas + '</tbody></table></div></div>' +
+    '<div class="modal-body">' + bodyHtml + '</div>' +
     '<div class="modal-footer"><button class="btn ghost" onclick="RN.uiComponents.cerrarModal()">Cerrar</button>' +
     '<button class="btn primary" onclick="RN.historial.exportCSV()">⬇️ Exportar CSV</button></div>';
   RN.uiComponents.modal(html, { lg: true });

@@ -866,7 +866,9 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
    Tarjetas expandibles para optimizar la interfaz en móvil.
    ============================================================ */
 
-/* Contenedor de la lista de tarjetas (sustituye a table-wrap en secciones accordion) */
+/* Contenedor de la lista de tarjetas (sustituye a table-wrap en secciones accordion).
+   v5.14.3: también usado por el "Historial de cobros" de la vista Reportes
+   (#lista-historial-reportes) para agrupar por mes en cintillas colapsables. */
 .accordion-list {
   display: flex;
   flex-direction: column;
