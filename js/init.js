@@ -18,6 +18,12 @@ RN.init.arrancar = async function () {
   // 4. Cargar datos locales (respaldo) — carga el blob combinado de STORAGE_KEYS.DATA
   RN.storageLocal.cargar();
 
+  // 4a. v5.13.20: Sincronizar el mes operativo con el mes real del reloj del sistema.
+  // El mes operativo SIEMPRE es el mes real. Al arrancar, nos aseguramos de que
+  // RN.state.mesActual refleje el mes actual del calendario (por si cambió mientras
+  // la app estuvo cerrada). Esto reemplaza el sistema anterior de mes adelantado.
+  RN.calc.sincronizarMesReal();
+
   // 4b. v5.13.16 (BUG-CRITICO): Eliminado el segundo RN.config.cargar().
   // Antes, este paso re-aplicaba STORAGE_KEYS.CONFIG después de cargar el blob
   // de STORAGE_KEYS.DATA. Pero desde v5.13.5 (ISSUE #22 y ISSUE #4) se eliminó
@@ -68,12 +74,6 @@ RN.init.arrancar = async function () {
   // anterior (clientes que debían pagar el mes pasado y no lo hicieron), avisar
   // al usuario para que revise mora/cobranza. Se ejecuta tras renderizar la UI.
   setTimeout(RN.init.avisoCambioMes, 800);
-
-  // v5.13.19: Aviso de sincronización de mes — si el mes real del reloj del sistema
-  // está por delante del mes operativo (RN.state.mesActual), ofrecer al usuario
-  // sincronizar al mes real generando snapshots automáticamente para cada mes intermedio.
-  // Se ejecuta después del render para que el DOM esté listo y el modal se muestre bien.
-  setTimeout(RN.init.avisoSincronizarMes, 1200);
 
   // 11b. v5.12.7: Aviso de tasa USD vencida — comprueba si pasaron más de 24 h
   // desde la última actualización de la tasa y muestra el botón flotante + indicador.
@@ -222,142 +222,6 @@ RN.init.avisoCambioMes = function () {
   } catch (e) {
     console.warn('[avisoCambioMes]', e);
   }
-};
-
-/**
- * v5.13.19: Aviso de sincronización de mes operativo.
- * Detecta si el mes real (reloj del sistema) está por delante del mes operativo
- * (RN.state.mesActual). Si hay uno o más meses de diferencia, muestra un modal
- * ofreciendo sincronizar: cierra cada mes intermedio generando un snapshot
- * automático, anulando descuentos puntuales pendientes, aplicando paquetePendiente
- * y avanzando RN.state.mesActual hasta el mes real.
- * También ofrece ignorar (mantener el mes operativo actual).
- * Solo se muestra una vez por sesión (flag _avisoSyncMesMostrado).
- */
-RN.init.avisoSincronizarMes = function () {
-  if (RN.state._avisoSyncMesMostrado) return;
-  RN.state._avisoSyncMesMostrado = true;
-  try {
-    var mesOper = RN.calc.mesActualStr();
-    var mesReal = RN.calc.mesRealStr();
-    // Si el mes operativo ya coincide o está por delante del real, no hacer nada
-    var diff = RN.calc.mesesEntre(mesOper, mesReal);
-    if (diff <= 0) return;
-
-    // Construir lista de meses a cerrar (desde mesOper hasta mesReal-1)
-    // Cada mes que se cierra genera un snapshot y avanza al siguiente
-    var mesesCerrar = [];
-    var m = mesOper;
-    while (m !== mesReal) {
-      mesesCerrar.push(m);
-      m = RN.calc.mesSiguiente(m);
-    }
-
-    // Construir mensaje con resumen de cada mes a cerrar
-    var resumenMeses = mesesCerrar.map(function (mes) {
-      var snap = RN.calc.generarSnapshot(mes);
-      return '• ' + RN.calc.mesTexto(mes) + ': Ingresos ' + RN.calc.formatCUP(snap.ingresos) +
-        ' · Gastos ' + RN.calc.formatCUP(snap.gastos) +
-        ' · Cobranza ' + snap.clientesPagaron + '/' + snap.clientesTotal;
-    }).join('\n');
-
-    var titulo = 'Sincronizar mes operativo';
-    var cuerpo = 'El mes operativo actual es <strong>' + RN.calc.mesTexto(mesOper) +
-      '</strong>, pero ya estamos en <strong>' + RN.calc.mesTexto(mesReal) +
-      '</strong> (' + diff + ' mes' + (diff === 1 ? '' : 'es') + ' de diferencia).\n\n' +
-      'Al sincronizar se cerrará' + (diff === 1 ? '' : 'n') + ' ' + diff +
-      ' mes' + (diff === 1 ? '' : 'es') + ' generando snapshot' + (diff === 1 ? '' : 's') +
-      ' automático' + (diff === 1 ? '' : 's') + ':\n\n' + resumenMeses +
-      '\n\n✅ Cada mes se cerrará con su snapshot, los descuentos puntuales no aplicados se anularán y el mes operativo avanzará hasta ' + RN.calc.mesTexto(mesReal) + '.';
-
-    var html = '<div class="modal-header">' +
-      '<h3>📅 ' + titulo + '</h3>' +
-      '<button class="close" onclick="RN.init._cancelarSyncMes()">×</button>' +
-      '</div>' +
-      '<div class="modal-body">' +
-      '<p style="white-space:pre-line">' + cuerpo + '</p>' +
-      '</div>' +
-      '<div class="modal-footer">' +
-      '<button class="btn ghost" onclick="RN.init._cancelarSyncMes()">Mantener ' + RN.calc.mesTexto(mesOper) + '</button>' +
-      '<button class="btn success" onclick="RN.init._confirmarSyncMes()">✅ Sincronizar a ' + RN.calc.mesTexto(mesReal) + '</button>' +
-      '</div>';
-
-    // Guardar contexto para los handlers
-    RN.init._syncMesContexto = { mesesCerrar: mesesCerrar, mesOper: mesOper, mesReal: mesReal };
-    RN.uiComponents.modal(html);
-  } catch (e) {
-    console.warn('[avisoSincronizarMes]', e);
-  }
-};
-
-/**
- * v5.13.19: Cancelar la sincronización — cierra el modal y mantiene el mes operativo actual.
- */
-RN.init._cancelarSyncMes = function () {
-  RN.uiComponents.cerrarModal();
-  RN.notifyUI.toast('Mes operativo mantenido en ' + RN.calc.mesTexto(RN.calc.mesActualStr()) + '. Recuerda cerrar el mes manualmente cuando estés listo.', 'info', 6000);
-};
-
-/**
- * v5.13.19: Confirmar la sincronización — cierra cada mes intermedio generando snapshots.
- * Replica la lógica de RN.monthReset.confirmar() pero sin diálogo de confirmación por cada mes:
- * 1. Para cada mes en mesesCerrar: genera snapshot, lo guarda en RN.state.snapshots,
- *    anula descuentos puntuales pendientes del mes, avanza RN.state.mesActual.
- * 2. Aplica paquetePendiente si existe (solo una vez, al final del primer cierre).
- * 3. Persiste config + data, re-renderiza, muestra toast de éxito.
- */
-RN.init._confirmarSyncMes = function () {
-  var ctx = RN.init._syncMesContexto;
-  if (!ctx || !ctx.mesesCerrar || ctx.mesesCerrar.length === 0) {
-    RN.uiComponents.cerrarModal();
-    return;
-  }
-
-  var snapshotsCreados = 0;
-  var paqueteAplicadoMsg = '';
-
-  ctx.mesesCerrar.forEach(function (mes) {
-    // 1. Generar snapshot del mes
-    var snapshot = RN.calc.generarSnapshot(mes);
-    RN.state.snapshots.push(snapshot);
-    snapshotsCreados++;
-
-    // 2. Anular descuentos puntuales no aplicados del mes (no soloPago)
-    RN.state.descuentos.forEach(function (d) {
-      if (d.mes === mes && d.estado === 'pendiente' && !d.soloPago) d.estado = 'anulado';
-    });
-
-    // 3. Avanzar el mes actual al siguiente
-    RN.state.mesActual = RN.calc.mesSiguiente(mes);
-
-    // 4. Aplicar paquetePendiente si existe (solo la primera vez que se encuentre)
-    if (RN.state.config.paquetePendiente && !paqueteAplicadoMsg) {
-      var pp = RN.state.config.paquetePendiente;
-      RN.state.config.proveedorInternet = pp.proveedor || RN.state.config.proveedorInternet;
-      RN.state.config.proveedorMegas = pp.megas;
-      RN.state.config.proveedorPrecioMega = pp.precioMega;
-      RN.state.config.proveedorMonto = +((pp.megas || 0) * (pp.precioMega || 0)).toFixed(2);
-      RN.state.config.sobreventaMegas = pp.sobreventa;
-      RN.state.config.paquetePendiente = null;
-      paqueteAplicadoMsg = ' Paquete actualizado: ' + pp.megas + 'M × ' + pp.precioMega + ' CUP/M.';
-    }
-  });
-
-  // Persistir y re-renderizar
-  RN.config.persistir();
-  RN.storageLocal.guardar();
-  RN.render.todo();
-
-  // Cerrar el modal y mostrar toast de éxito
-  RN.uiComponents.cerrarModal();
-  var msg = 'Mes sincronizado a ' + RN.calc.mesTexto(RN.state.mesActual) +
-    '. ' + snapshotsCreados + ' snapshot' + (snapshotsCreados === 1 ? '' : 's') +
-    ' generado' + (snapshotsCreados === 1 ? '' : 's') + '.' + paqueteAplicadoMsg;
-  RN.notifyUI.toast(msg, 'success', 8000);
-  RN.notify.local('Mes sincronizado', 'Mes operativo actualizado a ' + RN.calc.mesTexto(RN.state.mesActual));
-
-  // Limpiar contexto
-  RN.init._syncMesContexto = null;
 };
 
 /** Crea datos de ejemplo para primer uso. */

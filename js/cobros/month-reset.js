@@ -2,18 +2,29 @@
  * cobros/month-reset.js — Cierre de mes.
  * Resetea el ciclo de cobro mensual, genera snapshot inmutable de KPIs,
  * y anula automáticamente los descuentos puntuales no aplicados de ese mes.
+ *
+ * v5.13.20: El mes operativo SIEMPRE es el mes real del reloj del sistema.
+ * El cierre de mes SOLO genera el snapshot y anula descuentos; NO adelanta
+ * el mes operativo (el mes avanza solo cuando cambia el calendario).
+ * Se valida que no se cierre dos veces el mismo mes (si ya existe un snapshot
+ * del mes actual, se bloquea el cierre).
  */
 RN.monthReset = RN.monthReset || {};
 
 RN.monthReset.confirmar = function () {
-  // v5.13.1: Bug #1 — usar var y precomputar mesSiguiente.
-  // Ahora mesActualStr() respeta RN.state.mesActual, asi que al asignarlo
-  // aqui tiene efecto real en todos los calculos posteriores.
   var mes = RN.calc.mesActualStr();
-  var mesSiguiente = RN.calc.mesSiguiente(mes);
+
+  // v5.13.20: Validar que no se haya cerrado ya este mes (doble cierre)
+  var yaCerrado = RN.state.snapshots.some(function (s) { return s.mes === mes; });
+  if (yaCerrado) {
+    RN.notifyUI.toast('El mes de ' + RN.calc.mesTexto(mes) + ' ya fue cerrado. No puedes cerrarlo dos veces.', 'warn', 6000);
+    return;
+  }
+
   const snapshot = RN.calc.generarSnapshot(mes);
   const sinAplicar = RN.state.descuentos.filter(d => d.mes === mes && d.estado === 'pendiente' && !d.soloPago).length;
   // v5.13.8 (LOG-4): Verificar cobros adelantados del mes siguiente
+  var mesSiguiente = RN.calc.mesSiguiente(mes);
   const cobrosAdelantados = RN.state.history.filter(h => h.mes === mesSiguiente).length;
   // v5.13.8 (UI-10): Verificar cobros parciales pendientes del mes actual
   const cobrosParciales = RN.state.history.filter(h => h.mes === mes && h.tipoPago === 'parcial').length;
@@ -29,7 +40,7 @@ RN.monthReset.confirmar = function () {
 
   RN.uiComponents.confirm(
     'Cerrar mes — ' + RN.calc.mesTexto(mes),
-    `Se generará un snapshot con:\n• Ingresos: ${RN.calc.formatCUP(snapshot.ingresos)}\n• Gastos: ${RN.calc.formatCUP(snapshot.gastos)}\n• Utilidad: ${RN.calc.formatCUP(snapshot.utilidad)}\n• Cobranza: ${snapshot.clientesPagaron}/${snapshot.clientesTotal}\n\nSe anularán ${sinAplicar} descuento(s) puntual(es) no aplicado(s). El mes actual pasará a ${RN.calc.mesTexto(mesSiguiente)}.${advertencias}`,
+    `Se generará un snapshot con:\n• Ingresos: ${RN.calc.formatCUP(snapshot.ingresos)}\n• Gastos: ${RN.calc.formatCUP(snapshot.gastos)}\n• Utilidad: ${RN.calc.formatCUP(snapshot.utilidad)}\n• Cobranza: ${snapshot.clientesPagaron}/${snapshot.clientesTotal}\n\nSe anularán ${sinAplicar} descuento(s) puntual(es) no aplicado(s).\n\nNota: El mes operativo seguirá siendo ${RN.calc.mesTexto(mes)} (el mes real del sistema). El mes cambiará automáticamente cuando avance el calendario.${advertencias}`,
     () => {
       // 1. Snapshot
       RN.state.snapshots.push(snapshot);
@@ -38,9 +49,8 @@ RN.monthReset.confirmar = function () {
       RN.state.descuentos.forEach(d => {
         if (d.mes === mes && d.estado === 'pendiente' && !d.soloPago) d.estado = 'anulado';
       });
-      // 3. Avanzar mes actual
-      // v5.13.1: Ahora esto tiene efecto real porque mesActualStr() respeta RN.state.mesActual
-      RN.state.mesActual = mesSiguiente;
+      // v5.13.20: NO se adelanta el mes operativo. El mes SIEMPRE es el real del reloj.
+      // El mes avanzará automáticamente cuando cambie el calendario del sistema.
       // v5.12.4: Aplicar paquete pendiente si existe (cambio guardado para este mes)
       let paqueteAplicadoMsg = '';
       if (RN.state.config.paquetePendiente) {
@@ -56,8 +66,8 @@ RN.monthReset.confirmar = function () {
       RN.config.persistir();
       RN.storageLocal.guardar();
       RN.render.todo();
-      RN.notifyUI.toast('Mes cerrado. Snapshot generado.' + paqueteAplicadoMsg, 'success');
-      RN.notify.local('Mes cerrado', RN.calc.mesTexto(mes) + ' → ' + RN.calc.mesTexto(RN.state.mesActual));
+      RN.notifyUI.toast('Snapshot de ' + RN.calc.mesTexto(mes) + ' generado.' + paqueteAplicadoMsg, 'success');
+      RN.notify.local('Snapshot generado', RN.calc.mesTexto(mes));
     },
     { danger: true }
   );

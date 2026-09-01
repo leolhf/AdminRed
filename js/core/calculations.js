@@ -11,23 +11,23 @@ RN.calc.hoy = function () { return new Date(); };
 
 /**
  * Devuelve el mes actual en formato YYYY-MM.
- * v5.13.1: Bug #1 — Prioriza RN.state.mesActual (establecido por cierre de mes)
- * si es válido. Antes siempre usaba new Date() (reloj del sistema), ignorando
- * el campo mesActual que se guardaba al cerrar mes. Esto hacía que después
- * de cerrar un mes, la app siguiera mostrando el mes calendario real en lugar
- * del mes operativo establecido.
+ * v5.13.20: El mes operativo SIEMPRE es el mes real del reloj del sistema.
+ * Antes (v5.13.1) priorizaba RN.state.mesActual, lo que permitía adelantar
+ * el mes operativo al cerrar mes. Pero esto causaba problemas: el usuario
+ * podía quedarse estancado en un mes anterior (si no cerraba mes) o cerrar
+ * dos veces el mismo mes (si lo adelantaba). Ahora mesActualStr() siempre
+ * devuelve el mes del reloj, igual que mesRealStr(). El cierre de mes solo
+ * genera el snapshot; el mes avanza automáticamente cuando cambia el calendario.
  */
 RN.calc.mesActualStr = function () {
-  if (RN.state && RN.state.mesActual && /^\d{4}-\d{2}$/.test(RN.state.mesActual)) {
-    return RN.state.mesActual;
-  }
   const d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
 };
 
 /**
  * Establece RN.state.mesActual al mes del reloj del sistema.
- * v5.13.1: Bug #1 — helper para sincronizar el mes operativo con el real.
+ * v5.13.20: Ahora esto es redundante con mesActualStr() (que siempre usa el reloj),
+ * pero se mantiene para compatibilidad y para sincronizar el campo guardado.
  */
 RN.calc.sincronizarMesReal = function () {
   var d = new Date();
@@ -35,7 +35,7 @@ RN.calc.sincronizarMesReal = function () {
   return RN.state.mesActual;
 };
 
-/** Devuelve el mes REAL del reloj del sistema (ignora mesActual). v5.13.1 */
+/** Devuelve el mes REAL del reloj del sistema. v5.13.20: ahora idéntico a mesActualStr(). */
 RN.calc.mesRealStr = function () {
   var d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');

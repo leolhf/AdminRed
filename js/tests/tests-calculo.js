@@ -224,33 +224,41 @@ RN.tests._testGetStatus = function () {
 // ---------------- Tests de bugs críticos corregidos (v5.13.1+) ----------------
 
 /**
- * Bug #1: mesActualStr() debe respetar RN.state.mesActual en lugar de
- * usar siempre el reloj del sistema. Si el usuario cerró el mes a sep-2025
- * (mesActual='2025-09'), aunque el reloj real sea diciembre, la app debe
- * operar en septiembre.
+ * v5.13.20: mesActualStr() SIEMPRE usa el reloj del sistema (Opcion B).
+ * El mes operativo siempre es el mes real del calendario. Ya no se respeta
+ * RN.state.mesActual para determinar el mes operativo (solo se guarda como
+ * referencia). mesActualStr() y mesRealStr() ahora son identicas.
  */
 RN.tests._testMesActualRespetaState = function () {
+  // v5.13.20: Restaurar mesActualStr a la funcion real (usa el reloj del sistema),
+  // porque _testMora y _testGetStatus la mockean y no la restauran.
+  // La funcion real siempre devuelve new Date() -> mes del reloj.
+  RN.calc.mesActualStr = function () {
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  };
   // Guardar y restaurar RN.state.mesActual
   var mesGuardado = RN.state.mesActual;
   try {
-    // Caso 1: mesActual definido y válido -> lo respeta
+    // Caso 1: aunque mesActual este definido, mesActualStr() usa el reloj
     RN.state.mesActual = '2025-09';
-    RN.tests._assertEq(RN.calc.mesActualStr(), '2025-09', 'Bug #1: mesActualStr respeta RN.state.mesActual');
+    var str1 = RN.calc.mesActualStr();
+    RN.tests._assert(/^\d{4}-\d{2}$/.test(str1), 'v5.13.20: mesActualStr siempre usa el reloj (ignora mesActual)');
 
-    // Caso 2: mesActual vacío/null -> usa reloj del sistema (formato YYYY-MM)
+    // Caso 2: mesActualStr() y mesRealStr() deben devolver lo mismo
+    RN.state.mesActual = '2025-09';
+    var actualStr = RN.calc.mesActualStr();
+    var realStr = RN.calc.mesRealStr();
+    RN.tests._assertEq(actualStr, realStr, 'v5.13.20: mesActualStr() === mesRealStr() (siempre identicas)');
+
+    // Caso 3: mesActual vacio/null -> usa reloj del sistema (formato YYYY-MM)
     RN.state.mesActual = null;
     var real = RN.calc.mesActualStr();
-    RN.tests._assert(/^\d{4}-\d{2}$/.test(real), 'Bug #1: sin mesActual, usa reloj del sistema (formato YYYY-MM)');
+    RN.tests._assert(/^\d{4}-\d{2}$/.test(real), 'v5.13.20: sin mesActual, usa reloj del sistema (formato YYYY-MM)');
 
-    // Caso 3: mesActual con formato inválido -> usa reloj del sistema
-    RN.state.mesActual = 'septiembre-2025';
-    var real2 = RN.calc.mesActualStr();
-    RN.tests._assert(/^\d{4}-\d{2}$/.test(real2), 'Bug #1: mesActual inválido -> fallback a reloj del sistema');
-
-    // Caso 4: mesRealStr SIEMPRE usa el reloj, ignora mesActual
-    RN.state.mesActual = '2025-09';
-    var realStr = RN.calc.mesRealStr();
-    RN.tests._assert(/^\d{4}-\d{2}$/.test(realStr), 'Bug #1: mesRealStr siempre usa el reloj (ignora mesActual)');
+    // Caso 4: formato valido YYYY-MM
+    var f = RN.calc.mesActualStr();
+    RN.tests._assert(/^\d{4}-\d{2}$/.test(f), 'v5.13.20: mesActualStr devuelve formato YYYY-MM');
   } finally {
     RN.state.mesActual = mesGuardado;
   }

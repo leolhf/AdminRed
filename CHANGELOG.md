@@ -1,5 +1,18 @@
 # Changelog — AdminRed (RedNet)
 
+## v5.13.20 — El mes operativo SIEMPRE es el mes real del reloj
+
+### Resumen
+Se rediseó el sistema de mes operativo para que **siempre coincida con el mes real del reloj del sistema**. El mes ya no se puede adelantar al cerrar — avanza solo con el calendario. Se añadió validación de **doble cierre**: si ya existe un snapshot del mes actual, se bloquea el cierre.
+
+- **`mesActualStr()` siempre usa el reloj:** Ya no prioriza `RN.state.mesActual`. Es idéntica a `mesRealStr()`.
+- **`monthReset.confirmar()` no adelanta el mes:** Solo genera snapshot, anula descuentos y aplica `paquetePendiente`. El mes cambia automáticamente cuando avanza el calendario.
+- **Validación de doble cierre:** Si ya hay un snapshot del mes actual, el botón "Cerrar mes" muestra un aviso y bloquea la acción.
+- **Sincronización al arrancar:** `init.js` llama `sincronizarMesReal()` al inicio para que `mesActual` refleje el mes del calendario.
+- **Eliminado `avisoSincronizarMes` (v5.13.19):** Ya no se necesita; el mes siempre es el real.
+
+Detalle completo en `CHANGELOG_v5.13.20.md`.
+
 ## v5.13.19 — Sincronización automática de mes operativo
 
 ### Resumen

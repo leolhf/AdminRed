@@ -241,20 +241,13 @@ RN.render.animarBarrasRecuperacion = function () {
 RN.render.dashboard = function () {
   const cont = document.getElementById('kpi-dashboard');
   if (!cont) return;
-  // v5.13.6 (UI-5): mostrar el mes operativo visible en el header del panel.
-  // Si el mes operativo (RN.state.mesActual) difiere del mes real del reloj,
-  // se senala con un aviso de "mes cerrado".
+  // v5.13.20: El mes operativo SIEMPRE es el mes real del reloj.
+  // Ya no hay comparacion mesAct vs mesReal porque siempre son iguales.
   const mesOper = document.getElementById('dashboard-mes');
   if (mesOper) {
     const mesAct = RN.calc.mesActualStr();
-    const mesReal = RN.calc.mesRealStr();
-    if (mesAct !== mesReal) {
-      mesOper.innerHTML = '⚠ Mes operativo: <strong>' + RN.calc.mesTexto(mesAct) + '</strong>';
-      mesOper.className = 'mes-badge mes-cerrado';
-    } else {
-      mesOper.innerHTML = 'Mes: <strong>' + RN.calc.mesTexto(mesAct) + '</strong>';
-      mesOper.className = 'mes-badge muted';
-    }
+    mesOper.innerHTML = 'Mes: <strong>' + RN.calc.mesTexto(mesAct) + '</strong>';
+    mesOper.className = 'mes-badge muted';
   }
   const cob = RN.calc.cobranzaMes();
   const ingresos = RN.calc.ingresosMes();
