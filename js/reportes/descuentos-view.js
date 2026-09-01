@@ -8,7 +8,8 @@ RN.descuentosView.render = function () {
   // Rellenar filtro de meses
   const selMes = document.getElementById('filter-desc-mes');
   if (selMes && !selMes.dataset.filled) {
-    const meses = [...new Set(RN.state.descuentos.map(d => d.mes))].sort().reverse();
+    // v5.14.2 (Auditoría Reportes — DUP-4): helper compartido con render.js.
+    const meses = RN.calc.mesesConDatos(RN.state.descuentos, 'mes');
     selMes.innerHTML = '<option value="">Todos los meses</option>' + meses.map(m => `<option value="${m}">${RN.calc.mesTexto(m)}</option>`).join('');
     selMes.addEventListener('change', () => RN.descuentosView.render());
     selMes.dataset.filled = '1';
@@ -39,7 +40,8 @@ RN.descuentosView.render = function () {
 
   const estadoBadge = { aplicado: ['paid', 'Aplicado'], pendiente: ['warn', 'Pendiente'], anulado: ['muted', 'Anulado'] };
   tbody.innerHTML = lista.map(d => {
-    const c = RN.state.clients.find(x => x.id === d.clienteId);
+    // v5.14.2 (Auditoría Reportes — DUP-3): usar el helper centralizado.
+    const c = RN.calc.clientePorId(d.clienteId);
     const [ecls, etxt] = estadoBadge[d.estado] || ['muted', d.estado];
     return `<tr>
       <td data-label="Cliente">${RN.render.esc(c ? c.nombre : '—')}</td>
@@ -57,10 +59,12 @@ RN.descuentosView.render = function () {
 RN.descuentosView.exportCSV = function () {
   const rows = [['cliente', 'tipo', 'motivo', 'modo', 'valor', 'mes', 'estado', 'fecha']];
   RN.state.descuentos.forEach(d => {
-    const c = RN.state.clients.find(x => x.id === d.clienteId);
+    // v5.14.2 (DUP-3): usar el helper centralizado.
+    const c = RN.calc.clientePorId(d.clienteId);
     rows.push([c ? c.nombre : '', d.tipo, d.motivo, d.modo, d.valor, d.mes, d.estado, (d.fecha || '').slice(0, 10)]);
   });
-  const csv = rows.map(r => r.map(f => `"${String(f).replace(/"/g, '""')}"`).join(',')).join('\n');
+  // v5.14.2 (DUP-2): escape CSV centralizado en RN.export.toCSV.
+  const csv = RN.export.toCSV(rows);
   RN.export.descargar('descuentos.csv', csv, 'text/csv');
   RN.notifyUI.toast('Descuentos exportados', 'success');
 };

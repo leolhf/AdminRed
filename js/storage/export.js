@@ -3,8 +3,18 @@
  */
 RN.export = RN.export || {};
 
-/** Descarga un blob como archivo. */
+/**
+ * Descarga un blob como archivo.
+ * v5.14.2 (Auditoría Reportes — CODE-4): los CSV se generan con BOM UTF-8
+ * (\uFEFF) al inicio para que Microsoft Excel detecte la codificación y
+ * muestre correctamente los acentos (nombres de clientes, conceptos en
+ * español). Sin el BOM, Excel asume Latin-1/Windows-1252 y los caracteres
+ * acentuados se ven como mojibake (ej. "descuadre" con símbolos extraños).
+ */
 RN.export.descargar = function (nombre, contenido, tipo) {
+  if (tipo === 'text/csv' && typeof contenido === 'string' && contenido.charCodeAt(0) !== 0xFEFF) {
+    contenido = '\uFEFF' + contenido;
+  }
   const blob = new Blob([contenido], { type: tipo || 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -12,6 +22,17 @@ RN.export.descargar = function (nombre, contenido, tipo) {
   document.body.appendChild(a); a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+/**
+ * v5.14.2 (Auditoría Reportes — DUP-2): escape CSV centralizado. Antes cada
+ * export (historial.js, descuentos-view.js, export.js) repetía su propio
+ * `'"' + String(f).replace(/"/g, '""') + '"'`. Ahora todos usan este helper.
+ */
+RN.export.toCSV = function (rows) {
+  return rows.map(function (r) {
+    return r.map(function (f) { return '"' + String(f == null ? '' : f).replace(/"/g, '""') + '"'; }).join(',');
+  }).join('\n');
 };
 
 /** Exporta un respaldo JSON completo. */
@@ -191,7 +212,8 @@ RN.export.exportCSVClientes = function () {
       RN.investment.getDeudaEquipoCliente(c), c.descuentoRecurrente || 0
     ]);
   });
-  const csv = rows.map(r => r.map(f => `"${String(f).replace(/"/g, '""')}"`).join(',')).join('\n');
+  // v5.14.2 (DUP-2): escape CSV centralizado en RN.export.toCSV.
+  const csv = RN.export.toCSV(rows);
   RN.export.descargar('clientes.csv', csv, 'text/csv');
   RN.notifyUI.toast('CSV de clientes exportado', 'success');
 };

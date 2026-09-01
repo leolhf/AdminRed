@@ -1083,7 +1083,20 @@ RN.render.reportes = function () {
     if (!RN.state.history.length) {
       tbody.innerHTML = `<tr><td colspan="5"><div class="empty">Sin cobros registrados todavía.</div></td></tr>`;
     } else {
+      // v5.14.2 (Auditoría Reportes — UI-2): la tabla se limita a los 50 más
+      // recientes para no sobrecargar el DOM, pero ahora se avisa cuántos hay
+      // en total y se ofrece un botón para ver el historial completo.
+      const totalCobros = RN.state.history.length;
       const hist = [...RN.state.history].sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '')).slice(0, 50);
+      const aviso = document.getElementById('historial-limite-aviso');
+      if (aviso) {
+        if (totalCobros > 50) {
+          aviso.style.display = '';
+          aviso.innerHTML = 'Mostrando 50 de ' + totalCobros + ' cobros. <button class="btn sm ghost" onclick="RN.historial.verTodos()">Ver todos</button>';
+        } else {
+          aviso.style.display = 'none';
+        }
+      }
       tbody.innerHTML = hist.map(h => {
         const cli = RN.calc.clientePorId(h.clienteId);
         const total = RN.calc.totalCobro(h);
@@ -1112,11 +1125,11 @@ RN.render.reportes = function () {
   RN.tendencia && RN.tendencia.render();
 
   // Selector de mes para reporte mensual
+  // v5.14.2 (Auditoría Reportes — DUP-4): usa el helper compartido RN.calc.listaMeses
+  // en lugar de reconstruir la lista de últimos 12 meses aquí (duplicado con descuentos-view.js).
   const sel = document.getElementById('select-mes-reporte');
   if (sel) {
-    const meses = [];
-    let m = RN.calc.mesActualStr();
-    for (let i = 0; i < 12; i++) { meses.push(m); m = RN.calc.mesAnterior(m); }
+    const meses = RN.calc.listaMeses(12);
     sel.innerHTML = meses.map(m => `<option value="${m}">${RN.calc.mesTexto(m)}</option>`).join('');
   }
 };

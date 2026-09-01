@@ -34,14 +34,17 @@ RN.estadisticas.calcular = function () {
 
 RN.estadisticas.ver = function () {
   const s = RN.estadisticas.calcular();
+  // v5.14.2 (Auditoría Reportes — LOG-3): etiquetas aclaran qué KPIs son
+  // acumulados (todos los meses) y cuáles son solo del mes actual, para no
+  // mezclar ambos periodos sin distinción en la misma tarjeta.
   const kpis = [
     { label: 'Clientes totales', value: s.totalClientes, cls: 'blue' },
     { label: 'Clientes activos', value: s.clientesActivos, cls: 'green' },
-    { label: 'Cobros registrados', value: s.cobrosRegistrados, cls: 'blue' },
-    { label: 'Ticket promedio (mes)', value: RN.calc.formatCUP(s.ticketPromedio), cls: 'amber' },
-    { label: 'Ingresos totales', value: RN.calc.formatCUP(s.ingresosTotales), cls: 'green' },
-    { label: 'Gastos totales', value: RN.calc.formatCUP(s.gastosTotales), cls: 'red' },
-    { label: 'Utilidad acumulada', value: RN.calc.formatCUP(s.utilidadAcumulada), cls: 'blue' },
+    { label: 'Cobros registrados (acumulado)', value: s.cobrosRegistrados, cls: 'blue' },
+    { label: 'Ticket promedio (mes actual)', value: RN.calc.formatCUP(s.ticketPromedio), cls: 'amber' },
+    { label: 'Ingresos totales (acumulado)', value: RN.calc.formatCUP(s.ingresosTotales), cls: 'green' },
+    { label: 'Gastos totales (acumulado)', value: RN.calc.formatCUP(s.gastosTotales), cls: 'red' },
+    { label: 'Utilidad acumulada (todo el historial)', value: RN.calc.formatCUP(s.utilidadAcumulada), cls: 'blue' },
     { label: 'Inversión recuperada', value: s.inversionRecuperada + '%', cls: 'amber' },
     { label: 'Planes de servicio', value: s.planesCount, cls: 'blue' }
   ];

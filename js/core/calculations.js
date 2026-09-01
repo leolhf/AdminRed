@@ -89,15 +89,22 @@ RN.calc.mesInicioCliente = function (cliente) {
  *  - warn: pasó el día de pago pero dentro de gracia (≤ config.graciaDias, default 5)
  *  - due: atrasado / mora real (getMora > 0) o se pasó del día de pago + gracia este mes
  */
-RN.calc.getStatus = function (cliente) {
+RN.calc.getStatus = function (cliente, mes) {
   // v5.13.6 (BUG-6): clientes inactivos (activo === false) devuelven 'inactivo'
   // en vez de 'ok'. Antes devolvia 'ok' (al d\u00eda) para clientes dados de baja,
   // lo que mostraba badge verde en clientes inactivos.
   if (!cliente) return 'ok';
   if (cliente.activo === false) return 'inactivo';
-  const mes = RN.calc.mesActualStr();
+  // v5.14.2 (Auditoría Reportes — BUG-2): 'mes' es opcional y por defecto usa
+  // el mes operativo actual (100% compatible con las llamadas existentes).
+  // Antes esta función SIEMPRE usaba mesActualStr() internamente, por lo que
+  // resumenCliente(cliente, mesPasado) ignoraba el mes visualizado y el
+  // calendario mostraba el estado del mes operativo en TODAS las celdas,
+  // incluso al navegar a meses pasados/futuros.
+  var mesActual = RN.calc.mesActualStr();
+  mes = mes || mesActual;
 
-  // v5.10.5: si el mes actual es anterior al mes de inicio de cobro, no debe todavía.
+  // v5.10.5: si el mes consultado es anterior al mes de inicio de cobro, no debe todavía.
   var mesInicio = RN.calc.mesInicioCliente(cliente);
   if (RN.calc.mesesEntre(mesInicio, mes) < 0) return 'por-iniciar';
 
@@ -111,6 +118,15 @@ RN.calc.getStatus = function (cliente) {
     const totalServicio = cobrosMes.reduce((s, h) => s + (h.monto || 0), 0);
     if (totalServicio >= netoEsperado - 0.01) return 'paid';
     return 'parcial';
+  }
+
+  // v5.14.2 (BUG-2): la lógica de "día de pago + días de gracia" depende del
+  // reloj de HOY, así que solo tiene sentido cuando se consulta el mes
+  // operativo actual. Para un mes distinto al actual (navegación del
+  // calendario): un mes pasado sin cobro ya venció → 'due'; un mes futuro
+  // aún no corresponde → 'ok'.
+  if (mes !== mesActual) {
+    return mes < mesActual ? 'due' : 'ok';
   }
 
   // v5.10.5: si tiene mora real de meses anteriores, es 'due' aunque el día
@@ -161,6 +177,23 @@ RN.calc.getMora = function (cliente) {
   return diff > 0 ? diff : 0;
 };
 
+/**
+ * v5.14.2 (Auditoría Reportes — DUP-1): helpers compartidos para los charts
+ * de barras "hechos a mano" con divs (antes prediccion.js y tendencia.js
+ * duplicaban esta lógica con ligeras variaciones).
+ */
+RN.chart = RN.chart || {};
+
+/** Una barra vertical individual. */
+RN.chart.barra = function (altura, color, tooltip, ancho) {
+  return `<div title="${RN.render.escAttr(tooltip || '')}" style="width:${ancho || 14}px;height:${Math.max(2, Math.round(altura))}px;background:${color};border-radius:3px"></div>`;
+};
+
+/** Agrupa una o más barras bajo una etiqueta de mes (columna del chart). */
+RN.chart.grupoMes = function (barrasHtml, etiqueta) {
+  return `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1">${barrasHtml}<span class="muted" style="font-size:11px">${etiqueta}</span></div>`;
+};
+
 /** Diferencia en meses entre dos YYYY-MM (b - a). */
 RN.calc.mesesEntre = function (a, b) {
   const [ay, am] = a.split('-').map(Number);
@@ -190,7 +223,9 @@ RN.calc.deudaTotalCliente = function (cliente, mes) {
  */
 RN.calc.resumenCliente = function (cliente, mes) {
   mes = mes || RN.calc.mesActualStr();
-  var estado = RN.calc.getStatus(cliente);
+  // v5.14.2 (BUG-2): propagar 'mes' a getStatus — antes siempre reflejaba el
+  // mes operativo actual sin importar qué mes se estuviera consultando.
+  var estado = RN.calc.getStatus(cliente, mes);
   var neto = RN.calc.getPrecioNeto(cliente, mes);
   var cuotaEq = RN.investment.getCuotaEquipoCliente(cliente);
   var deuda = RN.investment.getDeudaEquipoCliente(cliente);
@@ -205,6 +240,34 @@ RN.calc.mesAnterior = function (ym) {
   let [y, m] = ym.split('-').map(Number);
   m--; if (m < 1) { m = 12; y--; }
   return y + '-' + String(m).padStart(2, '0');
+};
+
+/**
+ * v5.14.2 (Auditoría Reportes — DUP-4): últimos N meses (YYYY-MM), empezando
+ * por el mes operativo actual hacia atrás. Antes esta lista se construía por
+ * separado en render.js (selector de reportes) y en descuentos-view.js con
+ * fuentes de datos distintas — se deja aquí como helper único para el caso
+ * "últimos N meses del calendario" (no confundir con RN.calc.mesesConDatos,
+ * que extrae los meses que realmente tienen registros en un array).
+ */
+RN.calc.listaMeses = function (n) {
+  n = n || 12;
+  var meses = [];
+  var m = RN.calc.mesActualStr();
+  for (var i = 0; i < n; i++) { meses.push(m); m = RN.calc.mesAnterior(m); }
+  return meses;
+};
+
+/**
+ * v5.14.2 (DUP-4): meses únicos presentes en un array de registros (ej.
+ * descuentos), ordenados descendente. Útil para selectores de filtro cuyas
+ * opciones deben reflejar solo los meses que realmente tienen datos.
+ */
+RN.calc.mesesConDatos = function (arr, campo) {
+  campo = campo || 'mes';
+  var set = {};
+  (arr || []).forEach(function (item) { if (item[campo]) set[item[campo]] = true; });
+  return Object.keys(set).sort().reverse();
 };
 
 /** Mes siguiente a un YYYY-MM. */
@@ -271,11 +334,20 @@ RN.calc.getPrecioNeto = function (cliente, mes) {
   return Math.max(0, +(base - rec - punt).toFixed(2));
 };
 
-/** Próximo número de recibo (R-YYYY-0000). */
+/**
+ * Próximo número de recibo (R-YYYY-0000).
+ * v5.14.2 (Auditoría Reportes — BUG-6): función de SOLO LECTURA — no muta
+ * RN.state.reciboCounter. El incremento real y atómico del contador ocurre
+ * al guardar el cobro (modal-cobro.js: RN.state.reciboCounter++), después de
+ * confirmar que el cobro se registró. Antes esta función incrementaba una
+ * copia local del contador sin persistirla, lo que separaba (de forma
+ * confusa) la responsabilidad de "generar el número" de "reservarlo".
+ * Llamar a esta función varias veces sin guardar un cobro siempre retorna el
+ * mismo número siguiente — es el comportamiento correcto para una función pura.
+ */
 RN.calc.proxReciboNum = function () {
   const y = new Date().getFullYear();
-  let counter = RN.state.reciboCounter || 0;
-  counter++;
+  const counter = (RN.state.reciboCounter || 0) + 1;
   return 'R-' + y + '-' + String(counter).padStart(4, '0');
 };
 
@@ -423,7 +495,12 @@ RN.calc.cobranzaMes = function (mes) {
   const pagaron = activos.filter(c =>
     RN.state.history.some(h => h.clienteId === c.id && h.tipo === 'servicio' && h.mes === mes)
   );
-  const parciales = activos.filter(c => RN.calc.getStatus(c) === 'parcial');
+  // v5.14.2 (Auditoría Reportes — LOG-1): pasar 'mes' a getStatus. Antes
+  // 'parciales' siempre reflejaba el mes operativo actual aunque se pidiera
+  // cobranzaMes() de otro mes, dando datos inconsistentes con 'pagaron'
+  // (que sí respetaba el mes). Afecta a salud.js, reporte-mensual.js y
+  // generarSnapshot, que llaman cobranzaMes(mes).
+  const parciales = activos.filter(c => RN.calc.getStatus(c, mes) === 'parcial');
   return { total: activos.length, pagaron: pagaron.length, faltan: activos.length - pagaron.length, parciales: parciales.length };
 };
 

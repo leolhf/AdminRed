@@ -4,7 +4,14 @@
  */
 RN.historialMensual = RN.historialMensual || {};
 
-/** Agrupa cobros por mes. */
+/**
+ * Agrupa cobros por mes.
+ * v5.14.2 (Auditoría Reportes — LOG-2): la agrupación usa 'h.mes' (mes de
+ * SERVICIO al que corresponde el cobro), no 'h.fecha' (fecha real en que se
+ * registró el pago) — con fallback a la fecha solo para registros antiguos
+ * sin 'h.mes'. Es intencional: un pago de agosto que cubre el servicio de
+ * julio se agrupa en julio. Mismo criterio que RN.historial.filtrar().
+ */
 RN.historialMensual.agrupar = function () {
   const map = {};
   RN.state.history.forEach(h => {

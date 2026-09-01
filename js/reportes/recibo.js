@@ -6,7 +6,8 @@ RN.recibo = RN.recibo || {};
 
 /** Construye el HTML imprimible de un recibo a partir de un cobro. */
 RN.recibo._html = function (h) {
-  const c = RN.state.clients.find(x => x.id === h.clienteId);
+  // v5.14.2 (Auditoría Reportes — DUP-3): usar el helper centralizado.
+  const c = RN.calc.clientePorId(h.clienteId);
   const neto = h.monto || 0;
   const eq = h.montoEquipo || 0;
   const total = h.totalCUP || (neto + eq);
@@ -123,10 +124,15 @@ RN.recibo._html = function (h) {
   </div>`;
 };
 
+// v5.14.2 (Auditoría Reportes — CODE-1): cache del último recibo mostrado
+// para que `imprimir()` no tenga que volver a buscarlo en el historial.
+RN.recibo._ultimoRecibo = null;
+
 /** Muestra un recibo en un modal con opción de imprimir. */
 RN.recibo.ver = function (cobroId) {
   const h = RN.state.history.find(x => x.id === cobroId);
   if (!h) { RN.notifyUI.toast('Cobro no encontrado', 'error'); return; }
+  RN.recibo._ultimoRecibo = h;
   const html = `
     <div class="modal-header"><h3>Recibo ${h.reciboNum}</h3><button class="close" onclick="RN.uiComponents.cerrarModal()">×</button></div>
     <div class="modal-body" style="background:#f1f5f9">${RN.recibo._html(h)}</div>
@@ -139,8 +145,13 @@ RN.recibo.ver = function (cobroId) {
 
 /** Imprime el recibo usando la zona #print-area. */
 RN.recibo.imprimir = function (cobroId) {
-  const h = RN.state.history.find(x => x.id === cobroId);
-  if (!h) return;
+  // v5.14.2 (CODE-1): usar el cobro cacheado por ver() si coincide el id,
+  // evitando una segunda búsqueda lineal en el historial. Si no coincide
+  // (ej. se llamó imprimir directamente sin pasar por ver), busca igual.
+  const h = (RN.recibo._ultimoRecibo && RN.recibo._ultimoRecibo.id === cobroId)
+    ? RN.recibo._ultimoRecibo
+    : RN.state.history.find(x => x.id === cobroId);
+  if (!h) { RN.notifyUI.toast('Cobro no encontrado', 'error'); return; }
   const area = document.getElementById('print-area');
   area.innerHTML = RN.recibo._html(h);
   RN.uiComponents.cerrarModal();

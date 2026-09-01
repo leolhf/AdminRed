@@ -382,6 +382,15 @@ RN.calendario._kpiDia = function (t) {
 /**
  * v5.13.10 (CODE-5): delegación de eventos para los botones del modal.
  * Evita onclick inline con escape manual de IDs (riesgo XSS).
+ *
+ * v5.14.2 (Auditoría Reportes — CODE-2): la propiedad ad-hoc '_rnCalClick'
+ * en el DOM es intencional y está prefijada con 'rnCal' precisamente para
+ * no colisionar con otros módulos que puedan delegar eventos sobre el mismo
+ * '#modal-box' (ej. otros flujos que abren modales genéricos). Se evaluó
+ * migrar a un único listener global en init.js (data-accion centralizado),
+ * pero como el modal se destruye/recrea en cada apertura y este handler ya
+ * limpia el anterior antes de añadir uno nuevo, el riesgo real de fugas o
+ * colisiones es bajo — se deja documentado en vez de refactorizar.
  */
 RN.calendario._bindModalAcciones = function () {
   const box = document.getElementById('modal-box');
@@ -421,12 +430,15 @@ RN.calendario._recordar = function (clienteId) {
 RN.calendario._recordarTodosDia = function (dia) {
   const ym = RN.calendario._mesActual();
   const diasMes = new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0).getDate();
-  const mes = RN.calc.mesActualStr();
-  // Pendientes del día con teléfono y mesInicio <= mes actual (LOG-3).
+  // v5.14.2 (Auditoría Reportes — BUG-1): usar 'ym' (mes VISUALIZADO en el
+  // calendario) en vez de RN.calc.mesActualStr() (mes operativo real). Antes,
+  // si el usuario navegaba a un mes pasado o futuro, el filtro comparaba
+  // contra el mes real y getStatus(c) sin mes SIEMPRE reflejaba el mes
+  // operativo actual — ahora ambos usan 'ym' (getStatus ya acepta mes, ver BUG-2).
   const clientes = RN.calc.clientesActivos().filter((c) =>
     RN.calendario._diaEfectivo(c.diaPago, diasMes) === dia &&
-    RN.calc.getStatus(c) !== 'paid' &&
-    RN.calc.mesInicioCliente(c) <= mes &&
+    RN.calc.getStatus(c, ym) !== 'paid' &&
+    RN.calc.mesInicioCliente(c) <= ym &&
     c.telefono
   );
   if (!clientes.length) {

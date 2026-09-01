@@ -1,5 +1,14 @@
 # Changelog — AdminRed (RedNet)
 
+## v5.14.2 — Auditoría de Reportes: 22 de 23 hallazgos corregidos
+
+### Resumen
+Se implementaron todas las correcciones de `AUDITORIA_Reportes_v5_13_20.md`: los 7 BUG (estado del calendario en meses pasados/futuros, código muerto, semáforo confuso, comparaciones engañosas), los 4 LOG, los 4 DUP (extraídos a helpers compartidos: `RN.chart`, `RN.export.toCSV`, `RN.calc.clientePorId`, `RN.calc.listaMeses`/`mesesConDatos`), los 4 CODE (incluye BOM UTF-8 en CSV) y 3 de 4 UI (la leyenda de colores del calendario, UI-4, ya existía desde v5.13.11).
+
+El cambio de mayor impacto: **`RN.calc.getStatus()` ahora acepta un mes opcional**, lo que repara el color/estado de las celdas del calendario al navegar a meses pasados o futuros, además de `cobranzaMes()` y todos los reportes que dependen de ella.
+
+Detalle completo en `CHANGELOG_v5.14.2.md`.
+
 ## v5.14.1 — Cuadre de caja
 
 ### Resumen
