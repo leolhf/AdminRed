@@ -22,7 +22,13 @@ RN.monthReset.confirmar = function () {
   }
 
   const snapshot = RN.calc.generarSnapshot(mes);
-  const sinAplicar = RN.state.descuentos.filter(d => d.mes === mes && d.estado === 'pendiente' && !d.soloPago).length;
+  // v5.14.4: solo se anulan los PURAMENTE puntuales de este mes (helper
+  // esPuntualDeMes). Las bonificaciones permanentes / de N>1 meses / unPago
+  // continúan vigentes en meses siguientes y NO se anulan al cierre.
+  const sinAplicar = RN.state.descuentos.filter(d => RN.descuentos.esPuntualDeMes(d, mes)).length;
+  // v5.14.4: contar bonificaciones que siguen activas más allá del cierre
+  const siguenActivas = RN.state.descuentos.filter(d => d.estado !== 'anulado' &&
+    !RN.descuentos.esPuntualDeMes(d, mes) && RN.descuentos.vigenteEnMes(d, mes)).length;
   // v5.13.8 (LOG-4): Verificar cobros adelantados del mes siguiente
   var mesSiguiente = RN.calc.mesSiguiente(mes);
   const cobrosAdelantados = RN.state.history.filter(h => h.mes === mesSiguiente).length;
@@ -37,17 +43,22 @@ RN.monthReset.confirmar = function () {
   if (cobrosParciales > 0) {
     advertencias += `\n\n⚠️ Hay ${cobrosParciales} cliente(s) con pago parcial este mes. Sus saldos pendientes NO se arrastran al mes siguiente (el pago parcial ya quedó en el historial).`;
   }
+  // v5.14.4 (R11): avisar que las bonificaciones multi-mes NO se anulan
+  if (siguenActivas > 0) {
+    advertencias += `\n\nℹ️ Hay ${siguenActivas} bonificación(es) activa(s) que continúan en meses siguientes (no se anulan).`;
+  }
 
   RN.uiComponents.confirm(
     'Cerrar mes — ' + RN.calc.mesTexto(mes),
-    `Se generará un snapshot con:\n• Ingresos: ${RN.calc.formatCUP(snapshot.ingresos)}\n• Gastos: ${RN.calc.formatCUP(snapshot.gastos)}\n• Utilidad: ${RN.calc.formatCUP(snapshot.utilidad)}\n• Cobranza: ${snapshot.clientesPagaron}/${snapshot.clientesTotal}\n\nSe anularán ${sinAplicar} descuento(s) puntual(es) no aplicado(s).\n\nNota: El mes operativo seguirá siendo ${RN.calc.mesTexto(mes)} (el mes real del sistema). El mes cambiará automáticamente cuando avance el calendario.${advertencias}`,
+    `Se generará un snapshot con:\n• Ingresos: ${RN.calc.formatCUP(snapshot.ingresos)}\n• Gastos: ${RN.calc.formatCUP(snapshot.gastos)}\n• Utilidad: ${RN.calc.formatCUP(snapshot.utilidad)}\n• Cobranza: ${snapshot.clientesPagaron}/${snapshot.clientesTotal}\n\nSe anularán ${sinAplicar} descuento(s) puntual(es) de este mes no aplicado(s). Las bonificaciones permanentes o de varios meses NO se anulan.\n\nNota: El mes operativo seguirá siendo ${RN.calc.mesTexto(mes)} (el mes real del sistema). El mes cambiará automáticamente cuando avance el calendario.${advertencias}`,
     () => {
       // 1. Snapshot
       RN.state.snapshots.push(snapshot);
-      // 2. Anular descuentos puntuales no aplicados del mes
-      // v5.12.5: NO anular descuentos soloPago (pasan al mes siguiente hasta que se usen)
+      // 2. Anular SOLO los descuentos puramente puntuales no aplicados del mes
+      // v5.14.4: helper esPuntualDeMes — excluye permanentes, N>1 meses y unPago
+      // (v5.12.5: los soloPago/unPago pasan al mes siguiente hasta que se usen)
       RN.state.descuentos.forEach(d => {
-        if (d.mes === mes && d.estado === 'pendiente' && !d.soloPago) d.estado = 'anulado';
+        if (RN.descuentos.esPuntualDeMes(d, mes)) d.estado = 'anulado';
       });
       // v5.13.20: NO se adelanta el mes operativo. El mes SIEMPRE es el real del reloj.
       // El mes avanzará automáticamente cuando cambie el calendario del sistema.

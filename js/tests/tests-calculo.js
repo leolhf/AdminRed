@@ -72,6 +72,13 @@ RN.tests.ejecutar = function () {
     RN.tests._testCostoMegaConfigurado();     // Bug #17
     RN.tests._testRestanteEfectivo();         // v5.13.16 BUG-1
     RN.tests._testAporteExtraAcumuladoFiltro(); // v5.13.16 BUG-2
+    RN.tests._testBonificacionNMeses();          // v5.14.4
+    RN.tests._testBonificacionPermanente();      // v5.14.4
+    RN.tests._testUnPagoSeConsumeUnaVez();       // v5.14.4
+    RN.tests._testCierreNoAnulaMultiMes();       // v5.14.4
+    RN.tests._testRevertirPorCobroLiberaMes();   // v5.14.4
+    RN.tests._testAnularAplicadaRevieveTodos();  // v5.14.4
+    RN.tests._testLegadoEsquema7();              // v5.14.4
   } finally {
     // Restaurar siempre
     RN.state = stateReal;
@@ -198,9 +205,10 @@ RN.tests._testGetStatus = function () {
     descuentos: []
   });
 
-  // Caso 1: cliente inactivo -> 'ok'
+  // Caso 1: cliente inactivo -> 'inactivo' (v5.13.6 BUG-6: el estado real es 'inactivo',
+  // la expectativa 'ok' era obsoleta desde v5.13.6; corregida en v5.14.4)
   RN.state.clients[0].activo = false;
-  RN.tests._assertEq(RN.calc.getStatus(RN.state.clients[0]), 'ok', 'getStatus: inactivo -> ok');
+  RN.tests._assertEq(RN.calc.getStatus(RN.state.clients[0]), 'inactivo', 'getStatus: inactivo -> inactivo');
 
   // Caso 2: mes de inicio futuro -> 'por-iniciar'
   RN.state.clients[0].activo = true;
@@ -609,3 +617,159 @@ RN.tests._testAporteExtraAcumuladoFiltro = function () {
   RN.tests._assertEq(RN.investment.aporteExtraAcumulado(inv), 200,
     'BUG-2/DUP-3: gastos operativos restan, pero devoluciones y retiros no (200)');
 };
+
+/* ============================================================
+ * v5.14.4 — Bonificaciones permanentes / por N meses
+ * ============================================================ */
+
+/** Cliente mock de uso común en los tests de v5.14.4. */
+RN.tests._cli5144 = function () {
+  return { id: 'c1', nombre: 'Ana', precio: 500, descuentoRecurrente: 0, planId: null, activo: true, diaPago: 5, mesInicio: '2025-01' };
+};
+
+/** Bonificación de 3 meses aplica en M, M+1, M+2 y NO en M+3. */
+RN.tests._testBonificacionNMeses = function () {
+  RN.state = RN.tests._mockState({
+    clients: [RN.tests._cli5144()],
+    descuentos: [{ id: 'd1', clienteId: 'c1', tipo: 'bonificacion', modo: 'fijo', valor: 100, estado: 'pendiente', mes: '2025-06', vigencia: 'meses', desde: '2025-06', durMeses: 3, aplicaciones: [] }]
+  });
+  RN.tests._assertEq(RN.calc.getDescuentosPuntualesMes('c1', '2025-06'), 100, 'v5.14.4: bonificación 3 meses aplica en M (jun)');
+  RN.tests._assertEq(RN.calc.getDescuentosPuntualesMes('c1', '2025-07'), 100, 'v5.14.4: bonificación 3 meses aplica en M+1 (jul)');
+  RN.tests._assertEq(RN.calc.getDescuentosPuntualesMes('c1', '2025-08'), 100, 'v5.14.4: bonificación 3 meses aplica en M+2 (ago)');
+  RN.tests._assertEq(RN.calc.getDescuentosPuntualesMes('c1', '2025-09'), 0, 'v5.14.4: bonificación 3 meses NO aplica en M+3 (sep)');
+  RN.tests._assertEq(RN.calc.getDescuentosPuntualesMes('c1', '2025-05'), 0, 'v5.14.4: bonificación 3 meses NO aplica antes de desde (may)');
+  // Dentro del rango sigue contando aunque esté aplicada (neto histórico cuadra)
+  RN.state.descuentos[0].estado = 'aplicado';
+  RN.tests._assertEq(RN.calc.getDescuentosPuntualesMes('c1', '2025-07'), 100, 'v5.14.4: dentro del rango cuenta aunque estado=aplicado');
+  RN.tests._assertEq(RN.calc.getPrecioNeto(RN.state.clients[0], '2025-07'), 400, 'v5.14.4: neto de julio con bonificación aplicada = 400');
+};
+
+/** Permanente: aplica desde `desde` en adelante y NUNCA hacia atrás. */
+RN.tests._testBonificacionPermanente = function () {
+  RN.state = RN.tests._mockState({
+    clients: [RN.tests._cli5144()],
+    descuentos: [{ id: 'd1', clienteId: 'c1', tipo: 'bonificacion', modo: 'fijo', valor: 50, estado: 'pendiente', mes: '2025-04', vigencia: 'permanente', desde: '2025-04', aplicaciones: [] }]
+  });
+  RN.tests._assertEq(RN.calc.getDescuentosPuntualesMes('c1', '2025-04'), 50, 'v5.14.4: permanente aplica en su mes desde');
+  RN.tests._assertEq(RN.calc.getDescuentosPuntualesMes('c1', '2025-06'), 50, 'v5.14.4: permanente aplica en junio (creada abril)');
+  RN.tests._assertEq(RN.calc.getDescuentosPuntualesMes('c1', '2025-12'), 50, 'v5.14.4: permanente aplica meses después');
+  RN.tests._assertEq(RN.calc.getDescuentosPuntualesMes('c1', '2025-03'), 0, 'v5.14.4 (R1): permanente NUNCA aplica hacia atrás (mar)');
+  // Aplicación: no muere tras el primer cobro
+  RN.descuentos.aplicarEnMes(RN.state.descuentos[0], '2025-06', 'cob-1', 50);
+  RN.tests._assertEq(RN.state.descuentos[0].estado, 'pendiente', 'v5.14.4: permanente NO pasa a aplicado tras un cobro');
+  RN.tests._assertEq(RN.calc.getDescuentosPuntualesMes('c1', '2025-07'), 50, 'v5.14.4: permanente sigue aplicando el mes siguiente');
+};
+
+/** unPago: se consume una sola vez. */
+RN.tests._testUnPagoSeConsumeUnaVez = function () {
+  RN.state = RN.tests._mockState({
+    clients: [RN.tests._cli5144()],
+    descuentos: [{ id: 'd1', clienteId: 'c1', tipo: 'bonificacion', modo: 'fijo', valor: 30, estado: 'pendiente', mes: '2025-06', vigencia: 'unPago', desde: '2025-06', aplicaciones: [], soloPago: true }]
+  });
+  RN.tests._assertEq(RN.calc.getDescuentosPuntualesMes('c1', '2025-06'), 30, 'v5.14.4: unPago aplica antes de consumirse');
+  RN.descuentos.aplicarEnMes(RN.state.descuentos[0], '2025-06', 'cob-1', 30);
+  RN.tests._assertEq(RN.state.descuentos[0].estado, 'aplicado', 'v5.14.4: unPago pasa a aplicado tras su único cobro');
+  RN.tests._assertEq(RN.calc.getDescuentosPuntualesMes('c1', '2025-07'), 0, 'v5.14.4: unPago NO reaparece el mes siguiente');
+};
+
+/** Cierre de mes: esPuntualDeMes solo marca los puntuales de 1 mes. */
+RN.tests._testCierreNoAnulaMultiMes = function () {
+  RN.state = RN.tests._mockState({
+    clients: [RN.tests._cli5144()],
+    descuentos: [
+      { id: 'd1', clienteId: 'c1', tipo: 'afectacion', modo: 'fijo', valor: 10, estado: 'pendiente', mes: '2025-06', vigencia: 'meses', desde: '2025-06', durMeses: 1 },
+      { id: 'd2', clienteId: 'c1', tipo: 'bonificacion', modo: 'fijo', valor: 20, estado: 'pendiente', mes: '2025-06', vigencia: 'meses', desde: '2025-06', durMeses: 3 },
+      { id: 'd3', clienteId: 'c1', tipo: 'bonificacion', modo: 'fijo', valor: 30, estado: 'pendiente', mes: '2025-06', vigencia: 'permanente', desde: '2025-06' },
+      { id: 'd4', clienteId: 'c1', tipo: 'bonificacion', modo: 'fijo', valor: 40, estado: 'pendiente', mes: '2025-06', vigencia: 'unPago', desde: '2025-06', soloPago: true }
+    ]
+  });
+  var mes = '2025-06';
+  RN.tests._assert(RN.descuentos.esPuntualDeMes(RN.state.descuentos[0], mes), 'v5.14.4: puntual de 1 mes SÍ se anula al cierre');
+  RN.tests._assert(!RN.descuentos.esPuntualDeMes(RN.state.descuentos[1], mes), 'v5.14.4: 3 meses NO se anula al cierre');
+  RN.tests._assert(!RN.descuentos.esPuntualDeMes(RN.state.descuentos[2], mes), 'v5.14.4: permanente NO se anula al cierre');
+  RN.tests._assert(!RN.descuentos.esPuntualDeMes(RN.state.descuentos[3], mes), 'v5.14.4: unPago NO se anula al cierre');
+  // Simular el cierre: solo d1 muere
+  RN.state.descuentos.forEach(d => { if (RN.descuentos.esPuntualDeMes(d, mes)) d.estado = 'anulado'; });
+  RN.tests._assertEq(RN.state.descuentos[0].estado, 'anulado', 'v5.14.4: cierre anuló el puntual');
+  RN.tests._assertEq(RN.state.descuentos[1].estado, 'pendiente', 'v5.14.4: cierre NO anuló la de 3 meses');
+  RN.tests._assertEq(RN.state.descuentos[2].estado, 'pendiente', 'v5.14.4: cierre NO anuló la permanente');
+  RN.tests._assertEq(RN.calc.getDescuentosPuntualesMes('c1', '2025-07'), 90, 'v5.14.4: tras cierre de jun, jul sigue con 20+30+40 = 90');
+};
+
+/** Eliminar un cobro de un mes intermedio libera ese mes para re-cobro. */
+RN.tests._testRevertirPorCobroLiberaMes = function () {
+  RN.state = RN.tests._mockState({
+    clients: [RN.tests._cli5144()],
+    history: [
+      { id: 'cob-1', clienteId: 'c1', tipo: 'servicio', mes: '2025-06', monto: 400 },
+      { id: 'cob-2', clienteId: 'c1', tipo: 'servicio', mes: '2025-07', monto: 400 }
+    ],
+    descuentos: [{ id: 'd1', clienteId: 'c1', tipo: 'bonificacion', modo: 'fijo', valor: 100, estado: 'pendiente', mes: '2025-06', vigencia: 'meses', desde: '2025-06', durMeses: 3, aplicaciones: [
+      { mes: '2025-06', cobroHid: 'cob-1', valor: 100 }, { mes: '2025-07', cobroHid: 'cob-2', valor: 100 }
+    ] }]
+  });
+  // Eliminar el cobro de julio
+  RN.descuentos.revertirPorCobro('cob-2');
+  var d = RN.state.descuentos[0];
+  RN.tests._assertEq(d.aplicaciones.length, 1, 'v5.14.4: revertirPorCobro eliminó solo la aplicación de julio');
+  RN.tests._assertEq(d.aplicaciones[0].mes, '2025-06', 'v5.14.4: la aplicación de junio sigue');
+  RN.tests._assertEq(d.estado, 'pendiente', 'v5.14.4: la bonificación vuelve a estar activa');
+  RN.tests._assertEq(RN.calc.getDescuentosPuntualesMes('c1', '2025-07'), 100, 'v5.14.4: julio liberado — la bonificación vuelve a aplicar si se re-cobra');
+};
+
+/** Anular una aplicada revierte TODOS los cobros (valores congelados). */
+RN.tests._testAnularAplicadaRevieveTodos = function () {
+  RN.state = RN.tests._mockState({
+    clients: [RN.tests._cli5144()],
+    history: [
+      { id: 'cob-1', clienteId: 'c1', tipo: 'servicio', mes: '2025-06', monto: 400, totalCUP: 400, totalAPagar: 400, totalPagadoCUP: 400 },
+      { id: 'cob-2', clienteId: 'c1', tipo: 'servicio', mes: '2025-07', monto: 400, totalCUP: 400, totalAPagar: 400, totalPagadoCUP: 400 }
+    ],
+    descuentos: [{ id: 'd1', clienteId: 'c1', tipo: 'bonificacion', modo: 'fijo', valor: 100, estado: 'aplicado', mes: '2025-06', vigencia: 'meses', desde: '2025-06', durMeses: 2, aplicaciones: [
+      { mes: '2025-06', cobroHid: 'cob-1', valor: 100 }, { mes: '2025-07', cobroHid: 'cob-2', valor: 100 }
+    ] }]
+  });
+  var apps = RN.descuentos._aplicacionesDe(RN.state.descuentos[0]);
+  RN.tests._assertEq(apps.length, 2, 'v5.14.4: _aplicacionesDe unifica las 2 aplicaciones');
+  var total = 0;
+  apps.forEach(function (a) {
+    var cobro = RN.state.history.find(h => h.id === a.cobroHid);
+    total += RN.descuentos._revertirEnCobro(a.cobroHid, a.valor);
+  });
+  RN.tests._assertEq(total, 200, 'v5.14.4: revert total con valores congelados = 200');
+  RN.tests._assertEq(RN.state.history[0].monto, 500, 'v5.14.4: cobro de junio revertido a 500');
+  RN.tests._assertEq(RN.state.history[1].monto, 500, 'v5.14.4: cobro de julio revertido a 500');
+  // Tras revertir, el total a pagar sube (500) por encima de lo pagado (400)
+  // → el cobro de julio queda 'parcial' (aún faltan 100 CUP). 'completo' era incorrecto.
+  RN.tests._assertEq(RN.state.history[1].tipoPago, 'parcial', 'v5.14.4: tipoPago recalculado tras revert (parcial: faltan 100)');
+};
+
+/** Import de backup viejo (esquema 7 / sin campos nuevos) queda operativo. */
+RN.tests._testLegadoEsquema7 = function () {
+  // Sin campos nuevos: como lo restaura un checkpoint de undo o un backup v7
+  RN.state = RN.tests._mockState({
+    clients: [RN.tests._cli5144()],
+    descuentos: [
+      { id: 'd1', clienteId: 'c1', tipo: 'bonificacion', modo: 'fijo', valor: 50, mes: '2025-06', soloPago: false, estado: 'pendiente', cobroHid: null },
+      { id: 'd2', clienteId: 'c1', tipo: 'bonificacion', modo: 'fijo', valor: 30, mes: '2025-06', soloPago: true, estado: 'pendiente', cobroHid: null },
+      { id: 'd3', clienteId: 'c1', tipo: 'bonificacion', modo: 'fijo', valor: 20, mes: '2025-06', soloPago: false, estado: 'aplicado', cobroHid: 'cob-x' }
+    ]
+  });
+  // d1: puntual de junio (legacy) — comporta igual que antes
+  // d1: puntual de junio (legacy) + d2 soloPago + d3 aplicado de junio.
+  // Por diseño (informe §3.2, compatibilidad legacy), una bonificación aplicada del
+  // MISMO mes sigue contando en junio — el precio neto ya pagado debe cuadrar.
+  RN.tests._assertEq(RN.calc.getDescuentosPuntualesMes('c1', '2025-06'), 100, 'v5.14.4 legacy: jun cuenta d1(50)+d2(30)+d3(20, aplicada mismo mes)');
+  RN.tests._assertEq(RN.calc.getDescuentosPuntualesMes('c1', '2025-07'), 30, 'v5.14.4 legacy: jul solo cuenta el soloPago pendiente');
+  RN.tests._assert(RN.descuentos.esPuntualDeMes(RN.state.descuentos[0], '2025-06'), 'v5.14.4 legacy: d1 (no soloPago) se anula al cierre de jun');
+  RN.tests._assert(!RN.descuentos.esPuntualDeMes(RN.state.descuentos[1], '2025-06'), 'v5.14.4 legacy: d2 soloPago NO se anula al cierre');
+  // d3 aplicado con cobroHid en junio: sigue vigente en junio (mismo mes, cuadra con lo
+  // pagado) pero NO revive en julio (no vuelve a aplicar en meses futuros)
+  RN.tests._assert(RN.descuentos.vigenteEnMes(RN.state.descuentos[2], '2025-06'), 'v5.14.4 legacy: aplicada cuenta en su propio mes (cuadre con lo pagado)');
+  RN.tests._assert(!RN.descuentos.vigenteEnMes(RN.state.descuentos[2], '2025-07'), 'v5.14.4 legacy: aplicada con cobroHid no revive en julio');
+  // _aplicacionesDe reconstruye la aplicación legada
+  var apps3 = RN.descuentos._aplicacionesDe(RN.state.descuentos[2]);
+  RN.tests._assertEq(apps3.length, 1, 'v5.14.4 legacy: _aplicacionesDe reconstruye 1 aplicación del cobroHid legado');
+  RN.tests._assertEq(RN.descuentos.vigenciaDe(RN.state.descuentos[1]), 'unPago', 'v5.14.4 legacy: soloPago se interpreta como unPago');
+};
+

@@ -33,6 +33,41 @@ RN.validacion.validar = function () {
     if (!['fijo', 'porcentaje', 'dias'].includes(d.modo)) {
       errores.push(`Descuento ${d.id} con modo inválido: ${d.modo}`);
     }
+    // v5.14.4 — Validación del modelo de vigencia (tolera datos legados:
+    // si falta `vigencia` se deduce de soloPago, como en los helpers).
+    const vig = d.vigencia || (d.soloPago ? 'unPago' : 'meses');
+    if (!['meses', 'permanente', 'unPago'].includes(vig)) {
+      errores.push(`Descuento ${d.id} con vigencia inválida: ${d.vigencia}`);
+    }
+    const desde = d.desde || d.mes;
+    if (desde && !/^\d{4}-\d{2}$/.test(desde)) {
+      errores.push(`Descuento ${d.id} con mes/desde inválido (se espera YYYY-MM): ${desde}`);
+    }
+    if (vig === 'meses') {
+      const n = parseInt(d.durMeses, 10);
+      if (!Number.isInteger(n) || n < 1) {
+        errores.push(`Descuento ${d.id} con durMeses inválido (entero >= 1): ${d.durMeses}`);
+      }
+    }
+    // D5/R9: el modo 'dias' (afectación proporcional) solo es coherente con
+    // vigencia puntual — no con permanentes ni N meses.
+    if (d.modo === 'dias' && vig !== 'meses') {
+      errores.push(`Descuento ${d.id} con modo 'dias' solo admite vigencia puntual (un mes), no ${vig}`);
+    }
+    // Coherencia: aplicaciones dentro del rango de vigencia
+    if (Array.isArray(d.aplicaciones) && d.aplicaciones.length) {
+      d.aplicaciones.forEach(a => {
+        if (vig === 'meses' && desde && a.mes) {
+          const vence = RN.descuentos.venceEnMes(d);
+          if (a.mes < desde || (vence && a.mes > vence)) {
+            errores.push(`Descuento ${d.id} con aplicación fuera del rango de vigencia: ${a.mes} (${desde}–${vence || '∞'})`);
+          }
+        }
+        if (a.cobroHid && !RN.state.history.find(h => h.id === a.cobroHid)) {
+          errores.push(`Descuento ${d.id} con aplicación que referencia cobro inexistente ${a.cobroHid}`);
+        }
+      });
+    }
   });
 
   // v5.13.1: Bug #13 — Validación financiera de datos.

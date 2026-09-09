@@ -56,15 +56,16 @@ RN.modalCobro.abrir = function (clienteId) {
   const deudaEq = RN.investment.getDeudaEquipoCliente(c);
   // v5.13.8 (CODE-2/UI-1): usar resumenCliente para mora y deuda total
   const resumen = RN.calc.resumenCliente(c, mes);
-  const descPunt = RN.state.descuentos.filter(d => d.clienteId === clienteId && d.estado !== 'anulado' && (d.mes === mes || (d.soloPago && d.estado === 'pendiente')));
+  // v5.14.4: vigencia centralizada en RN.descuentos.vigenteEnMes (helper único)
+  const descPunt = RN.state.descuentos.filter(d => d.clienteId === clienteId && RN.descuentos.vigenteEnMes(d, mes));
   const tasa = RN.moneda.tasa();
   const fondo = RN.calc.fondoCaja();
 
   const descRows = descPunt.length ? descPunt.map(d => `<tr>
-    <td>${d.tipo}${d.soloPago ? ' <span class="badge warn" style="font-size:10px">1 solo pago</span>' : ''}</td><td>${RN.render.esc(d.motivo)}</td><td>${d.modo}</td>
+    <td>${d.tipo}</td><td>${RN.render.esc(d.motivo)}</td><td>${d.modo}</td><td>${RN.descuentos._badgeVigencia(d) || '<span class="muted">Este mes</span>'}</td>
     <td>${RN.calc.formatCUP(RN.calc.valorDescuento(d, clienteId))}</td>
     <td><button class="btn sm danger" onclick="RN.descuentos.eliminar('${RN.render.escAttr(d.id)}', true)">🗑</button></td>
-  </tr>`).join('') : '<tr><td colspan="5" class="muted center">Sin descuentos puntuales este mes</td></tr>';
+  </tr>`).join('') : '<tr><td colspan="6" class="muted center">Sin descuentos ni bonificaciones este mes</td></tr>';
 
   // v5.13.8 (BUG-1): totalAPagar ahora incluye mora
   const moraVal = RN.calc.getMora(c);
@@ -90,9 +91,9 @@ RN.modalCobro.abrir = function (clienteId) {
         <input id="cobro-monto-equipo" type="number" step="0.01" value="${cuotaEq}" max="${deudaEq}">
       </div>` : ''}
 
-      <h3 style="font-size:13px;text-transform:uppercase;color:var(--text-muted)">Descuentos puntuales del mes</h3>
-      <div class="table-wrap mb-16"><table><thead><tr><th>Tipo</th><th>Motivo</th><th>Modo</th><th>Valor</th><th></th></tr></thead><tbody>${descRows}</tbody></table></div>
-      <button class="btn sm" onclick="RN.descuentos.abrirNuevo('${RN.render.escAttr(clienteId)}', '${RN.render.escAttr(mes)}')">+ Agregar descuento puntual</button>
+      <h3 style="font-size:13px;text-transform:uppercase;color:var(--text-muted)">Descuentos y bonificaciones del mes</h3>
+      <div class="table-wrap mb-16"><table><thead><tr><th>Tipo</th><th>Motivo</th><th>Modo</th><th>Vigencia</th><th>Valor</th><th></th></tr></thead><tbody>${descRows}</tbody></table></div>
+      <button class="btn sm" onclick="RN.descuentos.abrirNuevo('${RN.render.escAttr(clienteId)}', '${RN.render.escAttr(mes)}')">+ Agregar descuento o bonificación</button>
 
       <div class="divider"></div>
 
@@ -611,7 +612,8 @@ RN.modalCobro.confirmar = function () {
 
   // v5.13.8 (BUG-4): Pre-computar descuentos a aplicar una sola vez
   // (antes se filtraba dos veces: al construir h y al marcar como aplicado)
-  var descuentosAplicar = RN.state.descuentos.filter(d => d.clienteId === c.id && d.estado !== 'anulado' && (d.mes === mes || (d.soloPago && d.estado === 'pendiente')));
+  // v5.14.4: vigencia centralizada en RN.descuentos.vigenteEnMes (helper único)
+  var descuentosAplicar = RN.state.descuentos.filter(d => d.clienteId === c.id && RN.descuentos.vigenteEnMes(d, mes));
 
   // Recibo
   RN.state.reciboCounter = (RN.state.reciboCounter || 0) + 1;
@@ -654,9 +656,15 @@ RN.modalCobro.confirmar = function () {
   RN.state.history.push(h);
 
   // v5.13.8 (BUG-4): Usar el array pre-computado en lugar de re-filtrar
+  // v5.14.4 — MULTI-MES (el cambio más delicado del feature):
+  // Antes: d.estado='aplicado'; d.cobroHid=h.id → MATABA la bonificación tras
+  // el primer mes. Ahora se registra UNA APLICACIÓN POR MES con el valor
+  // COBRADO congelado (R2), y solo pasa a 'aplicado' cuando ya no aplicará a
+  // ningún mes futuro (RN.descuentos.aplicarEnMes): puntual/unPago → inmediato;
+  // N-meses → al cobrarse el último mes del rango; permanente → nunca (queda
+  // activa/pendiente hasta que el administrador la anule).
   descuentosAplicar.forEach(d => {
-    d.estado = 'aplicado';
-    d.cobroHid = h.id;
+    RN.descuentos.aplicarEnMes(d, mes, h.id, RN.calc.valorDescuento(d, c.id));
   });
 
   // v5.13.1: Bug #3 — descuenta equipo SIEMPRE que se haya pagado parte del equipo.

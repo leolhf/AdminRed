@@ -291,16 +291,137 @@ RN.calc.getDescuentoRecurrente = function (cliente) {
   return cliente.descuentoRecurrente || 0;
 };
 
+/* ============================================================
+ * v5.14.4 — Bonificaciones permanentes / por N meses.
+ * Helpers centralizados de vigencia. ÚNICA fuente de verdad para
+ * decidir si un descuento aplica a un mes (antes la condición estaba
+ * duplicada en calculations.js, modal-cobro.js y month-reset.js).
+ * Todos los helpers toleran datos viejos (esquema ≤7, checkpoints sin
+ * migrar, backups importados): si falta `vigencia` se deduce de
+ * `soloPago`, y si falta `desde` se usa `d.mes`.
+ * ============================================================ */
+RN.descuentos = RN.descuentos || {};
+
+/** Vigencia normalizada: 'meses' | 'permanente' | 'unPago'. */
+RN.descuentos.vigenciaDe = function (d) {
+  if (d.vigencia) return d.vigencia;
+  return d.soloPago ? 'unPago' : 'meses'; // legacy: soloPago === unPago
+};
+
+/** Mes de inicio normalizado (fallback: d.mes). */
+RN.descuentos.desdeDe = function (d) {
+  return d.desde || d.mes;
+};
+
+/** Último mes del rango de vigencia, o null (permanente / unPago). */
+RN.descuentos.venceEnMes = function (d) {
+  var vig = RN.descuentos.vigenciaDe(d);
+  if (vig === 'permanente' || vig === 'unPago') return null;
+  var n = Math.max(1, parseInt(d.durMeses, 10) || 1);
+  var desde = RN.descuentos.desdeDe(d);
+  if (!desde) return null;
+  var ym = desde;
+  for (var i = 1; i < n; i++) ym = RN.calc.mesSiguiente(ym);
+  return ym;
+};
+
+/**
+ * ¿El descuento d cuenta para el mes M?
+ * - anulados: nunca.
+ * - permanente: M >= desde (nunca hacia atrás — R1).
+ * - meses (N): desde <= M <= desde + N - 1 (por calendario — D2).
+ *   Dentro del rango cuenta aunque estado='aplicado' (propiedad que hay
+ *   que preservar para que el neto de meses ya cobrados siga cuadrando).
+ * - unPago: mientras no se haya consumido (estado 'pendiente', sin
+ *   aplicaciones aún) — equivale al soloPago legado.
+ */
+RN.descuentos.vigenteEnMes = function (d, mes) {
+  if (!d || !mes || d.estado === 'anulado') return false;
+  var vig = RN.descuentos.vigenciaDe(d);
+  var desde = RN.descuentos.desdeDe(d);
+  if (!desde) return false;
+  if (vig === 'permanente') return mes >= desde;
+  if (vig === 'unPago') {
+    var consumido = d.estado !== 'pendiente' ||
+      (Array.isArray(d.aplicaciones) && d.aplicaciones.length > 0) || d.cobroHid;
+    return !consumido;
+  }
+  // 'meses'
+  var hasta = RN.descuentos.venceEnMes(d);
+  return !!(hasta && mes >= desde && mes <= hasta);
+};
+
+/** ¿Aún aplicará a algún mes posterior a `mes`? (para decidir estado) */
+RN.descuentos.aplicaAFuturo = function (d, mes) {
+  var vig = RN.descuentos.vigenciaDe(d);
+  if (vig === 'permanente') return true;
+  if (vig === 'unPago') return false;
+  var hasta = RN.descuentos.venceEnMes(d);
+  return !!(hasta && hasta > mes);
+};
+
+/**
+ * Registra la aplicación del mes M en un cobro (v5.14.4).
+ * Guarda el valor COBRADO congelado (R2) para que el revert no dependa
+ * del precio del plan actual. Solo pasa a 'aplicado' cuando ya no aplica
+ * a ningún mes futuro (puntual/unPago: inmediato; N-meses: al último mes
+ * del rango; permanente: nunca — queda activa hasta anulación).
+ */
+RN.descuentos.aplicarEnMes = function (d, mes, cobroId, valor) {
+  if (!d.aplicaciones || !Array.isArray(d.aplicaciones)) d.aplicaciones = [];
+  // Evitar duplicar la aplicación del mismo mes en el mismo cobro
+  var ya = d.aplicaciones.some(function (a) { return a.mes === mes && a.cobroHid === cobroId; });
+  if (!ya) d.aplicaciones.push({ mes: mes, cobroHid: cobroId, valor: +valor || 0 });
+  // Compatibilidad legada: cobroHid apunta a la última aplicación
+  d.cobroHid = cobroId;
+  if (!RN.descuentos.aplicaAFuturo(d, mes)) {
+    d.estado = 'aplicado';
+  }
+  return d;
+};
+
+/** Texto de vigencia legible: "Permanente", "jun–ago 2025 (3 meses)" o "1 solo pago". */
+RN.descuentos.rangoVigencia = function (d) {
+  var vig = RN.descuentos.vigenciaDe(d);
+  if (vig === 'permanente') return 'Permanente';
+  if (vig === 'unPago') return '1 solo pago';
+  var n = Math.max(1, parseInt(d.durMeses, 10) || 1);
+  var desde = RN.descuentos.desdeDe(d);
+  if (!desde) return '—';
+  if (n === 1) return RN.calc.mesTexto(desde);
+  var hasta = RN.descuentos.venceEnMes(d);
+  var meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  var _m = function (ym, conAnio) {
+    var partes = ym.split('-');
+    return meses[parseInt(partes[1], 10) - 1] + (conAnio ? ' ' + partes[0] : '');
+  };
+  var mismoAnio = desde.split('-')[0] === hasta.split('-')[0];
+  return _m(desde, !mismoAnio) + '–' + _m(hasta, true) + ' (' + n + ' meses)';
+};
+
+/**
+ * ¿Es un descuento puramente puntual de ese mes (se anula al cierre)?
+ * true solo para vigencia 'meses' con durMeses=1 creado para ese mes.
+ * Las permanentes, N>1 meses y unPago NO se anulan al cierre (R4).
+ */
+RN.descuentos.esPuntualDeMes = function (d, mes) {
+  if (!d || d.estado !== 'pendiente') return false;
+  var vig = RN.descuentos.vigenciaDe(d);
+  if (vig !== 'meses') return false;
+  var n = Math.max(1, parseInt(d.durMeses, 10) || 1);
+  return n === 1 && RN.descuentos.desdeDe(d) === mes;
+};
+
 /**
  * Descuentos puntuales del mes para un cliente (suma de valores en CUP).
- * Solo los que están "aplicado" o "pendiente" (no anulados).
+ * Solo los que estén "aplicado" o "pendiente" (no anulados).
+ * v5.14.4: la condición de vigencia vive en RN.descuentos.vigenteEnMes.
  */
 RN.calc.getDescuentosPuntualesMes = function (clienteId, mes) {
   mes = mes || RN.calc.mesActualStr();
   let total = 0;
   RN.state.descuentos.forEach(d => {
-    // v5.12.5: los descuentos soloPago pendientes se aplican a cualquier mes (próximo cobro)
-    if (d.clienteId === clienteId && d.estado !== 'anulado' && (d.mes === mes || (d.soloPago && d.estado === 'pendiente'))) {
+    if (d.clienteId === clienteId && RN.descuentos.vigenteEnMes(d, mes)) {
       total += RN.calc.valorDescuento(d, clienteId);
     }
   });

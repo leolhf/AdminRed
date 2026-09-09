@@ -5,7 +5,7 @@
 
 RN.migration = RN.migration || {};
 
-RN.migration.VERSION_ESQUEMA = 7;
+RN.migration.VERSION_ESQUEMA = 8;
 
 /** Aplica migraciones al blob de datos cargado. */
 RN.migration.migrar = function (data) {
@@ -190,6 +190,37 @@ RN.migration.migrar = function (data) {
       });
     }
     v = 7;
+  }
+
+  // v7->v8: bonificaciones permanentes / por N meses (v5.14.4). Asignar
+  // defaults a TODOS los descuentos existentes para el modelo unificado:
+  //   vigencia: 'unPago' si era soloPago, si no 'meses' (comportamiento idéntico)
+  //   desde:    el mes que ya tenía (d.mes)
+  //   durMeses: 1 (un solo mes = comportamiento previo exacto)
+  //   aplicaciones: [{mes, cobroHid}] solo si ya estaba aplicada a un cobro
+  // REGLA DE ORO: todo el código que lea estos campos debe tolerar que falten
+  // (checkpoints de undo, backups importados y blobs viejos NO pasan por aquí),
+  // por eso los helpers de calculations.js trabajan con fallbacks equivalentes.
+  if (v < 8) {
+    if (Array.isArray(data.descuentos)) {
+      data.descuentos.forEach(function (d) {
+        if (d.vigencia === undefined) {
+          d.vigencia = d.soloPago ? 'unPago' : 'meses';
+        }
+        if (d.desde === undefined) {
+          d.desde = d.mes;
+        }
+        if (d.durMeses === undefined) {
+          d.durMeses = 1;
+        }
+        if (d.aplicaciones === undefined) {
+          d.aplicaciones = (d.cobroHid && d.estado === 'aplicado')
+            ? [{ mes: d.mes, cobroHid: d.cobroHid, valor: null }]
+            : [];
+        }
+      });
+    }
+    v = 8;
   }
 
   // Reconstruir recuperación de inversión desde el historial si está en 0.

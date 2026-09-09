@@ -1,5 +1,17 @@
 # Changelog — AdminRed (RedNet)
 
+## v5.14.4 — Bonificaciones permanentes y de N meses
+
+### Resumen
+Las **bonificaciones** dejan de limitarse a "un mes o un solo pago": ahora soportan **Duración** *permanente* (aplica todos los meses hasta anularla), *N meses* (rango de calendario, ej. jun–ago 2025) y *1 solo pago* (el viejo `soloPago`). Cada mes cobrado se registra en `aplicaciones[]` con el **valor congelado** (los cobros ya emitidos no cambian si luego se edita el descuento). La condición de vigencia — antes duplicada en 4 sitios — se centraliza en `RN.descuentos.vigenteEnMes()` con fallbacks que mantienen operativos los backups del esquema 7 (migración 7→8). El cierre de mes ya no anula permanentes/N-meses; anular una bonificación aplicada revierte **todos** los cobros afectados. 7 tests nuevos (115/115 pasan).
+
+Detalle completo en `CHANGELOG_v5.14.4.md`.
+
+## v5.14.3 — Historial de cobros (Reportes) agrupado por mes y colapsable
+
+### Resumen
+En la sección **Reportes → "Historial de cobros"**, la tabla plana que mostraba solo 50 cobros se sustituye por una vista **agrupada por mes en cintillas colapsables**, donde cada mes aparece contraído por defecto (solo el más reciente queda abierto) y cada cobro es una tarjeta colapsable. El modal "Ver todos" se actualiza al mismo formato. (Entrada añadida a este archivo en v5.14.4; el detalle vivía hasta ahora solo en `CHANGELOG_v5.14.3.md`.)
+
 ## v5.14.2 — Auditoría de Reportes: 22 de 23 hallazgos corregidos
 
 ### Resumen

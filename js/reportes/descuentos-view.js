@@ -1,6 +1,9 @@
 /**
- * reportes/descuentos-view.js — Vista de gestión de descuentos puntuales,
+ * reportes/descuentos-view.js — Vista de gestión de descuentos y bonificaciones,
  * con filtros por mes/tipo/estado y exportación a CSV.
+ * v5.14.4: columna "Vigencia" (Permanente / N meses / 1 solo pago), filtro por
+ * mes de APLICACIÓN (vigenteEnMes), estado "Activa" para permanentes vivas,
+ * y CSV con columnas vigencia/desde/vence/durMeses/aplicaciones.
  */
 RN.descuentosView = RN.descuentosView || {};
 
@@ -9,7 +12,8 @@ RN.descuentosView.render = function () {
   const selMes = document.getElementById('filter-desc-mes');
   if (selMes && !selMes.dataset.filled) {
     // v5.14.2 (Auditoría Reportes — DUP-4): helper compartido con render.js.
-    const meses = RN.calc.mesesConDatos(RN.state.descuentos, 'mes');
+    // v5.14.4: opciones sobre el campo 'desde' (inicio de vigencia).
+    const meses = RN.calc.mesesConDatos(RN.state.descuentos, 'desde');
     selMes.innerHTML = '<option value="">Todos los meses</option>' + meses.map(m => `<option value="${m}">${RN.calc.mesTexto(m)}</option>`).join('');
     selMes.addEventListener('change', () => RN.descuentosView.render());
     selMes.dataset.filled = '1';
@@ -26,42 +30,68 @@ RN.descuentosView.render = function () {
   const fTipo = selTipo ? selTipo.value : '';
   const fEst = selEst ? selEst.value : '';
 
+  // v5.14.4: el filtro por mes pasa de "mes de creación" a "aplica al mes
+  // seleccionado" (vigenteEnMes): si filtras junio, aparecen las permanentes
+  // creadas en abril que siguen activas en junio, y las de N meses jun–ago.
   let lista = RN.state.descuentos.slice().reverse().filter(d => {
-    if (fMes && d.mes !== fMes) return false;
+    if (fMes && !RN.descuentos.vigenteEnMes(d, fMes)) return false;
     if (fTipo && d.tipo !== fTipo) return false;
     if (fEst && d.estado !== fEst) return false;
     return true;
   });
 
   if (!lista.length) {
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty"><div class="icon">🏷️</div>No hay descuentos puntuales. Agrégalos desde el modal de cobro o con "Descuento por lote".</div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty"><div class="icon">🏷️</div>No hay descuentos ni bonificaciones que apliquen a la selección. Agrégalos desde el modal de cobro o con "Descuento por lote".</div></td></tr>`;
     return;
   }
 
+  // v5.14.4 (R4): "aplicado" = consumida definitivamente; las permanentes y
+  // de N meses vivas en 'pendiente' se muestran como "Activa".
   const estadoBadge = { aplicado: ['paid', 'Aplicado'], pendiente: ['warn', 'Pendiente'], anulado: ['muted', 'Anulado'] };
+  const _estadoDesc = function (d) {
+    if (d.estado === 'pendiente' && RN.descuentos.vigenciaDe(d) === 'permanente') return ['ok', 'Activa'];
+    if (d.estado === 'pendiente' && RN.descuentos.vigenciaDe(d) === 'meses' && (parseInt(d.durMeses, 10) || 1) > 1) {
+      return ['por', 'Activa'];
+    }
+    if (d.estado === 'pendiente' && RN.descuentos.vigenciaDe(d) === 'unPago') return ['warn', 'Pendiente'];
+    return estadoBadge[d.estado] || ['muted', d.estado];
+  };
+
   tbody.innerHTML = lista.map(d => {
     // v5.14.2 (Auditoría Reportes — DUP-3): usar el helper centralizado.
     const c = RN.calc.clientePorId(d.clienteId);
-    const [ecls, etxt] = estadoBadge[d.estado] || ['muted', d.estado];
+    const _ed = _estadoDesc(d);
+    const _vig = RN.descuentos.vigenciaDe(d);
+    const _vence = _vig === 'meses' ? RN.descuentos.venceEnMes(d) : '';
     return `<tr>
       <td data-label="Cliente">${RN.render.esc(c ? c.nombre : '—')}</td>
-      <td data-label="Tipo">${d.tipo}${d.soloPago ? ' <span class="badge warn" style="font-size:10px">1 solo pago</span>' : ''}</td>
+      <td data-label="Tipo">${d.tipo}${RN.descuentos._badgeVigencia(d)}</td>
       <td data-label="Motivo">${RN.render.esc(d.motivo)}</td>
       <td data-label="Modo">${d.modo}</td>
       <td data-label="Valor">${d.modo === 'porcentaje' ? d.valor + '%' : (d.modo === 'dias' ? d.valor + ' días' : RN.calc.formatCUP(d.valor))}</td>
-      <td data-label="Mes">${d.soloPago && d.estado === 'pendiente' ? '<span class="badge warn" style="font-size:10px">Próx. pago</span>' : RN.calc.mesTexto(d.mes)}</td>
-      <td data-label="Estado"><span class="badge ${ecls}">${etxt}</span></td>
+      <td data-label="Vigencia">${RN.descuentos.rangoVigencia(d)}</td>
+      <td data-label="Estado"><span class="badge ${_ed[0]}">${_ed[1]}</span></td>
       <td data-label="Acciones">${d.estado !== 'anulado' ? `<button class="btn sm danger" onclick="RN.descuentos.eliminar('${d.id}')">🗑</button>` : ''}</td>
     </tr>`;
   }).join('');
 };
 
 RN.descuentosView.exportCSV = function () {
-  const rows = [['cliente', 'tipo', 'motivo', 'modo', 'valor', 'mes', 'estado', 'fecha']];
+  // v5.14.4: columnas nuevas vigencia/desde/vence/durMeses/nº aplicaciones.
+  // ⚠ Si consumes descuentos.csv en hojas de cálculo, revisa las nuevas columnas.
+  const rows = [['cliente', 'tipo', 'motivo', 'modo', 'valor', 'vigencia', 'desde', 'vence', 'durMeses', 'aplicaciones', 'mes_creacion', 'estado', 'fecha']];
   RN.state.descuentos.forEach(d => {
     // v5.14.2 (DUP-3): usar el helper centralizado.
     const c = RN.calc.clientePorId(d.clienteId);
-    rows.push([c ? c.nombre : '', d.tipo, d.motivo, d.modo, d.valor, d.mes, d.estado, (d.fecha || '').slice(0, 10)]);
+    const _vig = RN.descuentos.vigenciaDe(d);
+    rows.push([
+      c ? c.nombre : '', d.tipo, d.motivo, d.modo, d.valor,
+      _vig, RN.descuentos.desdeDe(d),
+      _vig === 'meses' ? RN.descuentos.venceEnMes(d) : '',
+      _vig === 'meses' ? (Math.max(1, parseInt(d.durMeses, 10) || 1)) : '',
+      Array.isArray(d.aplicaciones) ? d.aplicaciones.length : 0,
+      d.mes, d.estado, (d.fecha || '').slice(0, 10)
+    ]);
   });
   // v5.14.2 (DUP-2): escape CSV centralizado en RN.export.toCSV.
   const csv = RN.export.toCSV(rows);

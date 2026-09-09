@@ -169,6 +169,54 @@ Los descuentos puntuales no aplicados al cerrar mes se **anulan**
 (`estado = 'anulado'`), salvo los `soloPago` que pasan al mes siguiente hasta
 que se usen. El cierre de mes lo gestiona `RN.monthReset.confirmar()`.
 
+### 6.1 Vigencia de las bonificaciones (v5.14.4)
+
+Desde v5.14.4, las **bonificaciones** tienen un campo `vigencia` que define
+cuántos meses aplican:
+
+- **`'permanente'`**: aplica **todos los meses** desde `desde` en adelante.
+  Nunca se anula al cerrar mes. El estado permanece `pendiente` (nunca pasa a
+  `aplicado`, porque siempre aplica a futuro).
+- **`'meses'` con `durMeses: N`**: aplica **N meses de calendario** contando
+  `desde` como el primero (jun–ago 2025 con `durMeses: 3`). Al cobrar el
+  último mes del rango pasa a `aplicado`; en los meses intermedios sigue
+  `pendiente`.
+- **`'unPago'`**: reemplaza al viejo `soloPago` (se mantiene por compatibilidad
+  y se interpreta igual). Se consume **una sola vez**: al primer cobro pasa a
+  `aplicado`.
+
+Cada vez que la bonificación descuenta en un cobro, se registra una
+aplicación en `d.aplicaciones.push({ mes, cobroHid, valor })`, donde `valor`
+es el **valor congelado** en el momento del cobro (regla R2 del informe): si
+después se edita el descuento (o el precio del plan), los cobros ya emitidos
+**no cambian**. Las bonificaciones permanentes/N-meses solo pasan a
+`aplicado` cuando ya no aplican a ningún mes futuro; hasta entonces cada
+cobro les añade una aplicación y su estado sigue siendo `pendiente` (los
+cobros las aplican aunque no estén "consumidas", a diferencia de los
+puntuales clásicos).
+
+La vigencia se centraliza en `RN.descuentos.vigenteEnMes(d, mes)`, que
+sustituye la antigua condición duplicada en 4 sitios (calculations.js,
+modal-cobro.js ×2, month-reset.js). Incluye fallbacks para datos del esquema
+7 (backups viejos o checkpoints de undo, que **no** pasan por la migración):
+`vigencia || (soloPago ? 'unPago' : 'meses')` y `desde || mes`.
+
+Al cerrar mes solo se anulan los **puntuales clásicos** del mes no aplicados
+(`RN.descuentos.esPuntualDeMes`: estado `pendiente`, vigencia `meses`,
+`durMeses 1` y `desde === mes`); las permanentes y N-meses **no se anulan**.
+Anular (`RN.descuentos.eliminar`) una bonificación con aplicaciones revierte
+**todos** los cobros afectados usando los valores congelados; eliminar un
+cobro (`RN.descuentos.revertirPorCobro`) solo libera el mes de ese cobro y
+restaura `pendiente` si no quedan aplicaciones.
+
+En la vista de Gestión de descuentos, la columna "Mes" fue sustituida por
+**"Vigencia"** (ej: "Permanente", "jun–ago 2025 (3 meses)"), y el filtro por
+mes ahora usa la semántica "aplica a ese mes" (`vigenteEnMes`) en vez del mes
+de creación. Los tipos **afectación** y **ajuste** conservan el select
+"Aplicación" clásico (mes/solo pago) — la Duración es exclusiva del tipo
+**bonificación** (decisión D1 del informe); en modo **días** solo se permiten
+puntuales de 1 mes (D5).
+
 ---
 
 ## 7. Ciclos y cortes de pago
