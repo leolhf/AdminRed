@@ -110,7 +110,6 @@
     <!-- COBROS -->
     <section class="view" id="view-cobros">
       <div class="view-header"><h2>Cobros del mes</h2><div class="spacer"></div>
-        <button class="btn" onclick="RN.descuentos.abrirLote()">🏷️ Descuento por lote</button>
         <button class="btn danger" onclick="RN.monthReset.confirmar()">🔄 Cerrar mes</button>
       </div>
       <div class="toolbar">
@@ -245,7 +244,10 @@
     <section class="view" id="view-descuentos">
       <div class="view-header"><h2>Gestión de descuentos y bonificaciones</h2><div class="spacer"></div>
         <button class="btn" onclick="RN.descuentosView.exportCSV()">⬇️ Exportar CSV</button>
+        <button class="btn" onclick="RN.descuentos.abrirLote()">🏷️ Por lote</button>
+        <button class="btn primary" onclick="RN.descuentos.abrirNuevoSelector()">🎁 + Nueva bonificación</button>
       </div>
+      <div id="descuentos-resumen" class="kpi-grid" style="margin-bottom:16px"></div>
       <div class="toolbar">
         <select id="filter-desc-mes"><option value="">Todos los meses</option></select>
         <select id="filter-desc-tipo"><option value="">Todos los tipos</option><option value="afectacion">Afectación</option><option value="bonificacion">Bonificación</option><option value="ajuste">Ajuste</option></select>

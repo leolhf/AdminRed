@@ -102,6 +102,78 @@ RN.descuentos._actualizarDuracionUI = function () {
   }
 };
 
+/* v5.15 — GESTIÓN CENTRALIZADA (mudanza A+C):
+ * El centro de creación/gestión pasa a la vista Finanzas → Descuentos y al
+ * acceso rápido 🎁 de la lista de cobros. El modal de cobro pasa a solo
+ * lectura (ver panel bonificaciones del mes, pero decidir fuera). */
+
+/**
+ * v5.15 — Abre un selector de cliente y luego el formulario de descuento.
+ * Punto de entrada desde la vista de gestión (Finanzas → Descuentos),
+ * donde no hay un cliente pre-seleccionado por contexto.
+ */
+RN.descuentos.abrirNuevoSelector = function () {
+  var activos = RN.calc.clientesActivos();
+  if (!activos.length) { RN.notifyUI.toast('No hay clientes activos', 'warn'); return; }
+  var opts = activos.map(function (c) {
+    return '<option value="' + c.id + '">' + RN.render.esc(c.nombre) + '</option>';
+  }).join('');
+  var html =
+    '<div class="modal-header"><h3>Nueva bonificación / descuento</h3><button class="close" onclick="RN.uiComponents.cerrarModal()">×</button></div>' +
+    '<div class="modal-body"><label>Selecciona cliente</label>' +
+    '<select id="desc-select-cliente">' + opts + '</select></div>' +
+    '<div class="modal-footer"><button class="btn ghost" id="desc-select-cancel">Cancelar</button>' +
+    '<button class="btn primary" id="desc-select-ok">Continuar</button></div>';
+  RN.uiComponents.modal(html);
+  document.getElementById('desc-select-ok').onclick = function () {
+    var v = document.getElementById('desc-select-cliente').value;
+    RN.uiComponents.cerrarModal();
+    if (v) RN.descuentos.abrirNuevo(v, RN.calc.mesActualStr());
+  };
+  document.getElementById('desc-select-cancel').onclick = function () {
+    RN.uiComponents.cerrarModal();
+  };
+};
+
+/**
+ * v5.15 — Nombre público (alias) para uso desde onclicks de la UI.
+ * Abre el formulario de descuento para un cliente SIN pasar por el cobro.
+ */
+RN.descuentos.abrirParaCliente = function (clienteId) {
+  RN.descuentos.abrirNuevo(clienteId, RN.calc.mesActualStr());
+};
+
+/**
+ * v5.15 — Mini-resumen de impacto para la vista de gestión (Finanzas → Descuentos).
+ * KPIs: activas (permanentes + N meses vivas) · pendientes de este mes ·
+ * impacto CUP total de lo vigente este mes.
+ */
+RN.descuentos.resumenGestion = function () {
+  var mes = RN.calc.mesActualStr();
+  var cont = document.getElementById('descuentos-resumen');
+  if (!cont) return;
+  var activas = 0, pendientesMes = 0, impactoCUP = 0;
+  RN.state.descuentos.forEach(function (d) {
+    if (d.estado === 'anulado') return;
+    if (!RN.descuentos.vigenteEnMes(d, mes)) return;
+    if (RN.descuentos.vigenciaDe(d) === 'permanente' ||
+        (RN.descuentos.vigenciaDe(d) === 'meses' && (parseInt(d.durMeses, 10) || 1) > 1)) {
+      activas++;
+    } else {
+      pendientesMes++;
+    }
+    impactoCUP += (RN.calc.valorDescuento(d, d.clienteId) || 0);
+  });
+  var kpis = [
+    { label: 'Bonificaciones activas', value: String(activas), cls: 'green' },
+    { label: 'Pendientes de este mes', value: String(pendientesMes), cls: 'amber' },
+    { label: 'Impacto total este mes', value: RN.calc.formatCUP(impactoCUP), cls: 'blue' }
+  ];
+  cont.innerHTML = kpis.map(function (k) {
+    return '<div class="kpi ' + k.cls + '"><div class="label">' + k.label + '</div><div class="value">' + k.value + '</div></div>';
+  }).join('');
+};
+
 /** Abre el modal para crear un descuento puntual. */
 RN.descuentos.abrirNuevo = function (clienteId, mes) {
   const c = RN.state.clients.find(x => x.id === clienteId);
@@ -193,7 +265,7 @@ RN.descuentos.guardar = function (clienteId, mes) {
     else { vigencia = 'meses'; durMeses = 1; }
   }
 
-  RN.state.descuentos.push({
+  var nuevo = {
     id: RN.calc.uid('desc'),
     clienteId,
     tipo,
@@ -210,17 +282,25 @@ RN.descuentos.guardar = function (clienteId, mes) {
     fecha: new Date().toISOString(),
     estado: 'pendiente',
     cobroHid: null
-  });
+  };
+  RN.state.descuentos.push(nuevo);
+  // v5.15 — Trazabilidad (control): registrar el evento en la auditoría
+  if (RN.auditoria && typeof RN.auditoria.logEvento === 'function') {
+    RN.auditoria.logEvento('descuento_crear', { id: nuevo.id, clienteId: clienteId, tipo: tipo, modo: modo, valor: valor, vigencia: vigencia, durMeses: durMeses, motivo: motivo });
+  }
   RN.storageLocal.guardar();
   RN.uiComponents.cerrarModal();
   const msgVigencia = vigencia === 'permanente' ? 'permanente (hasta anulación)'
     : (vigencia === 'unPago' ? 'de un solo pago (se consumirá en el próximo cobro)'
-    : (durMeses > 1 ? 'por ' + durMeses + ' meses (' + RN.descuentos.rangoVigencia(RN.state.descuentos[RN.state.descuentos.length - 1]) + ')' : 'puntual'));
+    : (durMeses > 1 ? 'por ' + durMeses + ' meses (' + RN.descuentos.rangoVigencia(nuevo) + ')' : 'puntual'));
   RN.notifyUI.toast('Descuento agregado: ' + msgVigencia, 'success');
-  // v5.13.8 (CODE-5): Solo reabrir el modal de cobro si ya estaba abierto
-  // (evita abrir un modal completo cuando el usuario viene de otra vista).
-  if (document.querySelector('.modal-overlay .modal-header h3') &&
-      document.querySelector('.modal-overlay .modal-header h3').textContent.indexOf('Cobro') >= 0) {
+  // v5.15 (mudanza A+C): la creación vive fuera del modal de cobro (gestión
+  // centralizada y acceso rápido 🎁). Solo si el formulario se abrió desde el
+  // propio cobro (flujo legado marcado con _reabrirTrasDescuento) se reconstruye
+  // el cobro; en cualquier otro caso se refrescan las vistas (incluido el
+  // mini-resumen de Finanzas → Descuentos).
+  if (RN.modalCobro && RN.modalCobro._reabrirTrasDescuento === true) {
+    RN.modalCobro._reabrirTrasDescuento = false;
     RN.modalCobro.abrir(clienteId);
   } else {
     RN.render.todo();
@@ -276,6 +356,40 @@ RN.descuentos._revertirEnCobro = function (cobroHid, valorDesc) {
   return valorDesc;
 };
 
+/**
+ * v5.15 — Refresca el sub-panel de descuentos del modal de cobro IN-PLACE
+ * (sin reconstruir el modal), para que anular un descuento desde el propio
+ * cobro NO borre los montos USD/CUP/notas que el usuario ya tecleó.
+ * Reconstruye la tabla del panel, la línea de descuentos puntuales, el neto
+ * y los totales usando los valores actuales de los inputs.
+ */
+RN.descuentos._refrescarPanelCobro = function (clienteId) {
+  var tbody = document.querySelector('.modal-overlay #cobro-desc-tbody');
+  if (!tbody) return false; // no hay modal de cobro abierto
+  var c = RN.state.clients.find(function (x) { return x.id === clienteId; });
+  if (!c) return false;
+  var mes = RN.calc.mesActualStr();
+  var descPunt = RN.state.descuentos.filter(function (d) {
+    return d.clienteId === clienteId && RN.descuentos.vigenteEnMes(d, mes);
+  });
+  var rows = descPunt.length ? descPunt.map(function (d) {
+    return '<tr>' +
+      '<td>' + d.tipo + '</td><td>' + RN.render.esc(d.motivo) + '</td><td>' + d.modo + '</td>' +
+      '<td>' + (RN.descuentos._badgeVigencia(d) || '<span class="muted">Este mes</span>') + '</td>' +
+      '<td>' + RN.calc.formatCUP(RN.calc.valorDescuento(d, clienteId)) + '</td>' +
+      '<td><button class="btn sm danger" onclick="RN.descuentos.eliminar(\'' + RN.render.escAttr(d.id) + '\', true)">\ud83d\uddd1</button></td>' +
+      '</tr>';
+  }).join('') : '<tr><td colspan="6" class="muted center">Sin descuentos ni bonificaciones este mes</td></tr>';
+  tbody.innerHTML = rows;
+  // v5.15: mostrar/ocultar la pista de gestión según quede vacía o no la tabla
+  var hint = document.querySelector('.modal-overlay #cobro-desc-hint');
+  if (hint) hint.style.display = descPunt.length ? 'none' : '';
+  // Refrescar línea de resumen, neto y totales (usa RN.modalCobro.recalcular,
+  // que relee los inputs actuales y por tanto conserva lo tecleado)
+  if (RN.modalCobro && RN.modalCobro.recalcular) RN.modalCobro.recalcular();
+  return true;
+};
+
 /** Elimina un descuento puntual (o lo anula si ya fue aplicado). */
 RN.descuentos.eliminar = function (id, reabrirCobro) {
   const d = RN.state.descuentos.find(x => x.id === id);
@@ -306,9 +420,17 @@ RN.descuentos.eliminar = function (id, reabrirCobro) {
           totalRevertido += RN.descuentos._revertirEnCobro(a.cobroHid, valor || 0);
         });
         d.estado = 'anulado';
+        if (RN.auditoria && typeof RN.auditoria.logEvento === 'function') {
+          RN.auditoria.logEvento('descuento_anular', { id: d.id, clienteId: d.clienteId, tipo: d.tipo, modo: d.modo, valor: d.valor, vigencia: RN.descuentos.vigenciaDe(d), durMeses: d.durMeses, motivo: d.motivo });
+        }
         RN.storageLocal.guardar();
-        RN.render.todo();
-        if (reabrirCobro) RN.modalCobro.abrir(d.clienteId);
+        // v5.15: refresco in-place — si el cobro está abierto, actualizar su
+        // panel sin reconstruir el modal (no se pierde lo tecleado).
+        if (reabrirCobro && RN.descuentos._refrescarPanelCobro(d.clienteId)) {
+          RN.render.vista('cobros'); RN.render.vista('descuentos');
+        } else {
+          RN.render.todo();
+        }
         RN.notifyUI.toast('Descuento anulado y efecto revertido en ' + revertible.length + ' cobro(s) (+' + RN.calc.formatCUP(totalRevertido) + ')', 'warn');
       }, { danger: true });
   } else if (RN.descuentos.vigenciaDe(d) === 'permanente') {
@@ -333,23 +455,41 @@ RN.descuentos.eliminar = function (id, reabrirCobro) {
             totalRevertidoP += RN.descuentos._revertirEnCobro(a.cobroHid, valor || 0);
           });
           d.estado = 'anulado';
+          if (RN.auditoria && typeof RN.auditoria.logEvento === 'function') {
+            RN.auditoria.logEvento('descuento_anular', { id: d.id, clienteId: d.clienteId, tipo: d.tipo, modo: d.modo, valor: d.valor, vigencia: 'permanente', durMeses: d.durMeses, motivo: d.motivo });
+          }
           RN.storageLocal.guardar();
-          RN.render.todo();
-          if (reabrirCobro) RN.modalCobro.abrir(d.clienteId);
+          if (reabrirCobro && RN.descuentos._refrescarPanelCobro(d.clienteId)) {
+            RN.render.vista('cobros'); RN.render.vista('descuentos');
+          } else {
+            RN.render.todo();
+          }
           RN.notifyUI.toast('Bonificación permanente anulada (revertido +' + RN.calc.formatCUP(totalRevertidoP) + ' en ' + revertibleP.length + ' cobro(s))', 'warn');
         }, { danger: true });
     } else {
       RN.state.descuentos = RN.state.descuentos.filter(x => x.id !== id);
+      if (RN.auditoria && typeof RN.auditoria.logEvento === 'function') {
+        RN.auditoria.logEvento('descuento_anular', { id: d.id, clienteId: d.clienteId, tipo: d.tipo, modo: d.modo, valor: d.valor, vigencia: 'permanente', durMeses: d.durMeses, motivo: d.motivo });
+      }
       RN.storageLocal.guardar();
-      RN.render.todo();
-      if (reabrirCobro) RN.modalCobro.abrir(d.clienteId);
+      if (reabrirCobro && RN.descuentos._refrescarPanelCobro(d.clienteId)) {
+        RN.render.vista('cobros'); RN.render.vista('descuentos');
+      } else {
+        RN.render.todo();
+      }
       RN.notifyUI.toast('Bonificación permanente eliminada', 'warn');
     }
   } else {
     RN.state.descuentos = RN.state.descuentos.filter(x => x.id !== id);
+    if (RN.auditoria && typeof RN.auditoria.logEvento === 'function') {
+      RN.auditoria.logEvento('descuento_anular', { id: d.id, clienteId: d.clienteId, tipo: d.tipo, modo: d.modo, valor: d.valor, vigencia: RN.descuentos.vigenciaDe(d), durMeses: d.durMeses, motivo: d.motivo });
+    }
     RN.storageLocal.guardar();
-    RN.render.todo();
-    if (reabrirCobro) RN.modalCobro.abrir(d.clienteId);
+    if (reabrirCobro && RN.descuentos._refrescarPanelCobro(d.clienteId)) {
+      RN.render.vista('cobros'); RN.render.vista('descuentos');
+    } else {
+      RN.render.todo();
+    }
     RN.notifyUI.toast('Descuento eliminado', 'warn');
   }
 };

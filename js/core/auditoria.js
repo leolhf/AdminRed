@@ -20,6 +20,71 @@
  */
 RN.auditoria = RN.auditoria || {};
 
+/* ============================================================
+ * v5.15 — Registro de eventos de bonificaciones/descuentos
+ * (trazabilidad para el "mejor control" de la mudanza A+C).
+ * No modifica datos: solo deja constancia de quién/cuándo/qué.
+ * ============================================================ */
+
+/** Máximo de eventos conservados (se recorta la más vieja). */
+RN.auditoria.EVENTOS_MAX = 200;
+
+/**
+ * Registra un evento de trazabilidad en RN.state.eventos.
+ * @param {string} tipo_evento  'descuento_crear' | 'descuento_anular'
+ * @param {object} detalle      Datos del descuento afectado.
+ */
+RN.auditoria.logEvento = function (tipo_evento, detalle) {
+  try {
+    RN.state.eventos = RN.state.eventos || [];
+    var c = detalle && detalle.clienteId ? RN.calc.clientePorId(detalle.clienteId) : null;
+    RN.state.eventos.push({
+      fecha: new Date().toISOString(),
+      tipo_evento: tipo_evento,
+      id: detalle ? detalle.id : null,
+      clienteId: detalle ? detalle.clienteId : null,
+      cliente: c ? c.nombre : null,
+      tipo: detalle ? detalle.tipo : null,
+      modo: detalle ? detalle.modo : null,
+      valor: detalle ? detalle.valor : null,
+      vigencia: detalle ? detalle.vigencia : null,
+      durMeses: detalle ? detalle.durMeses : null,
+      motivo: detalle ? detalle.motivo : null
+    });
+    if (RN.state.eventos.length > RN.auditoria.EVENTOS_MAX) {
+      RN.state.eventos = RN.state.eventos.slice(-RN.auditoria.EVENTOS_MAX);
+    }
+  } catch (e) {
+    /* la trazabilidad nunca debe romper el flujo de negocio */
+  }
+};
+
+/**
+ * v5.15 — HTML con los últimos eventos de descuentos/bonificaciones
+ * (máx. 10, del más reciente al más viejo), para el modal de auditoría.
+ */
+RN.auditoria._htmlEventosDescuentos = function () {
+  var evs = (RN.state.eventos || []).filter(function (e) {
+    return e.tipo_evento === 'descuento_crear' || e.tipo_evento === 'descuento_anular';
+  }).slice(-10).reverse();
+  if (!evs.length) return '';
+  var filas = evs.map(function (e) {
+    var cuando = (e.fecha || '').slice(0, 16).replace('T', ' ');
+    var cliente = e.cliente || e.clienteId || '—';
+    var accion = e.tipo_evento === 'descuento_crear' ? '➕ Creó' : '🗑️ Anuló';
+    var vigTxt = e.vigencia === 'permanente' ? 'permanente'
+      : (e.vigencia === 'unPago' ? '1 solo pago'
+      : (e.vigencia === 'meses' ? ((e.durMeses || 1) + ' mes(es)') : '—'));
+    return '<div style="font-size:12px;padding:6px 10px;border-bottom:1px dashed var(--border)">' +
+      '<strong>' + accion + '</strong> ' + String(cliente) + ' · ' + String(e.tipo || '') +
+      ' · ' + String(e.modo || '') + ' ' + String(e.valor != null ? e.valor : '') +
+      ' · ' + vigTxt + '<br><span class="muted">' + cuando +
+      (e.motivo ? ' · "' + String(e.motivo).slice(0, 40) + '"' : '') + '</span></div>';
+  }).join('');
+  return '<h4 style="color:var(--primary);margin-top:16px">Últimos eventos de bonificaciones/descuentos</h4>' +
+    '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">' + filas + '</div>';
+};
+
 /**
  * Ejecuta todas las verificaciones de coherencia financiera.
  * @returns {object} { ok: boolean, total: number, errores: [], avisos: [] }
@@ -194,6 +259,7 @@ RN.auditoria.mostrar = function () {
       '</div>' +
       '<p class="muted" style="font-size:12px">Verifica: montos no negativos, coherencia de deudas de equipo, ingresos por mes vs funci\u00f3n, cobros duplicados, snapshots vs datos reales, clientes "paid" que cubren el neto, gastos sin mes, y tasa USD v\u00e1lida.</p>' +
       erroresHtml + avisosHtml +
+      RN.auditoria._htmlEventosDescuentos() +
     '</div>' +
     '<div class="modal-footer">' +
       '<button class="btn ghost" onclick="RN.uiComponents.cerrarModal()">Cerrar</button>' +

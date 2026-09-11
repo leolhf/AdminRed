@@ -17,6 +17,7 @@ RN.storageLocal.serializar = function () {
     planes: RN.state.planes,
     equiposRed: RN.state.equiposRed,
     descuentos: RN.state.descuentos,
+    eventos: RN.state.eventos,
     snapshots: RN.state.snapshots,
     config: RN.state.config,
     reciboCounter: RN.state.reciboCounter,
@@ -44,6 +45,8 @@ RN.storageLocal.cargar = function () {
     RN.state.planes = data.planes || [];
     RN.state.equiposRed = data.equiposRed || [];
     RN.state.descuentos = data.descuentos || [];
+    // v5.15 — eventos de trazabilidad (fallback: [] en backups previos)
+    RN.state.eventos = data.eventos || [];
     RN.state.snapshots = data.snapshots || [];
     if (data.config) Object.assign(RN.state.config, data.config);
     RN.state.reciboCounter = data.reciboCounter || 0;
@@ -79,6 +82,8 @@ RN.storageLocal._aplicarData = function (data) {
   RN.state.planes = data.planes || [];
   RN.state.equiposRed = data.equiposRed || [];
   RN.state.descuentos = data.descuentos || [];
+  // v5.15 — eventos de trazabilidad (fallback: [] en backups previos)
+  RN.state.eventos = data.eventos || [];
   RN.state.snapshots = data.snapshots || [];
   // v5.13.1: Bug #5 — Preservar la tasa USD más reciente al importar datos.
   // Se recopilan candidatos de tasa de 3 fuentes (estado actual, archivo

@@ -1,5 +1,12 @@
 # Changelog — AdminRed (RedNet)
 
+## v5.15.0 — Gestión centralizada de bonificaciones/descuentos
+
+### Resumen
+Las **bonificaciones/descuentos** dejan de crearse dentro del modal de cobro y pasan a un **centro de gestión** en **Finanzas → Descuentos** (botón "🎁 + Nueva bonificación" con selector de cliente, "Por lote" mudado a esa vista, mini-resumen de KPIs: activas · pendientes · impacto CUP del mes) más un **botón 🎁 de acceso rápido por cliente** en "Cobros del mes" (destacado en verde con contador y tooltip de impacto cuando hay bonificaciones vigentes). El modal de cobro queda en **solo lectura** para descuentos y, al anular desde él, la tabla se refresca **in-place** sin reconstruir el modal — se corrige así la pérdida de datos tecleados (USD/CUP/notas) al anular desde el propio cobro. Nuevo **registro de eventos** (`descuento_crear`/`descuento_anular`) en la ventana de Auditoría. Sin cambios de modelo ni de esquema (los backups v5.14.x cargan directo).
+
+Detalle completo en `CHANGELOG_v5.15.md`.
+
 ## v5.14.4 — Bonificaciones permanentes y de N meses
 
 ### Resumen

@@ -31,7 +31,7 @@ Un módulo que use funciones de otro debe cargarse **después** de él.
 18. `js/ui/notify-ui.js` — toasts
 19. `js/ui/reloj.js` — reloj
 20. `js/ui/tabs.js` — navegación por pestañas
-21. `js/ui/render.js` — render principal (usa calculations.js, investment.js)
+21. `js/ui/render.js` — render principal (usa calculations.js, investment.js; v5.15: genera onclick a `RN.descuentos.abrirParaCliente` y usa `RN.descuentos.vigenteEnMes` + `RN.calc.valorDescuento` — ver regla de abajo)
 22. `js/ui/inline-edit.js` — edición inline
 23. `js/ui/ui-components.js` — modal, confirm, prompt
 
@@ -45,7 +45,7 @@ Un módulo que use funciones de otro debe cargarse **después** de él.
 28. `js/cobros/mora.js` — mora
 29. `js/cobros/inversion.js` — inversión personal (usa investment.js)
 30. `js/cobros/inventario.js` — venta/asignación de inventario
-31. `js/cobros/descuentos.js` — descuentos puntuales
+31. `js/cobros/descuentos.js` — descuentos puntuales y bonificaciones (v5.15: formularios de gestión central; lo usan descuentos-view.js, render.js y modal-cobro.js)
 32. `js/cobros/month-reset.js` — cierre de mes
 
 ### 6. REPORTES
@@ -58,7 +58,7 @@ Un módulo que use funciones de otro debe cargarse **después** de él.
 39. `js/reportes/recibo.js`
 40. `js/reportes/calendario.js`
 41. `js/reportes/salud.js`
-42. `js/reportes/descuentos-view.js`
+42. `js/reportes/descuentos-view.js` — vista Finanzas → Descuentos (v5.15: botón 🎁 Nueva + lote + KPIs; usa descuentos.js)
 
 ### 7. NOTIFICACIONES
 43. `js/notificaciones/notifications.js`
@@ -82,6 +82,7 @@ Un módulo que use funciones de otro debe cargarse **después** de él.
 - `state.js` debe cargarse primero dentro de core: define `RN.state`.
 - `keys.js` antes de cualquier módulo que use `localStorage`/`IndexedDB`.
 - `calculations.js` antes de `render.js`.
+- **v5.15**: `render.js` (vista Cobros) emite `onclick` que llaman a `RN.descuentos.abrirParaCliente(...)` y usa en render `RN.descuentos.vigenteEnMes`/`RN.calc.valorDescuento`; `descuentos-view.js` llama a `RN.descuentos.abrirNuevoSelector/resumenGestion`. Como las llamadas `onclick` se evalúan al hacer clic (no al cargar) y `render()` sí se ejecuta tras cargar todo, basta con que `descuentos.js` esté cargado (cualquier posición) y `calculations.js` antes de `render.js` — orden actual de index.html ya lo cumple.
 - `core/models/investment.js` antes de `render.js`, `inversion.js` y `migration.js`.
 - `checkpoint.js` antes de `undo.js`.
 - `init.js` debe ser el último script clásico cargado.

@@ -92,8 +92,8 @@ RN.modalCobro.abrir = function (clienteId) {
       </div>` : ''}
 
       <h3 style="font-size:13px;text-transform:uppercase;color:var(--text-muted)">Descuentos y bonificaciones del mes</h3>
-      <div class="table-wrap mb-16"><table><thead><tr><th>Tipo</th><th>Motivo</th><th>Modo</th><th>Vigencia</th><th>Valor</th><th></th></tr></thead><tbody>${descRows}</tbody></table></div>
-      <button class="btn sm" onclick="RN.descuentos.abrirNuevo('${RN.render.escAttr(clienteId)}', '${RN.render.escAttr(mes)}')">+ Agregar descuento o bonificación</button>
+      <div class="table-wrap mb-16"><table><thead><tr><th>Tipo</th><th>Motivo</th><th>Modo</th><th>Vigencia</th><th>Valor</th><th></th></tr></thead><tbody id="cobro-desc-tbody">${descRows}</tbody></table></div>
+      <p class="muted" id="cobro-desc-hint" style="font-size:12px;margin:0 0 8px${descPunt.length ? ';display:none' : ''}">Se gestionan desde <strong>Finanzas → Descuentos</strong> o con el botón 🎁 de la lista de Cobros.</p>
 
       <div class="divider"></div>
 

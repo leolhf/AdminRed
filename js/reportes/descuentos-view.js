@@ -8,6 +8,8 @@
 RN.descuentosView = RN.descuentosView || {};
 
 RN.descuentosView.render = function () {
+  // v5.15 (mudanza A): mini-resumen de impacto arriba de la tabla
+  if (RN.descuentos && RN.descuentos.resumenGestion) RN.descuentos.resumenGestion();
   // Rellenar filtro de meses
   const selMes = document.getElementById('filter-desc-mes');
   if (selMes && !selMes.dataset.filled) {
@@ -41,7 +43,7 @@ RN.descuentosView.render = function () {
   });
 
   if (!lista.length) {
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty"><div class="icon">🏷️</div>No hay descuentos ni bonificaciones que apliquen a la selección. Agrégalos desde el modal de cobro o con "Descuento por lote".</div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty"><div class="icon">🏷️</div>No hay descuentos ni bonificaciones que apliquen a la selección. Créalos aquí mismo con <strong>"🎁 + Nueva bonificación"</strong> o en la lista de Cobros con el botón 🎁 de cada cliente.</div></td></tr>`;
     return;
   }
 

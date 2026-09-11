@@ -24,6 +24,13 @@ RN.state = {
   equiposRed: [],
   /** Array de descuentos puntuales */
   descuentos: [],
+  /**
+   * v5.15 — Registro de eventos de bonificaciones/descuentos (trazabilidad).
+   * Cada entrada: { fecha, tipo_evento, id, clienteId, detalle }.
+   * Mantiene un máximo de 200 entradas (se recorta la más vieja).
+   * Sirve para responder "quién creó/anuló qué y cuándo" desde la auditoría.
+   */
+  eventos: [],
   /** Snapshots inmutables de KPIs por mes cerrado */
   snapshots: [],
   /** Configuración del sistema */

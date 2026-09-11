@@ -4,7 +4,7 @@ Aplicación web (PWA) para administrar un negocio de reventa de servicio de inte
 
 Es JavaScript vanilla modular: **sin framework, sin bundler, sin build, sin dependencias de npm en el frontend.** Todos los datos viven en el dispositivo del usuario (archivo vinculado o localStorage) — no hay backend ni servidor propio.
 
-**Versión actual:** `5.10.5` (ver `js/version.js`).
+**Versión actual:** `5.15.0` (ver `js/version.js`; el detalle de novedades por versión vive en `CHANGELOG.md`).
 
 ## Novedades de esta versión (5.10.5)
 
@@ -193,6 +193,8 @@ Esto es lo que ocurre con cada parte cuando el calendario cambia de mes:
 **Clientes (estados):** el estado de cada cliente se recalcula automáticamente contra el nuevo mes. Un cliente que en agosto estaba "Pagado" (pagó agosto) pasa a su estado de septiembre según su día de pago: si su corte aún no llega, "Al día"; si ya pasó su corte, "Por vencer" o "Atrasado". Un cliente que **no pagó agosto** pasa a ser **moroso** en septiembre (debe 1 mes de atraso) y aparece en la ventana "Clientes morosos". La app detecta esto al iniciar y muestra un **aviso amarillo**: "N clientes no pagó/n el mes pasado (2026-08). Revisa Mora y Cobranza." Los clientes cuyo **mes de inicio de cobro** es septiembre (o posterior) pasan de "Por iniciar" a aparecer en Cobranza como pendientes, automáticamente.
 
 **Mora:** la mora de un cliente se recalcula contra el nuevo mes. Si alguien debía 2 meses en agosto y tampoco paga septiembre, en octubre deberá 3. Si paga septiembre (registrando el cobro con mes = septiembre), su último mes pagado pasa a septiembre y su mora baja. Si pagó agosto pero no septiembre, en octubre tendrá 1 mes de mora (debe septiembre).
+
+**Dónde se gestionan las bonificaciones/descuentos (desde v5.15.0):** la creación ya no se hace dentro del modal de cobro. Hay dos puntos de entrada: la vista **Finanzas → Descuentos** (botón "🎁 + Nueva bonificación / descuento" con selector de cliente, y "Descuento por lote", con un mini-resumen de activas · pendientes · impacto CUP del mes) y el **botón 🎁 de cada cliente** en "Cobros del mes" (se destaca en verde con contador y tooltip de impacto cuando el cliente ya tiene bonificaciones vigentes ese mes, y los detalles de la tarjeta muestran una fila "Bonificaciones" con el importe de cada una). El modal de cobro queda en **solo lectura** para descuentos: los muestra, permite anularlos y recalcula los totales al instante **sin perder lo tecleado** (USD/CUP/notas). Cada creación o anulación queda registrada como evento en la ventana de **Auditoría**.
 
 **Descuentos puntuales y bonificaciones:** los descuentos de un mes que quedaron "pendientes" (no se aplicaron a ningún cobro) se pueden anular automáticamente al hacer "Cerrar mes", para que no se arrastren al siguiente mes. Los descuentos recurrentes (permanentes por cliente) no se ven afectados por el cambio de mes. Las **bonificaciones** (desde v5.14.4) pueden tener **Duración**: *permanente* (aplica todos los meses hasta que la anules), *N meses* (aplica ese rango, ej. jun–ago) o *1 solo pago*. Las permanentes y de N meses **no se anulan** al cerrar el mes: siguen aplicando en los meses siguientes. Si anulas una bonificación que ya descontó en cobros, la app **revierte su efecto en todos esos cobros** con el valor que tenían congelado (los cobros ya emitidos no cambian si luego editas el descuento).
 

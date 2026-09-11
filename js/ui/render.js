@@ -535,6 +535,26 @@ RN.render.cobros = function () {
       accBtn = '<button class="btn sm primary" onclick="RN.modalCobro.abrir(\'' + RN.render.escAttr(c.id) + '\')">Cobrar ' + RN.calc.formatCUP(total) + '</button>';
     }
 
+    // v5.15 (C. acceso rápido): descuentos vigentes del mes para este cliente.
+    // Gift-button 🎁 abre RN.descuentos.abrirParaCliente() (gestión, no cobro).
+    var descsMes = (RN.state.descuentos || []).filter(function (d) {
+      return d.clienteId === c.id && d.estado !== 'anulado' && RN.descuentos.vigenteEnMes(d, mes);
+    });
+    var impactoDesc = descsMes.reduce(function (acc, d) { return acc + (RN.calc.valorDescuento(d, c.id) || 0); }, 0);
+    var GIFT = String.fromCodePoint(0x1F381);
+    var giftTitle = 'Gestionar bonificaciones/descuentos de ' + RN.render.esc(c.nombre) +
+      (descsMes.length ? ' — impacto este mes: ' + RN.calc.formatCUP(impactoDesc) : '');
+    var giftBtn = '<button class="btn sm gift-btn' + (descsMes.length ? ' has-desc' : '') + '" title="' + giftTitle + '" onclick="RN.descuentos.abrirParaCliente(\'' + RN.render.escAttr(c.id) + '\')">' + GIFT + (descsMes.length ? ' <span class="gift-count">' + descsMes.length + '</span>' : '') + '</button>';
+    var descRowsHtml = '';
+    if (descsMes.length) {
+      descRowsHtml = descsMes.map(function (d) {
+        var mtxt = d.motivo ? RN.render.esc(d.motivo) : '';
+        return '<span class="badge ok" title="' + mtxt + '">' + RN.render.esc(d.tipo) + (mtxt ? ': ' + mtxt : '') + ' (−' + RN.calc.formatCUP(RN.calc.valorDescuento(d, c.id)) + ')</span>';
+      }).join(' ');
+    } else {
+      descRowsHtml = '<span class="muted">Ninguna este mes</span>';
+    }
+
     return '<div class="acc-card" id="acc-cob-' + RN.render.escAttr(c.id) + '">' +
       '<div class="acc-summary" onclick="RN.render.toggleCard(\'acc-cob-' + RN.render.escAttr(c.id) + '\')">' +
         '<span class="acc-dot ' + estado + '"></span>' +
@@ -556,7 +576,8 @@ RN.render.cobros = function () {
         '<div class="acc-row"><span class="acc-label">Estado</span><span class="acc-value">' + RN.render.badgeEstado(estado) + '</span></div>' +
         '<div class="acc-row"><span class="acc-label">Neto a cobrar</span><span class="acc-value">' + RN.calc.formatCUP(neto) + (cuotaEq > 0 ? ' <span class="pill">+ equipo ' + RN.calc.formatCUP(cuotaEq) + '</span>' : '') + '</span></div>' +
         '<div class="acc-row"><span class="acc-label">Saldo equipo</span><span class="acc-value">' + (deuda > 0 ? '<span class="badge due">' + RN.calc.formatCUP(deuda) + '</span>' : '<span class="muted">—</span>') + '</span></div>' +
-        '<div class="acc-actions">' + accBtn + '</div>' +
+        '<div class="acc-row"><span class="acc-label">Bonificaciones</span><span class="acc-value">' + descRowsHtml + '</span></div>' +
+        '<div class="acc-actions">' + accBtn + ' ' + giftBtn + '</div>' +
       '</div>' +
     '</div>';
   }).join('');
