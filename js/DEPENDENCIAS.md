@@ -59,6 +59,7 @@ Un módulo que use funciones de otro debe cargarse **después** de él.
 40. `js/reportes/calendario.js`
 41. `js/reportes/salud.js`
 42. `js/reportes/descuentos-view.js` — vista Finanzas → Descuentos (v5.15: botón 🎁 Nueva + lote + KPIs; usa descuentos.js)
+42b. `js/reportes/ganancia-cortes.js` — modales de resumen de los KPIs del Panel (v5.15.1: Ingresos del mes, Ganancia proyectada y Ganancia del mes por corte; usa calculations.js, ciclos.js, investment.js, render.js y ui-components.js)
 
 ### 7. NOTIFICACIONES
 43. `js/notificaciones/notifications.js`
@@ -83,6 +84,7 @@ Un módulo que use funciones de otro debe cargarse **después** de él.
 - `keys.js` antes de cualquier módulo que use `localStorage`/`IndexedDB`.
 - `calculations.js` antes de `render.js`.
 - **v5.15**: `render.js` (vista Cobros) emite `onclick` que llaman a `RN.descuentos.abrirParaCliente(...)` y usa en render `RN.descuentos.vigenteEnMes`/`RN.calc.valorDescuento`; `descuentos-view.js` llama a `RN.descuentos.abrirNuevoSelector/resumenGestion`. Como las llamadas `onclick` se evalúan al hacer clic (no al cargar) y `render()` sí se ejecuta tras cargar todo, basta con que `descuentos.js` esté cargado (cualquier posición) y `calculations.js` antes de `render.js` — orden actual de index.html ya lo cumple.
+- **v5.15.1**: `render.js` (Panel) emite `onclick` a `RN.ingresosMes.abrir()`, `RN.paqueteProveedor.abrir()`, `RN.gananciaCortes.abrirProyectada()` y `RN.gananciaCortes.abrirReal()`. Como los `onclick` se evalúan al hacer clic, basta con que `ganancia-cortes.js` esté cargado (cualquier posición) y que `render.js`/`ui-components.js`/`investment.js`/`ciclos.js`/`calculations.js` carguen antes — orden actual de index.html ya lo cumple.
 - `core/models/investment.js` antes de `render.js`, `inversion.js` y `migration.js`.
 - `checkpoint.js` antes de `undo.js`.
 - `init.js` debe ser el último script clásico cargado.

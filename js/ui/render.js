@@ -280,11 +280,16 @@ RN.render.dashboard = function () {
   //   → Ganancia del mes (real cobrada) → Utilidad neta → ...
   // v5.12.6: todas las tarjetas con monto CUP muestran su equivalente en USD
   // (en letras pequeñas) cuando hay tasa configurada.
+  // v5.15.1: las 4 primeras tarjetas son clicables y abren un resumen:
+  //   Ingresos del mes      -> resumen de ingresos (por concepto y por corte)
+  //   Costo del paquete     -> modal 📡 Gestionar servicio (RN.paqueteProveedor)
+  //   Ganancia proyectada   -> resumen de la ganancia esperada por corte
+  //   Ganancia del mes      -> resumen de la ganancia real cobrada por corte
   const kpis = [
-    { label: 'Ingresos del mes', value: RN.calc.formatCUP(ingresos), sub: RN.render.subUSD(ingresos), cls: 'green' },
-    { label: 'Costo del paquete', value: RN.calc.formatCUP(costoPaquete), sub: costoPaquete > 0 ? RN.render.subUSD(costoPaquete, RN.render.descPaquete()) : 'Sin paquete configurado', cls: 'amber' },
-    { label: 'Ganancia proyectada del mes', value: RN.calc.formatCUP(gananciaProyectada), sub: RN.render.subUSD(gananciaProyectada, 'Ingreso esperado − Costo del paquete'), cls: gananciaProyectada >= 0 ? 'green' : 'red' },
-    { label: 'Ganancia del mes', value: RN.calc.formatCUP(gananciaBruta), sub: RN.render.subUSD(gananciaBruta, 'Cobrado − Costo del paquete'), cls: gananciaBruta >= 0 ? 'blue' : 'red' },
+    { label: 'Ingresos del mes', value: RN.calc.formatCUP(ingresos), sub: RN.render.subUSD(ingresos, 'Toca para ver el resumen'), cls: 'green', click: 'RN.ingresosMes.abrir()' },
+    { label: 'Costo del paquete', value: RN.calc.formatCUP(costoPaquete), sub: costoPaquete > 0 ? RN.render.subUSD(costoPaquete, RN.render.descPaquete()) : 'Sin paquete configurado', cls: 'amber', click: 'RN.paqueteProveedor.abrir()' },
+    { label: 'Ganancia proyectada del mes', value: RN.calc.formatCUP(gananciaProyectada), sub: RN.render.subUSD(gananciaProyectada, 'Ingreso esperado − Costo del paquete'), cls: gananciaProyectada >= 0 ? 'green' : 'red', click: 'RN.gananciaCortes.abrirProyectada()' },
+    { label: 'Ganancia del mes', value: RN.calc.formatCUP(gananciaBruta), sub: RN.render.subUSD(gananciaBruta, 'Cobrado − Costo del paquete'), cls: gananciaBruta >= 0 ? 'blue' : 'red', click: 'RN.gananciaCortes.abrirReal()' },
     { label: 'Utilidad neta', value: RN.calc.formatCUP(utilidad), sub: RN.render.subUSD(utilidad, 'Ingresos − Gastos'), cls: utilidad >= 0 ? 'blue' : 'red' },
     { label: 'Cobranza', value: cob.pagaron + '/' + cob.total, sub: 'Faltan ' + cob.faltan + ' clientes' + (parciales ? ' · ' + parciales + ' parcial' : '') + ' — toca para ver corte vigente', cls: 'blue', click: 'RN.cobranza.abrir()' },
     { label: 'Tasa de cobro', value: tasaCob + '%', sub: 'Servicio cobrado sobre lo esperado', cls: tasaCob >= 70 ? 'green' : (tasaCob >= 40 ? 'amber' : 'red') },
