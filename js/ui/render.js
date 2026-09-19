@@ -285,12 +285,22 @@ RN.render.dashboard = function () {
   //   Costo del paquete     -> modal 📡 Gestionar servicio (RN.paqueteProveedor)
   //   Ganancia proyectada   -> resumen de la ganancia esperada por corte
   //   Ganancia del mes      -> resumen de la ganancia real cobrada por corte
+  // v5.16.0: cada KPI con monto muestra su variación ▲/▼ vs el mes anterior
+  // (RN.panelWidgets.deltaHTML). Los gastos se comparan invertidos (bajar = bueno).
+  const mesAnt = RN.calc.mesAnterior(RN.calc.mesActualStr());
+  const ingresosAnt = RN.calc.ingresosMes(mesAnt);
+  const gastosAnt = RN.calc.gastosMes(mesAnt);
+  const utilidadAnt = ingresosAnt - gastosAnt;
+  const esperadoAnt = RN.calc.ingresoEsperadoMes(mesAnt);
+  const gananciaProyAnt = esperadoAnt - costoPaquete;
+  const gananciaBrutaAnt = ingresosAnt - costoPaquete;
+  const delta = (RN.panelWidgets && RN.panelWidgets.deltaHTML) ? RN.panelWidgets.deltaHTML : function () { return ''; };
   const kpis = [
-    { label: 'Ingresos del mes', value: RN.calc.formatCUP(ingresos), sub: RN.render.subUSD(ingresos, 'Toca para ver el resumen'), cls: 'green', click: 'RN.ingresosMes.abrir()' },
+    { label: 'Ingresos del mes', value: RN.calc.formatCUP(ingresos), sub: RN.render.subUSD(ingresos, 'Toca para ver el resumen') + delta(ingresos, ingresosAnt), cls: 'green', click: 'RN.ingresosMes.abrir()' },
     { label: 'Costo del paquete', value: RN.calc.formatCUP(costoPaquete), sub: costoPaquete > 0 ? RN.render.subUSD(costoPaquete, RN.render.descPaquete()) : 'Sin paquete configurado', cls: 'amber', click: 'RN.paqueteProveedor.abrir()' },
-    { label: 'Ganancia proyectada del mes', value: RN.calc.formatCUP(gananciaProyectada), sub: RN.render.subUSD(gananciaProyectada, 'Ingreso esperado − Costo del paquete'), cls: gananciaProyectada >= 0 ? 'green' : 'red', click: 'RN.gananciaCortes.abrirProyectada()' },
-    { label: 'Ganancia del mes', value: RN.calc.formatCUP(gananciaBruta), sub: RN.render.subUSD(gananciaBruta, 'Cobrado − Costo del paquete'), cls: gananciaBruta >= 0 ? 'blue' : 'red', click: 'RN.gananciaCortes.abrirReal()' },
-    { label: 'Utilidad neta', value: RN.calc.formatCUP(utilidad), sub: RN.render.subUSD(utilidad, 'Ingresos − Gastos — toca para ver el detalle'), cls: utilidad >= 0 ? 'blue' : 'red', click: 'RN.utilidadMes.abrir()' },
+    { label: 'Ganancia proyectada del mes', value: RN.calc.formatCUP(gananciaProyectada), sub: RN.render.subUSD(gananciaProyectada, 'Ingreso esperado − Costo del paquete') + delta(gananciaProyectada, gananciaProyAnt), cls: gananciaProyectada >= 0 ? 'green' : 'red', click: 'RN.gananciaCortes.abrirProyectada()' },
+    { label: 'Ganancia del mes', value: RN.calc.formatCUP(gananciaBruta), sub: RN.render.subUSD(gananciaBruta, 'Cobrado − Costo del paquete') + delta(gananciaBruta, gananciaBrutaAnt), cls: gananciaBruta >= 0 ? 'blue' : 'red', click: 'RN.gananciaCortes.abrirReal()' },
+    { label: 'Utilidad neta', value: RN.calc.formatCUP(utilidad), sub: RN.render.subUSD(utilidad, 'Ingresos − Gastos — toca para ver el detalle') + delta(utilidad, utilidadAnt), cls: utilidad >= 0 ? 'blue' : 'red', click: 'RN.utilidadMes.abrir()' },
     { label: 'Cobranza', value: cob.pagaron + '/' + cob.total, sub: 'Faltan ' + cob.faltan + ' clientes' + (parciales ? ' · ' + parciales + ' parcial' : '') + ' — toca para ver corte vigente', cls: 'blue', click: 'RN.cobranza.abrir()' },
     { label: 'Tasa de cobro', value: tasaCob + '%', sub: 'Servicio cobrado sobre lo esperado', cls: tasaCob >= 70 ? 'green' : (tasaCob >= 40 ? 'amber' : 'red') },
     { label: 'Clientes morosos', value: morosos, sub: morosos ? 'Atrasados — toca para ver detalles' : 'Ninguno atrasado', cls: morosos ? 'red' : 'green', click: 'RN.mora.abrir()' },
@@ -405,6 +415,13 @@ RN.render.dashboard = function () {
     requestAnimationFrame(RN.render.animarBarrasRecuperacion);
   } else {
     RN.render.animarBarrasRecuperacion();
+  }
+
+  // v5.16.0: widgets enriquecidos del Panel (tendencia, atención, cortes,
+  // rentabilidad y caja proyectada). Se renderizan al final para no bloquear
+  // los KPIs si algún widget fallara.
+  if (RN.panelWidgets && RN.panelWidgets.renderAll) {
+    RN.panelWidgets.renderAll();
   }
 };
 

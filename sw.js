@@ -70,6 +70,7 @@ const CORE_ASSETS = [
   './js/reportes/salud.js',
   './js/reportes/descuentos-view.js',
   './js/reportes/ganancia-cortes.js',
+  './js/panel/panel-widgets.js',
   './js/notificaciones/notifications.js',
   './js/notificaciones/whatsapp.js',
   './js/notificaciones/wa-templates.js',

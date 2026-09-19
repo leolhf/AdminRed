@@ -81,9 +81,34 @@
         <button class="btn primary" onclick="RN.modalCobro.abrirDesdeCobros()">+ Registrar cobro</button>
       </div>
       <div class="kpi-grid" id="kpi-dashboard"></div>
+      <!-- v5.16.0: Bloque "Requiere tu atención" (alertas accionables) -->
+      <div class="card mt-16" id="card-atencion">
+        <h3>⚠️ Requiere tu atención</h3>
+        <div id="panel-atencion"></div>
+      </div>
       <div class="card mt-16">
         <h3>Resumen rápido</h3>
         <div id="dashboard-resumen"></div>
+      </div>
+      <!-- v5.16.0: Tendencia de 6 meses (ingresos vs gastos) -->
+      <div class="card mt-16" id="card-tendencia">
+        <h3>📈 Tendencia de 6 meses</h3>
+        <div id="panel-tendencia"></div>
+      </div>
+      <!-- v5.16.0: Próximos cortes (agenda) -->
+      <div class="card mt-16" id="card-cortes">
+        <h3>📅 Próximos cortes</h3>
+        <div id="panel-cortes"></div>
+      </div>
+      <!-- v5.16.0: Rentabilidad (ganancia por mega + sobreventa) -->
+      <div class="card mt-16" id="card-rentabilidad">
+        <h3>💰 Rentabilidad</h3>
+        <div id="panel-rentabilidad"></div>
+      </div>
+      <!-- v5.16.0: Caja proyectada -->
+      <div class="card mt-16" id="card-caja-proy">
+        <h3>🏦 Caja proyectada</h3>
+        <div id="panel-caja"></div>
       </div>
       <div class="card mt-16" id="card-recuperacion">
         <h3>Recuperación de la inversión</h3>
@@ -424,6 +449,9 @@
   <script src="js/reportes/salud.js"></script>
   <script src="js/reportes/descuentos-view.js"></script>
   <script src="js/reportes/ganancia-cortes.js"></script>
+
+  <!-- 6b. PANEL (widgets enriquecidos del Panel del negocio) -->
+  <script src="js/panel/panel-widgets.js"></script>
 
   <!-- 7. NOTIFICACIONES -->
   <script src="js/notificaciones/notifications.js"></script>

@@ -59,7 +59,8 @@ Un módulo que use funciones de otro debe cargarse **después** de él.
 40. `js/reportes/calendario.js`
 41. `js/reportes/salud.js`
 42. `js/reportes/descuentos-view.js` — vista Finanzas → Descuentos (v5.15: botón 🎁 Nueva + lote + KPIs; usa descuentos.js)
-42b. `js/reportes/ganancia-cortes.js` — modales de resumen de los KPIs del Panel (v5.15.1: Ingresos del mes, Ganancia proyectada y Ganancia del mes por corte; usa calculations.js, ciclos.js, investment.js, render.js y ui-components.js)
+42b. `js/reportes/ganancia-cortes.js` — modales de resumen de los KPIs del Panel (v5.15.1: Ingresos del mes, Ganancia proyectada y Ganancia del mes por corte; v5.15.2: reparto del costo del paquete por corte con sobreventa como ganancia directa + modal Utilidad neta; usa calculations.js, ciclos.js, investment.js, render.js y ui-components.js)
+42c. `js/panel/panel-widgets.js` — widgets enriquecidos del Panel (v5.16.0: tendencia de 6 meses, deltas ▲/▼ vs mes anterior, "Requiere tu atención", próximos cortes, rentabilidad por mega + sobreventa, caja proyectada; usa calculations.js, ciclos.js, moneda.js, investment.js, render.js, tasa-aviso.js y ganancia-cortes.js)
 
 ### 7. NOTIFICACIONES
 43. `js/notificaciones/notifications.js`
@@ -86,6 +87,7 @@ Un módulo que use funciones de otro debe cargarse **después** de él.
 - **v5.15**: `render.js` (vista Cobros) emite `onclick` que llaman a `RN.descuentos.abrirParaCliente(...)` y usa en render `RN.descuentos.vigenteEnMes`/`RN.calc.valorDescuento`; `descuentos-view.js` llama a `RN.descuentos.abrirNuevoSelector/resumenGestion`. Como las llamadas `onclick` se evalúan al hacer clic (no al cargar) y `render()` sí se ejecuta tras cargar todo, basta con que `descuentos.js` esté cargado (cualquier posición) y `calculations.js` antes de `render.js` — orden actual de index.html ya lo cumple.
 - **v5.15.1**: `render.js` (Panel) emite `onclick` a `RN.ingresosMes.abrir()`, `RN.paqueteProveedor.abrir()`, `RN.gananciaCortes.abrirProyectada()` y `RN.gananciaCortes.abrirReal()`. Como los `onclick` se evalúan al hacer clic, basta con que `ganancia-cortes.js` esté cargado (cualquier posición) y que `render.js`/`ui-components.js`/`investment.js`/`ciclos.js`/`calculations.js` carguen antes — orden actual de index.html ya lo cumple.
 - **v5.15.2**: `render.js` (Panel) añade `onclick` a `RN.utilidadMes.abrir()` en la tarjeta **Utilidad neta**. `ganancia-cortes.js` define además `RN.gananciaCortes._repartoCosto()` (reparto del costo fijo del paquete por corte, con sobreventa a costo 0) y `RN.utilidadMes` (utilidad = ingresos − gastos operativos, excluyendo retiros de caja y devoluciones de inversión). Sin cambios de esquema (sigue 8).
+- **v5.16.0**: `panel-widgets.js` (carga DESPUÉS de `ganancia-cortes.js`) añade widgets al Panel y `RN.panelWidgets.deltaHTML()`, que `render.js` usa para anotar los KPIs con la variación vs el mes anterior. `render.js` llama a `RN.panelWidgets.renderAll()` al final de `dashboard()`. Sin cambios de esquema (sigue 8).
 - `core/models/investment.js` antes de `render.js`, `inversion.js` y `migration.js`.
 - `checkpoint.js` antes de `undo.js`.
 - `init.js` debe ser el último script clásico cargado.
