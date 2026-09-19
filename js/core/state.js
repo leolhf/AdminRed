@@ -96,11 +96,13 @@ RN.state = {
      */
     pctRecuperacionGananciaMes: 0,
     /**
-     * v5.17.0 — Porcentaje (0-100, default 70) de la UTILIDAD NETA del mes
-     * (ingresos − todos los gastos) que se reserva en la caja y NO debería
-     * tocarse. El resto (100 − pct) queda libre para el administrador.
-     * Modelo "reparto del mes": de la ganancia neta del mes, este % se queda
-     * como reserva y el resto es retirable. Configurable en Ajustes.
+     * v5.17.0 — Porcentaje (0-100, default 70) de la GANANCIA PROYECTADA del
+     * mes (ingreso esperado de los clientes activos − costo del paquete del
+     * proveedor) que se reserva en la caja y NO debería tocarse. El resto
+     * (100 − pct) queda libre para el administrador.
+     * Modelo "reparto del mes": de la ganancia proyectada del mes, este % se
+     * queda como reserva y el resto es retirable. Configurable en Ajustes.
+     * v5.18.0: la base pasó de la utilidad neta a la ganancia proyectada.
      */
     pctReservaCaja: 70,
     /**

@@ -22,6 +22,8 @@
  *   RN.caja.eliminarDeposito() — elimina un depósito
  * Además, el modal de retiro muestra la RESERVA DE CAJA (RN.calc.reservaCaja)
  * y advierte si el retiro deja el fondo por debajo de la reserva.
+ * v5.18.0: la reserva se calcula sobre la GANANCIA PROYECTADA del mes
+ * (ingreso esperado − costo del paquete), no sobre la utilidad neta.
  *
  * v5.13.2: RESPONSABILIDAD ÚNICA — Las funciones de DEVOLUCIÓN DE PRÉSTAMO
  * (devolucionPrestamo, guardarDevolucion, historialDevoluciones,
@@ -200,6 +202,7 @@ RN.caja.extraer = function () {
   var puedeRetirar = fondoDisponible > 0;
   // v5.17.0: reserva de caja (modelo reparto del mes). Se muestra cuánto debe
   // quedarse sin tocar y cuánto es retirable sin bajar de la reserva.
+  // v5.18.0: la reserva se calcula sobre la GANANCIA PROYECTADA del mes.
   var res = RN.calc.reservaCaja();
   var reservaHTML = '';
   if (res.reserva > 0) {
@@ -207,9 +210,9 @@ RN.caja.extraer = function () {
     reservaHTML = `
       <div class="card" style="margin:0 0 16px;padding:14px;background:var(--bg)">
         <div class="flex" style="justify-content:space-between;align-items:center;margin-bottom:8px">
-          <strong style="font-size:14px">🔒 Reserva de caja (${res.pct}% de la utilidad neta)</strong>
+          <strong style="font-size:14px">🔒 Reserva de caja (${res.pct}% de la ganancia proyectada)</strong>
         </div>
-        <div class="caja-linea"><span class="muted">Utilidad neta del mes</span><strong>${RN.calc.formatCUP(res.utilidad)}</strong></div>
+        <div class="caja-linea"><span class="muted">Ganancia proyectada del mes</span><strong>${RN.calc.formatCUP(res.base)}</strong></div>
         <div class="caja-linea"><span class="muted">Reserva a mantener (${res.pct}%)</span><strong style="color:${colorRes}">${RN.calc.formatCUP(res.reserva)}</strong></div>
         <div class="caja-linea"><span class="muted">Libre para ti (${100 - res.pct}%)</span><strong>${RN.calc.formatCUP(res.libre)}</strong></div>
         <div class="caja-linea total"><span>Puedes retirar sin tocar la reserva</span><strong style="color:${res.retirable > 0 ? 'var(--success,#16a34a)' : 'var(--danger,#dc2626)'}">${RN.calc.formatCUP(res.retirable)}</strong></div>

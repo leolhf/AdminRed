@@ -13,8 +13,10 @@
  *   8. Ganancia por mega vendido — rentabilidad por mega.
  *   9. Aporte de la sobreventa — megas sin costo = ganancia directa.
  *  11. Caja proyectada — fondo actual + por cobrar − por pagar.
- *  12. Reserva de caja (v5.17.0) — de la utilidad neta del mes, un % (default
- *      70) se reserva y el resto queda libre; incluye depósitos/retiros.
+ *  12. Reserva de caja (v5.17.0 / v5.18.0) — de la GANANCIA PROYECTADA del mes
+ *      (ingreso esperado − costo del paquete), un % (default 70) se reserva y el
+ *      resto queda libre; incluye depósitos/retiros. v5.18.0: base = ganancia
+ *      proyectada (antes utilidad neta).
  *
  * Depende de: calculations.js, ciclos.js, moneda.js, models/investment.js,
  *             ui/render.js, ui/tasa-aviso.js, reportes/ganancia-cortes.js
@@ -337,9 +339,11 @@ RN.panelWidgets.renderCajaProyectada = function () {
 };
 
 /* ============================================================
- * 12. Reserva de caja (v5.17.0)
- * Modelo "reparto del mes": de la utilidad neta del mes, un % configurable
- * (default 70) se reserva en la caja y el resto queda libre para el admin.
+ * 12. Reserva de caja (v5.17.0 / v5.18.0)
+ * Modelo "reparto del mes": de la GANANCIA PROYECTADA del mes (ingreso esperado
+ * − costo del paquete), un % configurable (default 70) se reserva en la caja y
+ * el resto queda libre para el admin.
+ * v5.18.0: la base pasó de la utilidad neta a la ganancia proyectada del mes.
  * ============================================================ */
 RN.panelWidgets.renderReserva = function () {
   var cont = document.getElementById('panel-reserva');
@@ -349,7 +353,7 @@ RN.panelWidgets.renderReserva = function () {
 
   var html = '';
   html += '<div class="caja-proy">';
-  html += '<div class="caja-linea"><span class="muted">Utilidad neta del mes</span><strong>' + RN.calc.formatCUP(res.utilidad) + '</strong></div>';
+  html += '<div class="caja-linea"><span class="muted">Ganancia proyectada del mes</span><strong>' + RN.calc.formatCUP(res.base) + '</strong></div>';
   html += '<div class="caja-linea"><span class="muted">\ud83d\udd12 Reserva a mantener (' + res.pct + '%)</span><strong style="color:' + colorRes + '">' + RN.calc.formatCUP(res.reserva) + '</strong></div>';
   html += '<div class="caja-linea"><span class="muted">\ud83d\udcb8 Libre para ti (' + (100 - res.pct) + '%)</span><strong>' + RN.calc.formatCUP(res.libre) + '</strong></div>';
   html += '<div class="caja-linea"><span class="muted">Fondo de caja actual</span><strong>' + RN.calc.formatCUP(res.fondo) + '</strong></div>';
@@ -361,7 +365,7 @@ RN.panelWidgets.renderReserva = function () {
       RN.calc.formatCUP(res.reserva - res.fondo) + ' para cubrirla.</p>';
   } else {
     html += '<p class="muted" style="margin-top:10px;font-size:12px">' +
-      'De la utilidad neta del mes (' + RN.calc.formatCUP(res.utilidad) + ') se reserva el ' + res.pct +
+      'De la ganancia proyectada del mes (' + RN.calc.formatCUP(res.base) + ') se reserva el ' + res.pct +
       '% (' + RN.calc.formatCUP(res.reserva) + ') y el ' + (100 - res.pct) + '% (' + RN.calc.formatCUP(res.libre) +
       ') queda libre para ti. Ajusta el % en Ajustes.</p>';
   }

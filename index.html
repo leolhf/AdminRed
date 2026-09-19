@@ -110,7 +110,7 @@
         <h3>🏦 Caja proyectada</h3>
         <div id="panel-caja"></div>
       </div>
-      <!-- v5.17.0: Reserva de caja (reparto del mes) + depósitos/retiros -->
+      <!-- v5.17.0: Reserva de caja (reparto del mes) + depósitos/retiros — v5.18.0: base = ganancia proyectada -->
       <div class="card mt-16" id="card-reserva">
         <h3>🔒 Reserva de caja</h3>
         <div id="panel-reserva"></div>
@@ -342,7 +342,7 @@
           <div><label>% de ganancia del mes real para recuperación (préstamos externos) — cuando una inversión es capital prestado (externo), aparte de lo que cobras a los clientes, este % de la ganancia neta real del mes (ingresos − gastos) se suma como aporte extra a la recuperación de ese préstamo. Así recuperas más rápido reflejando la utilidad real del negocio. Ej: 10% → si el mes dejó 15mil de ganancia neta, se suman 1.5mil a la recuperación. Default 0 (solo cuenta lo cobrado a clientes).</label><input type="number" id="cfg-pct-ganancia-mes" step="1" min="0" max="100" value="0" placeholder="Ej: 10"></div>
         </div>
         <div class="form-row">
-          <div><label>% de la utilidad neta del mes a mantener como reserva en caja — de la utilidad neta del mes (ingresos − todos los gastos), este porcentaje se reserva en la caja y NO deberías tocarlo; el resto queda libre para ti. Ej: 70% → si el mes dejó 10mil de utilidad neta, se reservan 7mil y puedes disponer de 3mil. Default 70.</label><input type="number" id="cfg-pct-reserva-caja" step="1" min="0" max="100" value="70" placeholder="Ej: 70"></div>
+          <div><label>% de la ganancia proyectada del mes a mantener como reserva en caja — de la ganancia proyectada del mes (ingreso esperado de los clientes activos − costo del paquete del proveedor), este porcentaje se reserva en la caja y NO deberías tocarlo; el resto queda libre para ti. Ej: 70% → si el mes proyecta 10mil de ganancia, se reservan 7mil y puedes disponer de 3mil. Default 70.</label><input type="number" id="cfg-pct-reserva-caja" step="1" min="0" max="100" value="70" placeholder="Ej: 70"></div>
         </div>
         <button class="btn primary" onclick="RN.config.guardar()">Guardar configuración</button>
       </div>

@@ -548,28 +548,41 @@ RN.calc.fondoCaja = function () {
 
 /**
  * v5.17.0 — Reserva de caja del mes (modelo "reparto del mes").
- * Calcula, sobre la UTILIDAD NETA del mes (ingresos − todos los gastos), cuánto
- * debe quedarse como reserva y cuánto queda libre para el administrador.
- * Devuelve { utilidad, pct, reserva, libre, fondo, retirable, cubierta }.
- *   - reserva   = utilidad × pct/100  (lo que NO se debe tocar)
- *   - libre     = utilidad − reserva  (lo retirable del mes)
+ * v5.18.0 — La base del cálculo cambia de la UTILIDAD NETA del mes a la
+ * GANANCIA PROYECTADA del mes (ingreso esperado de los clientes activos −
+ * costo del paquete del proveedor). Es decir, la reserva se calcula sobre lo
+ * que se espera ganar este mes, no sobre lo ya cobrado/gastado.
+ * Calcula cuánto debe quedarse como reserva y cuánto queda libre para el admin.
+ * Devuelve { base, utilidad, esperado, costoPaquete, pct, reserva, libre, fondo,
+ *           retirable, cubierta }.
+ *   - base      = ganancia proyectada del mes (esperado − costo del paquete)
+ *   - utilidad  = alias de base (retrocompatibilidad con v5.17.0)
+ *   - reserva   = base × pct/100  (lo que NO se debe tocar)
+ *   - libre     = base − reserva  (lo retirable del mes)
  *   - retirable = max(0, fondo − reserva)  (lo que la caja permite retirar hoy)
  *   - cubierta  = fondo >= reserva
- * Si la utilidad del mes es negativa, la reserva es 0 (no se reserva de pérdidas).
+ * Si la ganancia proyectada del mes es negativa, la reserva es 0 (no se reserva
+ * de pérdidas).
  */
 RN.calc.reservaCaja = function (mes) {
   mes = mes || RN.calc.mesActualStr();
   var pct = +RN.state.config.pctReservaCaja;
   if (isNaN(pct)) pct = 70;
   pct = Math.max(0, Math.min(100, pct));
-  var utilidad = RN.calc.utilidadMes(mes);
-  var reserva = utilidad > 0 ? +((utilidad * pct / 100).toFixed(2)) : 0;
-  var libre = +(utilidad - reserva).toFixed(2);
+  // v5.18.0: base = ganancia proyectada del mes (ingreso esperado − costo paquete).
+  var esperado = RN.calc.ingresoEsperadoMes(mes);
+  var costoPaquete = RN.calc.montoPaqueteProveedor();
+  var base = +(esperado - costoPaquete).toFixed(2);
+  var reserva = base > 0 ? +((base * pct / 100).toFixed(2)) : 0;
+  var libre = +(base - reserva).toFixed(2);
   var fondo = RN.calc.fondoCaja();
   var retirable = +Math.max(0, fondo - reserva).toFixed(2);
   return {
     mes: mes,
-    utilidad: +utilidad.toFixed(2),
+    base: base,
+    utilidad: base, // alias retrocompatible (v5.17.0 usaba 'utilidad')
+    esperado: +esperado.toFixed(2),
+    costoPaquete: +costoPaquete.toFixed(2),
     pct: pct,
     reserva: reserva,
     libre: libre,

@@ -225,7 +225,7 @@ RN.migration.migrar = function (data) {
 
   // v8->v9: depósitos a la caja + % de reserva de caja (v5.17.0).
   //   - depositos: array nuevo (aportes de dinero al fondo de caja).
-  //   - config.pctReservaCaja: % de la utilidad neta del mes a reservar (default 70).
+  //   - config.pctReservaCaja: % de la ganancia proyectada del mes a reservar (default 70).
   if (v < 9) {
     data.depositos = data.depositos || [];
     if (data.config) {
