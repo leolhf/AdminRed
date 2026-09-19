@@ -521,6 +521,11 @@ RN.calc.gastosTotales = function () {
   return RN.state.gastos.reduce((s, g) => s + (g.monto || 0), 0);
 };
 
+/** Total de depósitos históricos a la caja (v5.17.0). */
+RN.calc.totalDepositos = function () {
+  return (RN.state.depositos || []).reduce((s, d) => s + (d.monto || 0), 0);
+};
+
 /** Excedentes (vueltos) totales entregados a clientes. */
 RN.calc.excedentesTotales = function () {
   return RN.state.history.reduce(function (s, h) { return s + (h.excedente || 0); }, 0);
@@ -537,7 +542,41 @@ RN.calc.fondoCaja = function () {
   var saldoInicial = RN.state.config.fondoInicial || 0;
   var ingresos = RN.calc.ingresosTotales();
   var gastos = RN.calc.gastosTotales();
-  return +((saldoInicial + ingresos - gastos).toFixed(2));
+  var depositos = RN.calc.totalDepositos();
+  return +((saldoInicial + ingresos + depositos - gastos).toFixed(2));
+};
+
+/**
+ * v5.17.0 — Reserva de caja del mes (modelo "reparto del mes").
+ * Calcula, sobre la UTILIDAD NETA del mes (ingresos − todos los gastos), cuánto
+ * debe quedarse como reserva y cuánto queda libre para el administrador.
+ * Devuelve { utilidad, pct, reserva, libre, fondo, retirable, cubierta }.
+ *   - reserva   = utilidad × pct/100  (lo que NO se debe tocar)
+ *   - libre     = utilidad − reserva  (lo retirable del mes)
+ *   - retirable = max(0, fondo − reserva)  (lo que la caja permite retirar hoy)
+ *   - cubierta  = fondo >= reserva
+ * Si la utilidad del mes es negativa, la reserva es 0 (no se reserva de pérdidas).
+ */
+RN.calc.reservaCaja = function (mes) {
+  mes = mes || RN.calc.mesActualStr();
+  var pct = +RN.state.config.pctReservaCaja;
+  if (isNaN(pct)) pct = 70;
+  pct = Math.max(0, Math.min(100, pct));
+  var utilidad = RN.calc.utilidadMes(mes);
+  var reserva = utilidad > 0 ? +((utilidad * pct / 100).toFixed(2)) : 0;
+  var libre = +(utilidad - reserva).toFixed(2);
+  var fondo = RN.calc.fondoCaja();
+  var retirable = +Math.max(0, fondo - reserva).toFixed(2);
+  return {
+    mes: mes,
+    utilidad: +utilidad.toFixed(2),
+    pct: pct,
+    reserva: reserva,
+    libre: libre,
+    fondo: fondo,
+    retirable: retirable,
+    cubierta: fondo >= reserva
+  };
 };
 
 /** Gastos del mes. */

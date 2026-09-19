@@ -12,6 +12,14 @@ RN.state = {
   history: [],
   /** Array de gastos del negocio */
   gastos: [],
+  /**
+   * v5.17.0 — Array de depósitos a la caja (aportes de dinero al fondo).
+   * Cada entrada: { id, concepto, monto, fecha, mes }.
+   * A diferencia de los gastos (que restan), los depósitos SUMAN al fondo de
+   * caja. Sirven para registrar inyecciones de capital, devoluciones de dinero
+   * prestado a terceros, ventas externas, etc.
+   */
+  depositos: [],
   /** Array de lotes de material compartido */
   inventario: [],
   /** Array de consumo de inventario asignado a clientes */
@@ -87,6 +95,14 @@ RN.state = {
      * Configurable en Ajustes → "% de ganancia del mes para recuperación".
      */
     pctRecuperacionGananciaMes: 0,
+    /**
+     * v5.17.0 — Porcentaje (0-100, default 70) de la UTILIDAD NETA del mes
+     * (ingresos − todos los gastos) que se reserva en la caja y NO debería
+     * tocarse. El resto (100 − pct) queda libre para el administrador.
+     * Modelo "reparto del mes": de la ganancia neta del mes, este % se queda
+     * como reserva y el resto es retirable. Configurable en Ajustes.
+     */
+    pctReservaCaja: 70,
     /**
      * v5.12.4 — Paquete pendiente para el proximo mes. Cuando el usuario hace
      * un cambio en el modal del proveedor y elige "vigente para el proximo mes",

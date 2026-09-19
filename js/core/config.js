@@ -41,6 +41,10 @@ RN.config.cargar = function () {
       if (RN.state.config.pctRecuperacionGananciaMes === undefined || RN.state.config.pctRecuperacionGananciaMes === null) {
         RN.state.config.pctRecuperacionGananciaMes = 0;
       }
+      // v5.17.0: % de la utilidad neta del mes a mantener como reserva en caja (default 70)
+      if (RN.state.config.pctReservaCaja === undefined || RN.state.config.pctReservaCaja === null) {
+        RN.state.config.pctReservaCaja = 70;
+      }
       // v5.12.4: paquete pendiente para el próximo mes (null si no hay)
       if (RN.state.config.paquetePendiente === undefined) {
         RN.state.config.paquetePendiente = null;
@@ -92,6 +96,9 @@ RN.config.guardar = function () {
   // v5.12.9: % de ganancia del mes real destinado a recuperación de préstamos externos
   const pctGanMes = parseFloat((document.getElementById('cfg-pct-ganancia-mes') || {}).value) || 0;
   RN.state.config.pctRecuperacionGananciaMes = Math.max(0, Math.min(100, pctGanMes));
+  // v5.17.0: % de la utilidad neta del mes a mantener como reserva en caja
+  const pctReserva = parseFloat((document.getElementById('cfg-pct-reserva-caja') || {}).value);
+  RN.state.config.pctReservaCaja = isNaN(pctReserva) ? 70 : Math.max(0, Math.min(100, pctReserva));
   // v5.13.5 (ISSUE #4): Eliminar persistir() redundante. RN.storageLocal.guardar()
   // serializa TODO el estado (que incluye config) en localStorage[DATA].
   // persistir() duplicaba la escritura de config en localStorage[CONFIG].
@@ -122,4 +129,6 @@ RN.config.rellenarForm = function () {
   t('cfg-pct-ganancia-inv', (c.pctGananciaInventario === undefined || c.pctGananciaInventario === null) ? 20 : c.pctGananciaInventario);
   // v5.12.9: % de ganancia del mes real para recuperación de préstamos externos
   t('cfg-pct-ganancia-mes', c.pctRecuperacionGananciaMes || 0);
+  // v5.17.0: % de la utilidad neta del mes a mantener como reserva en caja
+  t('cfg-pct-reserva-caja', (c.pctReservaCaja === undefined || c.pctReservaCaja === null) ? 70 : c.pctReservaCaja);
 };

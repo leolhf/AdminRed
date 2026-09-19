@@ -13,6 +13,8 @@
  *   8. Ganancia por mega vendido — rentabilidad por mega.
  *   9. Aporte de la sobreventa — megas sin costo = ganancia directa.
  *  11. Caja proyectada — fondo actual + por cobrar − por pagar.
+ *  12. Reserva de caja (v5.17.0) — de la utilidad neta del mes, un % (default
+ *      70) se reserva y el resto queda libre; incluye depósitos/retiros.
  *
  * Depende de: calculations.js, ciclos.js, moneda.js, models/investment.js,
  *             ui/render.js, ui/tasa-aviso.js, reportes/ganancia-cortes.js
@@ -175,6 +177,19 @@ RN.panelWidgets._alertas = function () {
     }
   }
 
+  // v5.17.0: Reserva de caja no cubierta (el fondo est\u00e1 por debajo de la reserva)
+  if (RN.calc.reservaCaja) {
+    var res = RN.calc.reservaCaja(mes);
+    if (res.reserva > 0 && !res.cubierta) {
+      out.push({
+        nivel: 'amber', icono: '\ud83d\udd12',
+        texto: 'Caja por debajo de la reserva (' + res.pct + '%): faltan ' +
+               RN.calc.formatCUP(res.reserva - res.fondo) + ' para cubrirla',
+        accion: 'RN.caja.extraer()', accionTxt: 'Ver caja'
+      });
+    }
+  }
+
   return out;
 };
 
@@ -322,6 +337,46 @@ RN.panelWidgets.renderCajaProyectada = function () {
 };
 
 /* ============================================================
+ * 12. Reserva de caja (v5.17.0)
+ * Modelo "reparto del mes": de la utilidad neta del mes, un % configurable
+ * (default 70) se reserva en la caja y el resto queda libre para el admin.
+ * ============================================================ */
+RN.panelWidgets.renderReserva = function () {
+  var cont = document.getElementById('panel-reserva');
+  if (!cont) return;
+  var res = RN.calc.reservaCaja();
+  var colorRes = res.cubierta ? 'var(--success)' : 'var(--danger)';
+
+  var html = '';
+  html += '<div class="caja-proy">';
+  html += '<div class="caja-linea"><span class="muted">Utilidad neta del mes</span><strong>' + RN.calc.formatCUP(res.utilidad) + '</strong></div>';
+  html += '<div class="caja-linea"><span class="muted">\ud83d\udd12 Reserva a mantener (' + res.pct + '%)</span><strong style="color:' + colorRes + '">' + RN.calc.formatCUP(res.reserva) + '</strong></div>';
+  html += '<div class="caja-linea"><span class="muted">\ud83d\udcb8 Libre para ti (' + (100 - res.pct) + '%)</span><strong>' + RN.calc.formatCUP(res.libre) + '</strong></div>';
+  html += '<div class="caja-linea"><span class="muted">Fondo de caja actual</span><strong>' + RN.calc.formatCUP(res.fondo) + '</strong></div>';
+  html += '<div class="caja-linea total"><span>Puedes retirar sin tocar la reserva</span><strong style="color:' + (res.retirable > 0 ? 'var(--success)' : 'var(--danger)') + '">' + RN.calc.formatCUP(res.retirable) + '</strong></div>';
+  html += '</div>';
+
+  if (res.reserva > 0 && !res.cubierta) {
+    html += '<p class="muted" style="margin-top:10px;font-size:12px;color:var(--danger)">\u26a0\ufe0f El fondo est\u00e1 por debajo de la reserva. Te faltan ' +
+      RN.calc.formatCUP(res.reserva - res.fondo) + ' para cubrirla.</p>';
+  } else {
+    html += '<p class="muted" style="margin-top:10px;font-size:12px">' +
+      'De la utilidad neta del mes (' + RN.calc.formatCUP(res.utilidad) + ') se reserva el ' + res.pct +
+      '% (' + RN.calc.formatCUP(res.reserva) + ') y el ' + (100 - res.pct) + '% (' + RN.calc.formatCUP(res.libre) +
+      ') queda libre para ti. Ajusta el % en Ajustes.</p>';
+  }
+
+  html += '<div class="flex wrap" style="gap:8px;margin-top:12px">' +
+    '<button class="btn sm primary" onclick="RN.caja.depositar()">\ud83d\udcb0 Depositar</button>' +
+    '<button class="btn sm" onclick="RN.caja.extraer()">\ud83d\udcb5 Retirar</button>' +
+    '<button class="btn sm ghost" onclick="RN.caja.listarDepositos()">\ud83d\udccb Dep\u00f3sitos</button>' +
+    '<button class="btn sm ghost" onclick="RN.caja.listar()">\ud83d\udccb Retiros</button>' +
+    '</div>';
+
+  cont.innerHTML = html;
+};
+
+/* ============================================================
  * Orquestador
  * ============================================================ */
 
@@ -331,4 +386,5 @@ RN.panelWidgets.renderAll = function () {
   RN.panelWidgets.renderCortes();
   RN.panelWidgets.renderRentabilidad();
   RN.panelWidgets.renderCajaProyectada();
+  RN.panelWidgets.renderReserva();
 };

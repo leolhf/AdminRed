@@ -11,6 +11,7 @@ RN.storageLocal.serializar = function () {
     clients: RN.state.clients,
     history: RN.state.history,
     gastos: RN.state.gastos,
+    depositos: RN.state.depositos,
     inventario: RN.state.inventario,
     asignacionesInventario: RN.state.asignacionesInventario,
     investments: RN.state.investments,
@@ -39,6 +40,7 @@ RN.storageLocal.cargar = function () {
     RN.state.clients = data.clients || [];
     RN.state.history = data.history || [];
     RN.state.gastos = data.gastos || [];
+    RN.state.depositos = data.depositos || [];
     RN.state.inventario = data.inventario || [];
     RN.state.asignacionesInventario = data.asignacionesInventario || [];
     RN.state.investments = data.investments || [];
@@ -76,6 +78,7 @@ RN.storageLocal._aplicarData = function (data) {
   RN.state.clients = data.clients || [];
   RN.state.history = data.history || [];
   RN.state.gastos = data.gastos || [];
+  RN.state.depositos = data.depositos || [];
   RN.state.inventario = data.inventario || [];
   RN.state.asignacionesInventario = data.asignacionesInventario || [];
   RN.state.investments = data.investments || [];

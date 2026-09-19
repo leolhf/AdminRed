@@ -13,6 +13,16 @@
  *   RN.caja.listar()       — muestra el historial de retiros
  *   RN.caja.totalRetiros() — suma total de retiros historicos
  *
+ * v5.17.0: DEPÓSITOS a la caja (aportes de dinero al fondo). A diferencia de los
+ * retiros (que se guardan como gastos y restan), los depósitos se guardan en
+ * RN.state.depositos y SUMAN al fondo de caja.
+ *   RN.caja.depositar()        — abre el modal para registrar un depósito
+ *   RN.caja.guardarDeposito()  — guarda el depósito
+ *   RN.caja.listarDepositos()  — muestra el historial de depósitos
+ *   RN.caja.eliminarDeposito() — elimina un depósito
+ * Además, el modal de retiro muestra la RESERVA DE CAJA (RN.calc.reservaCaja)
+ * y advierte si el retiro deja el fondo por debajo de la reserva.
+ *
  * v5.13.2: RESPONSABILIDAD ÚNICA — Las funciones de DEVOLUCIÓN DE PRÉSTAMO
  * (devolucionPrestamo, guardarDevolucion, historialDevoluciones,
  * eliminarDevolucion, _validarDevolucion) se movieron a inversion.js porque
@@ -27,6 +37,160 @@ RN.caja = RN.caja || {};
 RN.caja.CATEGORIA_RETIRO = 'Retiro de caja';
 
 /**
+ * v5.17.0 — Abre el modal para registrar un DEPÓSITO a la caja.
+ * Un depósito es un aporte de dinero al fondo (inyección de capital,
+ * devolución de un préstamo hecho a un tercero, venta externa, etc.).
+ * A diferencia de los gastos, los depósitos SUMAN al fondo de caja.
+ */
+RN.caja.depositar = function () {
+  var fondoActual = RN.calc.fondoCaja();
+  var html = `
+    <div class="modal-header">
+      <h3>💰 Depositar en la caja</h3>
+      <button class="close" onclick="RN.uiComponents.cerrarModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="kpi green" style="margin-bottom:16px">
+        <div class="label">Fondo de caja actual</div>
+        <div class="value">${RN.calc.formatCUP(fondoActual)}</div>
+        <div class="sub">El depósito se sumará a este fondo</div>
+      </div>
+      <div class="form-row">
+        <div>
+          <label>Monto a depositar (CUP) *</label>
+          <input id="deposito-monto" type="number" step="0.01" min="0.01" placeholder="0.00"
+                 oninput="RN.caja._validarDeposito(this)">
+        </div>
+      </div>
+      <div class="form-row">
+        <div>
+          <label>Concepto / Origen</label>
+          <input id="deposito-concepto" placeholder="Ej: Aporte de capital, devolución de préstamo, venta externa...">
+        </div>
+      </div>
+      <div class="form-row">
+        <div>
+          <label>Fecha</label>
+          <input id="deposito-fecha" type="date" value="${new Date().toISOString().slice(0, 10)}">
+        </div>
+      </div>
+      <div id="deposito-aviso" style="margin-top:8px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn ghost" onclick="RN.uiComponents.cerrarModal()">Cancelar</button>
+      <button class="btn primary" onclick="RN.caja.guardarDeposito()" id="deposito-btn-guardar">
+        💰 Depositar
+      </button>
+    </div>`;
+  RN.uiComponents.modal(html);
+};
+
+/** Validación en tiempo real del monto del depósito. */
+RN.caja._validarDeposito = function (input) {
+  var monto = parseFloat(input.value) || 0;
+  var aviso = document.getElementById('deposito-aviso');
+  var btn = document.getElementById('deposito-btn-guardar');
+  if (!aviso) return;
+  if (monto <= 0) {
+    aviso.innerHTML = '<span class="badge warn">Ingresa un monto válido mayor que 0</span>';
+    if (btn) btn.disabled = true;
+  } else {
+    var nuevoFondo = +(RN.calc.fondoCaja() + monto).toFixed(2);
+    aviso.innerHTML = '<span class="badge ok">✓ Fondo después del depósito: ' +
+      RN.calc.formatCUP(nuevoFondo) + '</span>';
+    if (btn) btn.disabled = false;
+  }
+};
+
+/** Guarda el depósito en el estado y refresca la UI. */
+RN.caja.guardarDeposito = function () {
+  var monto = parseFloat(document.getElementById('deposito-monto').value) || 0;
+  if (monto <= 0) {
+    RN.notifyUI.toast('El monto debe ser mayor que 0', 'error');
+    return;
+  }
+  var concepto = document.getElementById('deposito-concepto').value.trim() || 'Depósito a caja';
+  var fecha = document.getElementById('deposito-fecha').value || new Date().toISOString().slice(0, 10);
+  var fechaISO = fecha + 'T00:00:00';
+  var mes = fecha.slice(0, 7);
+
+  RN.state.depositos = RN.state.depositos || [];
+  RN.state.depositos.push({
+    id: RN.calc.uid('deposito'),
+    concepto: concepto,
+    monto: monto,
+    fecha: fechaISO,
+    mes: mes
+  });
+
+  RN.storageLocal.guardar();
+  RN.uiComponents.cerrarModal();
+  RN.render.todo();
+  RN.notifyUI.toast('Depósito registrado: ' + RN.calc.formatCUP(monto), 'success');
+};
+
+/** Muestra el historial de depósitos a la caja en un modal. */
+RN.caja.listarDepositos = function () {
+  var depositos = (RN.state.depositos || [])
+    .slice()
+    .sort(function (a, b) { return new Date(b.fecha) - new Date(a.fecha); });
+
+  var total = RN.calc.totalDepositos();
+
+  var filas = depositos.length === 0
+    ? '<p class="muted" style="text-align:center;padding:24px">No hay depósitos registrados</p>'
+    : depositos.map(function (d) {
+        var fecha = new Date(d.fecha).toLocaleDateString('es-CU');
+        return '<tr>' +
+          '<td>' + fecha + '</td>' +
+          '<td>' + RN.render.esc(d.concepto) + '</td>' +
+          '<td style="text-align:right;font-weight:bold;color:var(--success,#16a34a)">+' + RN.calc.formatCUP(d.monto) + '</td>' +
+          '<td style="text-align:center"><button class="btn sm ghost danger" onclick="RN.caja.eliminarDeposito(\'' + RN.render.escAttr(d.id) + '\')">✕</button></td>' +
+        '</tr>';
+      }).join('');
+
+  var html = `
+    <div class="modal-header">
+      <h3>💰 Historial de depósitos a la caja</h3>
+      <button class="close" onclick="RN.uiComponents.cerrarModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="kpi green" style="margin-bottom:16px">
+        <div class="label">Total depositado</div>
+        <div class="value">${RN.calc.formatCUP(total)}</div>
+        <div class="sub">${depositos.length} depósito(s) en total</div>
+      </div>
+      <table class="table" style="width:100%">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Concepto</th>
+            <th style="text-align:right">Monto</th>
+            <th style="text-align:center">Acción</th>
+          </tr>
+        </thead>
+        <tbody>${filas}</tbody>
+      </table>
+    </div>
+    <div class="modal-footer">
+      <button class="btn ghost" onclick="RN.uiComponents.cerrarModal()">Cerrar</button>
+      <button class="btn primary" onclick="RN.uiComponents.cerrarModal(); RN.caja.depositar()">💰 Nuevo depósito</button>
+    </div>`;
+  RN.uiComponents.modal(html);
+};
+
+/** Elimina un depósito del historial. */
+RN.caja.eliminarDeposito = function (id) {
+  RN.uiComponents.confirm('Eliminar depósito', '¿Eliminar este depósito? El dinero se restará del fondo de caja.', function () {
+    RN.state.depositos = (RN.state.depositos || []).filter(function (d) { return d.id !== id; });
+    RN.storageLocal.guardar();
+    RN.caja.listarDepositos();
+    RN.render.todo();
+    RN.notifyUI.toast('Depósito eliminado. Fondo de caja actualizado.', 'success');
+  }, { danger: true });
+};
+
+/**
  * Abre el modal para registrar una extraccion/retiro del fondo de caja.
  * Muestra el fondo disponible y permite ingresar el monto a retirar.
  */
@@ -34,6 +198,24 @@ RN.caja.extraer = function () {
   var fondoDisponible = RN.calc.fondoCaja();
   var fondoFormateado = RN.calc.formatCUP(fondoDisponible);
   var puedeRetirar = fondoDisponible > 0;
+  // v5.17.0: reserva de caja (modelo reparto del mes). Se muestra cuánto debe
+  // quedarse sin tocar y cuánto es retirable sin bajar de la reserva.
+  var res = RN.calc.reservaCaja();
+  var reservaHTML = '';
+  if (res.reserva > 0) {
+    var colorRes = res.cubierta ? 'var(--success,#16a34a)' : 'var(--danger,#dc2626)';
+    reservaHTML = `
+      <div class="card" style="margin:0 0 16px;padding:14px;background:var(--bg)">
+        <div class="flex" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+          <strong style="font-size:14px">🔒 Reserva de caja (${res.pct}% de la utilidad neta)</strong>
+        </div>
+        <div class="caja-linea"><span class="muted">Utilidad neta del mes</span><strong>${RN.calc.formatCUP(res.utilidad)}</strong></div>
+        <div class="caja-linea"><span class="muted">Reserva a mantener (${res.pct}%)</span><strong style="color:${colorRes}">${RN.calc.formatCUP(res.reserva)}</strong></div>
+        <div class="caja-linea"><span class="muted">Libre para ti (${100 - res.pct}%)</span><strong>${RN.calc.formatCUP(res.libre)}</strong></div>
+        <div class="caja-linea total"><span>Puedes retirar sin tocar la reserva</span><strong style="color:${res.retirable > 0 ? 'var(--success,#16a34a)' : 'var(--danger,#dc2626)'}">${RN.calc.formatCUP(res.retirable)}</strong></div>
+        ${res.cubierta ? '' : '<div class="muted" style="font-size:12px;margin-top:6px;color:var(--danger,#dc2626)">⚠️ El fondo está por debajo de la reserva. Te faltan ' + RN.calc.formatCUP(res.reserva - res.fondo) + ' para cubrirla.</div>'}
+      </div>`;
+  }
 
   var html = `
     <div class="modal-header">
@@ -48,9 +230,11 @@ RN.caja.extraer = function () {
         <div class="sub" style="font-size:11px;margin-top:4px;color:#666">
           Saldo inicial: ${RN.calc.formatCUP(RN.state.config.fondoInicial || 0)} ·
           Ingresos: ${RN.calc.formatCUP(RN.calc.ingresosTotales())} ·
+          Depósitos: ${RN.calc.formatCUP(RN.calc.totalDepositos())} ·
           Gastos: ${RN.calc.formatCUP(RN.calc.gastosTotales())}
         </div>
       </div>
+      ${reservaHTML}
       <div class="form-row">
         <div>
           <label>Monto a retirar (CUP) *</label>
@@ -92,17 +276,29 @@ RN.caja._validarMonto = function (input, fondoDisponible) {
   var btn = document.getElementById('retiro-btn-guardar');
   if (!aviso) return;
 
+  // v5.17.0: reserva de caja (modelo reparto del mes). Solo se advierte, no se
+  // bloquea (decisión del usuario: 3-A).
+  var res = RN.calc.reservaCaja();
+  var avisoReserva = '';
+  if (res.reserva > 0 && monto > 0) {
+    var fondoRestante = +(fondoDisponible - monto).toFixed(2);
+    if (fondoRestante < res.reserva) {
+      avisoReserva = '<div style="margin-top:6px"><span class="badge due">🔒 Este retiro deja la caja por debajo de la reserva (' +
+        RN.calc.formatCUP(res.reserva) + '). Fondo restante: ' + RN.calc.formatCUP(fondoRestante) + '.</span></div>';
+    }
+  }
+
   if (monto <= 0) {
     aviso.innerHTML = '<span class="badge warn">Ingresa un monto válido mayor que 0</span>';
     if (btn) btn.disabled = true;
   } else if (monto > fondoDisponible) {
     aviso.innerHTML = '<span class="badge due">⚠️ El monto excede el fondo disponible (' +
-      RN.calc.formatCUP(fondoDisponible) + '). El fondo quedará negativo.</span>';
+      RN.calc.formatCUP(fondoDisponible) + '). El fondo quedará negativo.</span>' + avisoReserva;
     if (btn) btn.disabled = false; // permitimos pero advertimos
   } else {
     var restante = +(fondoDisponible - monto).toFixed(2);
     aviso.innerHTML = '<span class="badge ok">✓ Fondo restante después del retiro: ' +
-      RN.calc.formatCUP(restante) + '</span>';
+      RN.calc.formatCUP(restante) + '</span>' + avisoReserva;
     if (btn) btn.disabled = false;
   }
 };

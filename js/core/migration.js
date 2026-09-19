@@ -5,7 +5,7 @@
 
 RN.migration = RN.migration || {};
 
-RN.migration.VERSION_ESQUEMA = 8;
+RN.migration.VERSION_ESQUEMA = 9;
 
 /** Aplica migraciones al blob de datos cargado. */
 RN.migration.migrar = function (data) {
@@ -221,6 +221,19 @@ RN.migration.migrar = function (data) {
       });
     }
     v = 8;
+  }
+
+  // v8->v9: depósitos a la caja + % de reserva de caja (v5.17.0).
+  //   - depositos: array nuevo (aportes de dinero al fondo de caja).
+  //   - config.pctReservaCaja: % de la utilidad neta del mes a reservar (default 70).
+  if (v < 9) {
+    data.depositos = data.depositos || [];
+    if (data.config) {
+      if (data.config.pctReservaCaja === undefined || data.config.pctReservaCaja === null) {
+        data.config.pctReservaCaja = 70;
+      }
+    }
+    v = 9;
   }
 
   // Reconstruir recuperación de inversión desde el historial si está en 0.

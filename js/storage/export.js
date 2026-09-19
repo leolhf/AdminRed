@@ -62,7 +62,7 @@ RN.export._validarEstructura = function (data) {
     }
   });
   // Las claves que deben ser arrays
-  var clavesArray = ['clients', 'history', 'gastos', 'inventario', 'investments', 'planes', 'descuentos', 'snapshots'];
+  var clavesArray = ['clients', 'history', 'gastos', 'depositos', 'inventario', 'investments', 'planes', 'descuentos', 'snapshots'];
   clavesArray.forEach(function (k) {
     if (k in data && !Array.isArray(data[k])) {
       errores.push('La clave "' + k + '" debe ser un array, no ' + typeof data[k]);
@@ -96,6 +96,7 @@ RN.export._resumenBackup = function (data) {
   líneas.push('Cobros (historial): ' + cant(data.history));
   líneas.push('Inversiones: ' + cant(data.investments));
   líneas.push('Gastos: ' + cant(data.gastos));
+  líneas.push('Depósitos a caja: ' + cant(data.depositos));
   líneas.push('Inventario: ' + cant(data.inventario));
   líneas.push('Descuentos: ' + cant(data.descuentos));
   líneas.push('Snapshots: ' + cant(data.snapshots));

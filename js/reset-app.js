@@ -15,6 +15,7 @@ RN.resetApp.confirmar = function () {
       RN.state.clients = [];
       RN.state.history = [];
       RN.state.gastos = [];
+      RN.state.depositos = [];
       RN.state.inventario = [];
       RN.state.asignacionesInventario = [];
       RN.state.investments = [];
